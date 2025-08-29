@@ -1,0 +1,16 @@
+{
+  "lights": "",
+  "masters": "",
+  "work1": "",
+  "work2": "",
+  "useTwo": false,
+  "doCal": false,
+  "doCC": false,
+  "doSSMeasure": false,
+  "doSSOutput": false,
+  "doSA": false,
+  "doLN": false,
+  "doNSG": false,
+  "doII": false,
+  "doDrizzle": false
+}
