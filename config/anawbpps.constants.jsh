@@ -1,6 +1,9 @@
 // ============================================================================
 // ANAWBPPS (Advanced Not Another WBPP Script) — Constants
 // ============================================================================
+// This file is included into the main script and contains all constants,
+// so that folder names, file names, and UI parameters can be changed in one place.
+// ============================================================================
 
 // --- project defaults (stored inside Work1)
 var PROJECT_DEFAULTS_DIRNAME  = "!!!WORK_LIGHTS";            // main working dir name
@@ -20,7 +23,8 @@ var DIR_TRASH          = "!!!TRASH";             // rejected frames
 var SUMMARY_WIDTH  = 640;  // summary dialog width
 var SUMMARY_HEIGHT = 220;  // summary dialog height
 
-// --- workflow toggles metadata (so UI can be generated programmatically later)
+// --- workflow flags metadata
+// This can be used to auto-generate checkboxes in the UI and summary output
 var WORKFLOW_FLAGS = [
   { key: "doCal",       label: "ImageCalibration",              short: "Cal"  },
   { key: "doCC",        label: "CosmeticCorrection",            short: "CC"   },
