@@ -7,10 +7,6 @@
 
 // --- project defaults (stored inside Work1)
 var PROJECT_DEFAULTS_DIRNAME  = "!!!WORK_LIGHTS";            // main working dir name
-var PROJECT_DEFAULTS_FILENAME = "anawbpps.project.json";     // project settings file name
-
-// --- global defaults (single file next to the script, in /config)
-var GLOBAL_DEFAULTS_FILENAME  = "anawbpps.defaults.json";    // global settings file name
 
 // --- subfolder names inside Work1/!!!WORK_LIGHTS
 var DIR_APPROVED       = "!Approved";            // approved frames (SubframeSelector Output)
