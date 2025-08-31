@@ -1,329 +1,286 @@
-/* modules/masters_parse.jsh
-   Master metadata parser: prefer FITS headers, fallback to filename tokens.
-   No disk I/O. Pure string parsing and normalization.
+/*=============================================================================
+  modules/masters_parse.jsh
+  Exports: MP_parseMaster(path)
+  Policy:
+    - Prefer FITS/XISF headers.
+    - If header field is missing, fall back to filename tokens.
+    - If setup is still missing, the caller derives it from the path.
+  Note:
+    This version stubs header reading (to be implemented next step),
+    so it currently relies on filename parsing while keeping the correct
+    precedence structure for future header support.
+=============================================================================*/
 
-   API:
-     MP_parseMaster(path, hdrObj) -> {
-       type,            // "BIAS"|"DARK"|"FLAT"|"LIGHT"|null
-       TELESCOP, INSTRUME, setup, // setup = TELESCOP + "_" + INSTRUME (if both exist)
-       FILTER,          // normalized: L,R,G,B,Ha,OIII,SII (or raw if unknown)
-       XBINNING, YBINNING, BINNING, // numbers + "XxY"
-       GAIN, OFFSET, USBLIMIT,      // numbers
-       READOUTM,        // string
-       SET_TEMP, CCD_TEMP,          // numbers (°C)
-       EXPOSURE,        // seconds (number), if known
-       DATE_OBS_ISO,    // ISO string "YYYY-MM-DDThh:mm:ss[.sss]Z" or "YYYY-MM-DD"
-       FOCALLEN,        // mm (number) if present
-       OBJECT,          // target name if present
-       sources,         // map: field -> "header"|"filename"|"derived"
-       warnings         // array of strings
-     }
-*/
+// --- tiny utils ------------------------------------------------------------
 
-// ------------------------------ helpers ------------------------------
-function MP_join(){
-  var a=[]; for (var i=0;i<arguments.length;++i) if (arguments[i]) a.push(arguments[i]);
-  var p=a.join('/'); return p.replace(/\\/g,'/').replace(/\/+/g,'/');
+function MP_norm(p){ return String(p||"").replace(/\\/g,'/'); }
+
+function MP_ext(path){
+  var s = String(path), i = s.lastIndexOf('.');
+  return (i>=0) ? s.substring(i+1).toLowerCase() : "";
 }
-function MP_numOrNull(v){
-  if (v===null || v===undefined || v==="") return null;
-  var n = Number(v);
+
+function MP_numOrNull(x){
+  var n = Number(x);
   return isFinite(n) ? n : null;
 }
-function MP_trimQuotes(s){
-  if (typeof s !== 'string') return s;
-  return s.replace(/^['"\s]+|['"\s]+$/g,'');
-}
-function MP_header(hdr, key){
-  if (!hdr) return null;
-  // accept exact or case-insensitive
-  if (hdr.hasOwnProperty(key)) return hdr[key];
-  var u = String(key).toUpperCase();
-  for (var k in hdr) if (hdr.hasOwnProperty(k) && String(k).toUpperCase()===u) return hdr[k];
-  return null;
-}
-function MP_pick(dst, key, srcVal, srcName, transform){
-  if (srcVal===null || srcVal===undefined || srcVal==="") return false;
-  var v = transform ? transform(srcVal) : srcVal;
-  if (v===null || v===undefined || v==="") return false;
-  dst[key] = v;
-  dst.sources[key] = srcName;
-  return true;
+
+// Normalize filter tokens
+function MP_normFilter(f){
+  if (!f) return null;
+  var s = String(f).toUpperCase();
+  if (s === "H-ALPHA" || s === "Hα" || s === "H_A" || s === "HA") return "HA";
+  if (s === "O3" || s === "OIII") return "OIII";
+  if (s === "S2" || s === "SII")  return "SII";
+  if (s === "L" || s === "R" || s === "G" || s === "B") return s;
+  return s; // keep as-is if custom filter (OK for flats)
 }
 
-// ------------------------- filename token parsing -------------------------
-function MP_tokensFromName(path){
-  var name = String(path);
-  // strip dirs
-  var i = name.lastIndexOf('/'); var j = name.lastIndexOf('\\');
-  var cut = Math.max(i,j);
-  if (cut>=0) name = name.substring(cut+1);
-  // drop extension
-  var dot = name.lastIndexOf('.');
-  if (dot>0) name = name.substring(0,dot);
-  // split by underscores, keep spaces as-is
-  return name.split('_');
+// --- header reader (stub for now) ------------------------------------------
+// When we implement it, fill fields from headers and return an object.
+// For now it returns an empty object to enforce filename fallback.
+function MP_tryReadHeaders(path){
+  // TODO: implement with FileFormat / FileFormatInstance to read FITS/XISF
+  // keywords without loading the image.
+  return {};
 }
 
-// e.g. "MasterBias"|"MasterDark"|"MasterF"|"MasterFlat"
-function MP_typeFromNameTokens(toks){
-  for (var i=0;i<toks.length;++i){
-    var t = toks[i].toLowerCase();
-    if (t.indexOf('masterbias')===0 || t==='bias') return "BIAS";
-    if (t.indexOf('masterdark')===0 || t==='dark') return "DARK";
-    if (t.indexOf('masterflat')===0 || t==='flat' || t==='masterf') return "FLAT";
-    if (t==='light' || t==='lights') return "LIGHT";
-  }
-  return null;
-}
+// --- filename parser --------------------------------------------------------
+function MP_parseByName(path){
+  var name = File.extractNameAndExtension(path);
+  // Remove accidental noise like exclamation marks in temperature tokens, etc.
+  var clean = name.replace(/!+/g, "");
+  var up    = clean.toUpperCase();
 
-function MP_filterNormalize(s){
-  if (!s) return null;
-  var x = s.toUpperCase().replace(/\s+/g,'');
-  if (x==='L') return 'L';
-  if (x==='R') return 'R';
-  if (x==='G') return 'G';
-  if (x==='B') return 'B';
-  if (x==='HA' || x==='H-ALPHA' || x==='Hα' || x==='HII') return 'Ha';
-  if (x==='OIII' || x==='O3' || x==='O-III') return 'OIII';
-  if (x==='SII'  || x==='S2' || x==='S-II')  return 'SII';
-  return s; // leave as-is if unknown (user may have other filters)
-}
+  // type
+  var type = up.indexOf("MASTERBIAS")>=0 ? "BIAS" :
+             up.indexOf("MASTERDARK")>=0 ? "DARK" :
+             (up.indexOf("MASTERF")>=0 || up.indexOf("MASTERFLAT")>=0 ? "FLAT" : null);
 
-function MP_parseDateFromName(toks){
-  // Accept YYYY_MM_DD or YYYY-MM-DD
-  var re1 = /^(\d{4})[_-](\d{2})[_-](\d{2})$/;
-  for (var i=0;i<toks.length;++i){
-    var m = re1.exec(toks[i]);
-    if (m){
-      return m[1] + "-" + m[2] + "-" + m[3];
-    }
-  }
-  return null;
-}
+  // setup: everything before first "_Master"
+  var setup = null;
+  var mSetup = clean.match(/^(.+?)_Master/i);
+  if (mSetup) setup = mSetup[1];
 
-function MP_parseBinningFromName(toks){
-  // "Bin1x1" or "1x1"
-  var reA = /^Bin(\d+)x(\d+)$/i;
-  var reB = /^(\d+)x(\d+)$/;
-  for (var i=0;i<toks.length;++i){
-    var t = toks[i];
-    var mA = reA.exec(t); if (mA) return { X: Number(mA[1]), Y: Number(mA[2]) };
-    var mB = reB.exec(t); if (mB) return { X: Number(mB[1]), Y: Number(mB[2]) };
+  // instrument/camera and telescope from common patterns
+  // e.g. CYPRUS_FSQ106_F3_MasterDark_2024_..._QHY600M_...
+  var camera = null, telescope = null;
+  var parts = clean.split("_");
+  // Heuristic: first token(s) before "_Master" belong to telescope rig
+  if (setup) telescope = setup;
+  // Camera: look for tokens like QHY*, ASI*, etc.
+  for (var i=0;i<parts.length;++i){
+    if (/^(QHY|ASI|ZWO|FLI|SBIG|ATIK)/i.test(parts[i])){ camera = parts[i]; break; }
   }
-  return null;
-}
-function MP_parseGainOffsetUSB(toks){
-  var out={};
-  for (var i=0;i<toks.length;++i){
-    var t = toks[i];
-    var mG = /^G(\d+)$/i.exec(t);    if (mG) out.gain = Number(mG[1]);
-    var mO = /^OS?(\d+)$/i.exec(t);  if (mO) out.offset = Number(mO[1]); // allow "OS40" or "O40"
-    var mU = /^U(\d+)$/i.exec(t);    if (mU) out.usb = Number(mU[1]);
-  }
-  return out;
-}
-function MP_parseExposureFromName(toks){
-  // "015s" => 15; "3s"=>"3"
-  for (var i=0;i<toks.length;++i){
-    var m = /^(\d{1,4})s$/i.exec(toks[i]);
-    if (m) return Number(m[1]);
-  }
-  return null;
-}
-function MP_parseTempFromName(toks){
-  // "..._-10C", "__0C", "5C"
-  for (var i=0;i<toks.length;++i){
-    var m = /^-?\d+C$/i.exec(toks[i]);
-    if (m){
-      var n = Number(toks[i].slice(0,-1));
-      return n;
-    }
-  }
-  return null;
-}
-function MP_guessTeleAndCameraFromName(toks){
-  // We expect pattern: [TELESCOP] _ MasterXxx _ [optional date] _ [INSTRUME] _ ...
-  // TELESCOP may itself contain underscores, so safer approach:
-  // find "Master" token index, then camera likely appears in next 1..3 tokens (uppercase model).
-  var idxMaster=-1;
-  for (var i=0;i<toks.length;++i){
-    if (/^Master/i.test(toks[i]) || /^Bias$|^Dark$|^Flat$|^Light$/i.test(toks[i])){
-      idxMaster = i; break;
-    }
-  }
-  var tele = null, cam = null;
 
-  if (idxMaster > 0){
-    // TELESCOP = join tokens 0..idxMaster-1 with '_'
-    tele = toks.slice(0, idxMaster).join('_');
-    // Scan forward for camera-like token (e.g., QHY600M, ASI2600MM, etc.)
-    for (var k=idxMaster+1; k<Math.min(toks.length, idxMaster+5); ++k){
-      if (/^(QHY|ASI|ZWO|CCD|CMOS|FLI|SBIG|ATIK|QSI)[A-Za-z0-9\-]+$/i.test(toks[k])){
-        cam = toks[k];
-        break;
-      }
-      // fallback: an all-caps alnum token ending with M/MM
-      if (/^[A-Z0-9\-]+M{1,2}$/.test(toks[k])){
-        cam = toks[k];
-        break;
-      }
-    }
-  }
-  return { tele: tele, cam: cam };
-}
-function MP_extractReadoutFromName(toks){
-  // heuristics: any token with spaces that isn't date/bin/gain/etc and sits near Gxx
-  // Simpler: take the longest token between camera and Gxx.
-  var gIdx=-1, camIdx=-1;
-  for (var i=0;i<toks.length;++i){
-    if (/^G\d+$/i.test(toks[i])) gIdx=i;
-    if (/^(QHY|ASI|ZWO|FLI|SBIG|ATIK|QSI)/i.test(toks[i]) || /^[A-Z0-9\-]+M{1,2}$/.test(toks[i])) camIdx=i;
-  }
-  if (camIdx>=0 && gIdx>camIdx){
-    var cand = toks.slice(camIdx+1, gIdx);
-    if (cand.length){
-      // join back with spaces (original had spaces)
-      return cand.join(' ').replace(/\s+/g,' ').trim();
-    }
-  }
-  // Another case (flats): after filter token, before Gxx
-  var filtIdx=-1;
-  for (var j=0;j<toks.length;++j){
-    if (/^(L|R|G|B|Ha|HA|OIII|O3|SII|S2)$/i.test(toks[j])) { filtIdx=j; break; }
-  }
-  if (filtIdx>=0 && gIdx>filtIdx){
-    var cand2 = toks.slice(filtIdx+1, gIdx);
-    if (cand2.length) return cand2.join(' ').replace(/\s+/g,' ').trim();
-  }
-  return null;
-}
+  // readout: capture middle phrase like "High Gain Mode 16BIT"
+  var readout = null;
+  var mRead = clean.match(/(High Gain Mode\s*\d*BIT|Low Gain Mode\s*\d*BIT)/i);
+  if (mRead) readout = mRead[1];
 
-// ----------------------- main merge routine -----------------------
-function MP_parseMaster(path, hdr){
-  var out = {
-    type: null,
-    TELESCOP: null, INSTRUME: null, setup: null,
-    FILTER: null,
-    XBINNING: null, YBINNING: null, BINNING: null,
-    GAIN: null, OFFSET: null, USBLIMIT: null,
-    READOUTM: null,
-    SET_TEMP: null, CCD_TEMP: null,
-    EXPOSURE: null,
-    DATE_OBS_ISO: null,
-    FOCALLEN: null,
-    OBJECT: null,
-    sources: {},
-    warnings: []
+  // binning: Bin1x1 or 1x1
+  var binning = null;
+  var mBin = clean.match(/(?:BIN)?(\d+)x(\d+)/i);
+  if (mBin) binning = (mBin[1] + "x" + mBin[2]);
+
+  // gain / offset / usb
+  var gain   = null;
+  var offset = null;
+  var mG = clean.match(/_G(\d+)/i);
+  if (mG) gain = MP_numOrNull(mG[1]);
+  var mO = clean.match(/_OS(\d+)/i);
+  if (mO) offset = MP_numOrNull(mO[1]);
+  // usb not needed in index, so ignore
+
+  // temperature like _0C or _-20C
+  var tempC = null;
+  var mT = clean.match(/_(-?\d+)C/i);
+  if (mT) tempC = MP_numOrNull(mT[1]);
+
+  // exposure like _015s (3 digits seconds) — for DARKs only
+  var exposureSec = null;
+  var mExp = clean.match(/_(\d{3})s/i);
+  if (mExp) exposureSec = MP_numOrNull(mExp[1]);
+
+  // filter (only for flats): _L_, _R_, _G_, _B_, _HA_, _OIII_, _SII_
+  var filter = null;
+  var mF = clean.match(/_(L|R|G|B|HA|H\-ALPHA|OIII|O3|SII|S2)_/i);
+  if (mF) filter = MP_normFilter(mF[1]);
+
+  // date: accept YYYY_MM_DD or YYYY-MM-DD
+  var date = null;
+  var mD = clean.match(/(\d{4}[-_]\d{2}[-_]\d{2})/);
+  if (mD) date = mD[1].replace(/_/g, "-"); // normalize to YYYY-MM-DD
+
+  return {
+    // common
+    path: MP_norm(path),
+    type: type,            // BIAS/DARK/FLAT or null
+    setup: setup,          // may be null (caller may fill from path)
+    telescope: telescope,  // from setup (heuristic)
+    camera: camera,        // INSTRUME guess
+    readout: readout || null,
+    binning: binning || null,
+    gain: gain,
+    offset: offset,
+    tempC: tempC,
+    date: date,
+    // dark-only
+    exposureSec: exposureSec,
+    // flat-only
+    filter: filter
   };
+}
 
-  var toks = MP_tokensFromName(path);
-
-  // --- TYPE ---
-  var typeFromHdr = MP_header(hdr, 'IMAGETYP');
-  if (typeFromHdr) typeFromHdr = MP_trimQuotes(String(typeFromHdr)).toUpperCase();
-  if (typeFromHdr === 'BIAS' || typeFromHdr === 'DARK' || typeFromHdr === 'FLAT' || typeFromHdr === 'LIGHT')
-    MP_pick(out, 'type', typeFromHdr, 'header');
-  else {
-    var tn = MP_typeFromNameTokens(toks);
-    if (tn) MP_pick(out, 'type', tn, 'filename');
+// --- main exported function -------------------------------------------------
+function MP_parseMaster(path){
+  // ---- helpers ----
+  function _ext(p){ var s=String(p); var i=s.lastIndexOf('.'); return i>=0 ? s.substring(i+1).toLowerCase() : ""; }
+  function _name(p){ return File.extractNameAndExtension(p); }
+  function _isFitsLike(p){ var e=_ext(p); return e==="fit"||e==="fits"||e==="xisf"; }
+  function _isCamera(tok){
+    return /^(QHY\d+\w*|ASI\d+\w*|QSI\d+\w*|SBIG\w*|FLI\w*|ATIK\w*|MORAVIAN\w*|ZWO\w*)$/i.test(tok);
   }
 
-  // --- TELESCOP / INSTRUME ---
-  MP_pick(out, 'TELESCOP', MP_trimQuotes(MP_header(hdr,'TELESCOP')), 'header');
-  MP_pick(out, 'INSTRUME', MP_trimQuotes(MP_header(hdr,'INSTRUME')), 'header');
+  if (!_isFitsLike(path))
+    throw new Error("Not a FITS/XISF: " + path);
 
-  if (!out.TELESCOP || !out.INSTRUME){
-    var guess = MP_guessTeleAndCameraFromName(toks);
-    if (!out.TELESCOP && guess.tele){
-      MP_pick(out, 'TELESCOP', guess.tele, 'filename');
-      out.warnings.push("TELESCOP from filename");
+  var fname  = _name(path);                 // без расширения
+  var tokens = fname.split(/[_\s]+/);       // делим по "_" и пробелам
+  var upTok  = []; for (var i=0;i<tokens.length;++i) upTok.push(tokens[i].toUpperCase());
+
+  // ---- пропускаем DarkFlats/FlatDarks полностью ----
+  if (/\b(DARKFLAT|FLATDARK)\b/i.test(fname))
+    throw new Error("DarkFlat/FlatDark skipped");
+
+  // ---- найти позицию токена Master* ----
+  var masterIdx = -1;
+  for (var t=0; t<upTok.length; ++t){
+    if (/^MASTER/.test(upTok[t])) { masterIdx = t; break; }
+  }
+
+  // ---- TYPE по токену Master* ----
+  var type = "UNKNOWN";
+  if (masterIdx >= 0){
+    var mt = upTok[masterIdx];
+    if (/^MASTERBIAS$/.test(mt)) type = "BIAS";
+    else if (/^MASTERDARK$/.test(mt)) type = "DARK";
+    else if (/^MASTERF(LAT)?$/.test(mt)) type = "FLAT";
+    else if (mt === "MASTER" && masterIdx+1 < upTok.length){
+      var nxt = upTok[masterIdx+1];
+      if (nxt==="BIAS") type = "BIAS";
+      else if (nxt==="DARK") type = "DARK";
+      else if (nxt==="FLAT") type = "FLAT";
     }
-    if (!out.INSTRUME && guess.cam){
-      MP_pick(out, 'INSTRUME', guess.cam, 'filename');
-      out.warnings.push("INSTRUME from filename");
-    }
-  }
-  if (out.TELESCOP && out.INSTRUME){
-    out.setup = out.TELESCOP + "_" + out.INSTRUME;
-    out.sources.setup = (out.sources.TELESCOP==='header' && out.sources.INSTRUME==='header') ? 'derived' : 'derived';
   }
 
-  // --- FILTER ---
-  if (MP_pick(out, 'FILTER', MP_trimQuotes(MP_header(hdr,'FILTER')), 'header', MP_filterNormalize)) {
-    // ok
-  } else {
-    // single token filter in name (e.g., "_L_")
-    for (var i=0;i<toks.length;++i){
-      var f = MP_filterNormalize(toks[i]);
-      if (f && /^(L|R|G|B|Ha|OIII|SII)$/i.test(f)){
-        MP_pick(out, 'FILTER', f, 'filename'); break;
+  // ---- TELESCOP из левой части имени до Master* ----
+  var telescope = "";
+  if (masterIdx > 0){
+    telescope = tokens.slice(0, masterIdx).join("_");
+  }
+
+  // ---- INSTRUME (камера) как отдельный токен справа ----
+  var camera = "";
+  for (var j = masterIdx >= 0 ? masterIdx+1 : 0; j < tokens.length; ++j){
+    if (_isCamera(tokens[j])){ camera = tokens[j]; break; }
+  }
+
+  // ---- SETUP: только TELESCOP + "_" + INSTRUME, иначе UNKNOWN_SETUP ----
+  var setup = (telescope && camera) ? (telescope + "_" + camera) : "UNKNOWN_SETUP";
+
+  // ---- filter (берём только справа от Master) ----
+  var filter = null;
+  for (var k = (masterIdx>=0? masterIdx+1 : 0); k < upTok.length; ++k){
+    var tk = upTok[k];
+    if (/^(L|R|G|B|HA|H-ALPHA|OIII|O3|SII|S2)$/.test(tk)){
+      filter = (tk === "H-ALPHA") ? "HA" : (tk === "O3" ? "OIII" : (tk === "S2" ? "SII" : tk));
+      break;
+    }
+  }
+
+  // ---- binning ----
+  var binning = "";
+  for (var b = 0; b < tokens.length; ++b){
+    var m = tokens[b].match(/^(?:Bin)?(\d+)x(\d+)$/i);
+    if (m){ binning = m[1]+"x"+m[2]; break; }
+  }
+
+  // ---- gain / offset / usbLimit ----
+  var gain = null, offset = null, usbLimit = null;
+  for (var g = 0; g < tokens.length; ++g){
+    var tg = tokens[g];
+
+    var mG  = tg.match(/^G(\d+)$/i);      if (mG)  gain     = parseInt(mG[1],10);
+    var mOS = tg.match(/^OS(\d+)$/i);     if (mOS) offset   = parseInt(mOS[1],10);
+
+    // USB limit: поддерживаем U50 и USB50
+    var mU  = tg.match(/^U(\d+)$/i);      if (mU)  usbLimit = parseInt(mU[1],10);
+    var mUSB= tg.match(/^USB(\d+)$/i);    if (mUSB) usbLimit= parseInt(mUSB[1],10);
+  }
+
+  // ---- tempC: допускаем точку/расширение после 'C'
+  var tempC = null;
+  (function(){
+    var m = fname.match(/(^|[^A-Za-z0-9])(-?\d{1,3})C(?=$|[^A-Za-z0-9])/i);
+    if (m) tempC = parseInt(m[2],10);
+    else {
+      for (var h = 0; h < tokens.length; ++h){
+        var mt = tokens[h].match(/^(-?\d{1,3})C$/i);
+        if (mt){ tempC = parseInt(mt[1],10); break; }
       }
     }
-  }
+  })();
 
-  // --- BINNING ---
-  var xb = MP_numOrNull(MP_header(hdr,'XBINNING'));
-  var yb = MP_numOrNull(MP_header(hdr,'YBINNING'));
-  if (xb) { MP_pick(out, 'XBINNING', xb, 'header'); }
-  if (yb) { MP_pick(out, 'YBINNING', yb, 'header'); }
-  if ((!out.XBINNING || !out.YBINNING)){
-    var b = MP_parseBinningFromName(toks);
-    if (b){
-      if (!out.XBINNING) { MP_pick(out, 'XBINNING', b.X, 'filename'); out.warnings.push("XBINNING from filename"); }
-      if (!out.YBINNING) { MP_pick(out, 'YBINNING', b.Y, 'filename'); out.warnings.push("YBINNING from filename"); }
+  // ---- date: YYYY-MM-DD, YYYY_MM_DD, либо YYYY-MM / YYYY_MM
+  var date = null;
+  (function(){
+    var m3 = fname.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
+    if (m3){ date = m3[1]+"-"+m3[2]+"-"+m3[3]; return; }
+    var m2 = fname.match(/(\d{4})[-_](\d{2})(?![-_]\d{2})/);
+    if (m2){ date = m2[1]+"-"+m2[2]; return; }
+  })();
+
+  // ---- exposureSec: секунды (целые/дробные), исключаем 'us'
+  var exposureSec = null;
+  (function(){
+    var m = fname.match(/(\d+(?:\.\d+)?)s(?![A-Za-z])/i);
+    if (m){
+      var v = parseFloat(m[1]);
+      if (!isNaN(v)) exposureSec = v;
+    }
+  })();
+
+  // ---- readout (напр. "High Gain Mode 16BIT") ----
+  var readout = "";
+  for (var r = 0; r < upTok.length; ++r){
+    if (upTok[r] === "HIGH" && r+2 < upTok.length && upTok[r+1]==="GAIN" && upTok[r+2]==="MODE"){
+      var s = [tokens[r], tokens[r+1], tokens[r+2]];
+      if (r+3 < tokens.length && /BIT$/i.test(tokens[r+3])) s.push(tokens[r+3]);
+      readout = s.join(" ");
+      break;
     }
   }
-  if (out.XBINNING && out.YBINNING) out.BINNING = out.XBINNING + "x" + out.YBINNING;
 
-  // --- GAIN / OFFSET / USB ---
-  if (!MP_pick(out, 'GAIN',   MP_numOrNull(MP_header(hdr,'GAIN')), 'header')){
-    var go = MP_parseGainOffsetUSB(toks);
-    if (go.gain!=null){ out.GAIN = go.gain; out.sources.GAIN='filename'; out.warnings.push("GAIN from filename"); }
-    if (go.offset!=null){ out.OFFSET = go.offset; out.sources.OFFSET='filename'; out.warnings.push("OFFSET from filename"); }
-    if (go.usb!=null){ out.USBLIMIT = go.usb; out.sources.USBLIMIT='filename'; out.warnings.push("USBLIMIT from filename"); }
-  } else {
-    // still try to fill missing OFFSET/USB from filename if header lacks them
-    var go2 = MP_parseGainOffsetUSB(toks);
-    if (out.OFFSET==null && go2.offset!=null){ out.OFFSET = go2.offset; out.sources.OFFSET='filename'; out.warnings.push("OFFSET from filename"); }
-    if (out.USBLIMIT==null && go2.usb!=null){ out.USBLIMIT = go2.usb; out.sources.USBLIMIT='filename'; out.warnings.push("USBLIMIT from filename"); }
-  }
+  return {
+    path: path,
+    filename: fname,
+    type: type,
 
-  // --- READOUT MODE ---
-  if (!MP_pick(out, 'READOUTM', MP_trimQuotes(MP_header(hdr,'READOUTM')), 'header')){
-    var ro = MP_extractReadoutFromName(toks);
-    if (ro){ out.READOUTM = ro; out.sources.READOUTM='filename'; out.warnings.push("READOUTM from filename"); }
-  }
+    setup: (setup || "UNKNOWN_SETUP"),
+    telescope: telescope || null,
+    camera:    camera    || null,
 
-  // --- TEMPERATURES ---
-  if (!MP_pick(out, 'SET_TEMP', MP_numOrNull(MP_header(hdr,'SET-TEMP')), 'header')){
-    var tset = MP_parseTempFromName(toks);
-    if (tset!=null){ out.SET_TEMP = tset; out.sources.SET_TEMP='filename'; out.warnings.push("SET-TEMP from filename"); }
-  }
-  MP_pick(out, 'CCD_TEMP', MP_numOrNull(MP_header(hdr,'CCD-TEMP')), 'header');
-
-  // --- EXPOSURE ---
-  var exp = MP_numOrNull(MP_header(hdr,'EXPOSURE'));
-  if (exp===null) exp = MP_numOrNull(MP_header(hdr,'EXPTIME'));
-  if (!MP_pick(out, 'EXPOSURE', exp, 'header')){
-    var e2 = MP_parseExposureFromName(toks);
-    if (e2!=null){ out.EXPOSURE = e2; out.sources.EXPOSURE='filename'; out.warnings.push("EXPOSURE from filename"); }
-  }
-
-  // --- DATE-OBS ---
-  var dHdr = MP_trimQuotes(MP_header(hdr,'DATE-OBS'));
-  if (dHdr){
-    // header usually ISO: "YYYY-MM-DDThh:mm:ss[.sss]"
-    var iso = String(dHdr).replace(/ /g,'T');
-    MP_pick(out, 'DATE_OBS_ISO', iso, 'header');
-  } else {
-    var dName = MP_parseDateFromName(toks);
-    if (dName){ out.DATE_OBS_ISO = dName; out.sources.DATE_OBS_ISO='filename'; out.warnings.push("DATE-OBS from filename"); }
-  }
-
-  // --- FOCALLEN / OBJECT (optional) ---
-  MP_pick(out, 'FOCALLEN', MP_numOrNull(MP_header(hdr,'FOCALLEN')), 'header');
-  MP_pick(out, 'OBJECT', MP_trimQuotes(MP_header(hdr,'OBJECT')), 'header');
-
-  return out;
+    readout: readout || null,
+    binning: binning || null,
+    gain: gain,
+    offset: offset,
+    usbLimit: usbLimit,      // ← добавили
+    tempC: tempC,
+    date: date,                 // "YYYY-MM-DD" или "YYYY-MM"
+    exposureSec: exposureSec,   // число либо null (для '1us' и т.п.)
+    filter: filter
+  };
 }
+
+//EOF
