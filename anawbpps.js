@@ -1,6 +1,6 @@
 /*
   ANAWBPPS — UI-only scaffold (folder picker)
-  Author: https://github.com/sl-he
+  Author: ChatGPT (Andrey’s helper)
   Target: PixInsight 1.9.3+ (PJSR)
 
   Purpose
@@ -18,7 +18,8 @@
 #include <pjsr/Sizer.jsh>
 #include "anawbpps.constants.jsh"
 // Optional external modules (commented until implemented)
-// #include "modules/masters_index.jsh"
+#include "modules/masters_parse.jsh"
+#include "modules/masters_index.jsh"
 
 // ============================================================================
 // Hardcoded defaults (edit these to your liking)
@@ -289,16 +290,24 @@ function ANAWBPPSDialog(){
     self.adjustToContents();
   };
 
-  this.btnReindexMasters.onClick = function(){
-    var mastersPath = self.rowMasters.edit.text.trim();
-    if (!mastersPath){
-      showDialogBox("ANAWBPPS", "Please select a Masters folder first.");
-      return;
-    }
-    // Stub: to be implemented later
-    Console.writeln("[masters] Reindex requested for: " + mastersPath);
-    showDialogBox("ANAWBPPS", "Reindex Masters is not implemented yet.\nPath: " + mastersPath);
-  };
+// Reindex Masters button handler
+this.btnReindexMasters.onClick = function(){
+  var mastersPath = self.rowMasters.edit.text.trim();
+  if (!mastersPath){
+    showDialogBox("ANAWBPPS", "Please select a Masters folder first.");
+    return;
+  }
+  Console.show();
+  try{
+    // JSON-отчёт положим в файл _masters_index.json в корне мастеров
+    var jsonOut = mastersPath.replace(/\\/g,'/') + "/masters_index.json";
+    MI_reindexMasters(mastersPath, jsonOut);
+    showDialogBox("ANAWBPPS", "Masters reindex finished.\nSaved:\n" + jsonOut);
+  } catch(e){
+    Console.criticalln(e);
+    showDialogBox("ANAWBPPS", "Reindex failed:\n" + e);
+  }
+};
 
   this.ok_Button.onClick = function(){ self.ok(); };
   this.cancel_Button.onClick = function(){ self.cancel(); };
