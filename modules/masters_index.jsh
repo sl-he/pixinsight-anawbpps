@@ -1,157 +1,274 @@
-/* modules/masters_index.jsh
-   Masters reindex module (no FITS reading, no disk writes)
+/*=============================================================================
+  modules/masters_index.jsh
+  Purpose:
+    Reindex Masters library recursively. Version-agnostic directory listing:
+      - System.readDirectory (preferred)
+      - Windows 'cmd /c dir /b' fallback via temp file
+    For each FITS/XISF file calls MP_parseMaster(path) from masters_parse.jsh.
+    Logs per-file info and final per-setup summary. Optionally saves JSON index.
+  Requirements:
+    - Include modules/masters_parse.jsh BEFORE this module to provide
+      MP_parseMaster(path)
+=============================================================================*/
 
-   API:
-     MI_reindexMasters(mastersRoot) -> { root, generatedUTC, setups{setup:{biases[],darks[],flats[]}} }
-     MI_summarizeMastersIndex(idx)  -> string
-*/
+// Debug switch (kept for future use)
+var MI_DEBUG = true;
 
-// -----------------------------------------------------------------------------
-// local utils (namespaced)
-// -----------------------------------------------------------------------------
-function MI_joinPath(){
-  var a = [];
-  for (var i = 0; i < arguments.length; ++i)
-    if (arguments[i]) a.push(arguments[i]);
-  var p = a.join('/');
-  return p.replace(/\\/g,'/').replace(/\/+/g,'/');
-}
+/* -------------------- Small helpers -------------------- */
 
-function MI_fileExt(p){
-  var s = String(p).toLowerCase();
+// Normalize path to forward slashes
+function _norm(p){ return String(p||"").replace(/\\/g,'/'); }
+
+// Get lowercase extension without dot
+function _ext(path){
+  var s = String(path);
   var i = s.lastIndexOf('.');
-  return i >= 0 ? s.substring(i) : '';
+  return (i >= 0) ? s.substring(i+1).toLowerCase() : "";
 }
 
-function MI_relPath(root, p){
-  var r = String(root).replace(/\\/g,'/').replace(/\/+/g,'/');
-  var s = String(p).replace(/\\/g,'/').replace(/\/+/g,'/');
-  if (s.indexOf(r) === 0) return s.substring(r.length).replace(/^\/+/,'');
-  return s;
+// FITS-like?
+function _isFitsLike(path){
+  var e = _ext(path);
+  return e === "fit" || e === "fits" || e === "xisf";
 }
 
-// -----------------------------------------------------------------------------
-// directory enumeration with FileFind (PixInsight 1.9.x)
-// -----------------------------------------------------------------------------
-function MI_listDir(path){
+// Exists and is directory?
+function _isDir(path){
+  try{ return File.directoryExists(path); } catch(_){ return false; }
+}
+
+// Exists and is file?
+function _isFile(path){
+  try{
+    if (!File.exists(path)) return false;
+    return !File.directoryExists(path);
+  } catch(_){ return false; }
+}
+
+// Save JSON (pretty) using File API (works on PI 1.9.x)
+function _saveJSON(path, obj){
+  if (!path) return false;
+  try{
+    var f = new File;
+    f.createForWriting(path);
+    f.outText(JSON.stringify(obj, null, 2));
+    f.close();
+    Console.writeln("[masters] Index JSON saved: " + path);
+    return true;
+  } catch(e){
+    Console.criticalln("[masters] Failed to save JSON: " + e);
+    return false;
+  }
+}
+
+// Safe Windows drive-letter detection without regex
+function _looksWindows(dir){
+  if (!dir || dir.length < 2) return false;
+  var c0 = dir.charAt(0), c1 = dir.charAt(1);
+  return ((c0 >= 'A' && c0 <= 'Z') || (c0 >= 'a' && c0 <= 'z')) && c1 === ':';
+}
+
+/* ---------------- Directory listing (names only) ---------------- */
+
+// Return array of entry *names* (no paths). Never throws.
+// Return array of entry *names* (no paths). Never throws.
+// Tries System.readDirectory first; if it returns empty, falls back to Windows cmd.
+// Return the last path component from a full path (handles / and \)
+function _basename(p){
+  if (!p) return "";
+  var s = String(p);
+  // normalize slashes just for splitting
+  var i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+  return (i >= 0) ? s.substring(i+1) : s;
+}
+
+// Return array of entry *names* (no paths). Never throws.
+// Uses PixInsight's FileFind iterator (works in PI 1.9.x).
+function _listNames(dir){
+  dir = _norm(dir);
   var out = [];
-  var ff = new FileFind;
-  var mask = MI_joinPath(path, '*');
-  if (ff.begin(mask)){
-    do{
-      var name = ff.name || ff.fileName; // some builds expose .name
-      if (name === '.' || name === '..') continue;
-      var isDir = (ff.isDirectory !== undefined) ? ff.isDirectory : !!ff.isDir;
-      var full  = MI_joinPath(path, name);
-      out.push({ path: full, isDir: isDir });
-    } while (ff.next());
-    ff.end();
+  try{
+    var ff = new FileFind;
+    // перечисляем ВСЁ, и файлы, и каталоги
+    if (ff.begin(dir + "/*")){
+      do{
+        var name = ff.name; // только имя, без пути
+        if (name && name !== "." && name !== "..")
+          out.push(name);
+      } while (ff.next());
+      ff.end();
+    }
+  } catch(e){
+    if (MI_DEBUG) Console.writeln("[masters] list(FileFind) failed: " + e);
   }
   return out;
 }
 
-function MI_walkFiles(path, sink){
-  var ff = new FileFind;
-  var mask = MI_joinPath(path, '*');
-  if (ff.begin(mask)){
-    do{
-      var name = ff.name || ff.fileName;
-      if (name === '.' || name === '..') continue;
-      var isDir = (ff.isDirectory !== undefined) ? ff.isDirectory : !!ff.isDir;
-      var full  = MI_joinPath(path, name);
-      if (isDir) MI_walkFiles(full, sink);
-      else sink.push(full);
-    } while (ff.next());
-    ff.end();
-  }
-}
+/* ---------------- Recursive walker ---------------- */
 
-// -----------------------------------------------------------------------------
-// main indexing
-// -----------------------------------------------------------------------------
-function MI_reindexMasters(mastersRoot){
-  var root = mastersRoot;
-  var biasesRoot = MI_joinPath(root, '!!!BIASES_LIB');
-  var darksRoot  = MI_joinPath(root, '!!!DARKS_LIB');
-  var flatsRoot  = MI_joinPath(root, '!!!FLATS_LIB');
-
-  function existingSubdirs(base){
-    if (!File.directoryExists(base)) return [];
-    var entries = MI_listDir(base);
-    var dirs = [];
-    for (var i=0; i<entries.length; ++i)
-      if (entries[i].isDir) dirs.push(entries[i].path);
-    return dirs;
-  }
-
-  var setupDirs = {
-    biases: existingSubdirs(biasesRoot),
-    darks:  existingSubdirs(darksRoot),
-    flats:  existingSubdirs(flatsRoot)
-  };
-
-  var out = {
-    root: root,
-    generatedUTC: (new Date()).toUTCString(),
-    setups: {} // name -> { biases:[], darks:[], flats:[] }
-  };
-
-  function ensureSetup(name){
-    if (!out.setups[name]) out.setups[name] = { biases:[], darks:[], flats:[] };
-    return out.setups[name];
-  }
-
-  function indexOne(groupKey, dirList){
-    for (var i=0; i<dirList.length; ++i){
-      var setupPath = dirList[i];
-      var s = setupPath.replace(/\\/g,'/').replace(/\/+/g,'/');
-      var j = s.lastIndexOf('/');
-      var setupName = (j>=0) ? s.substring(j+1) : s;
-
-      var files = [];
-      MI_walkFiles(setupPath, files);
-
-      var good = [];
-      for (var k=0; k<files.length; ++k){
-        var e = MI_fileExt(files[k]);
-        if (e === '.fits' || e === '.fit' || e === '.xisf')
-          good.push(MI_relPath(root, files[k]));
-      }
-
-      var bucket = ensureSetup(setupName);
-      bucket[groupKey] = bucket[groupKey].concat(good);
+function _walkDir(dir, cb){
+  var names = _listNames(dir);
+  for (var i=0;i<names.length;++i){
+    var name = names[i];
+    var full = _norm(dir + "/" + name);
+    if (_isDir(full)){
+      _walkDir(full, cb);
+    } else if (_isFile(full)){
+      cb(full);
     }
   }
-
-  indexOne('biases', setupDirs.biases);
-  indexOne('darks',  setupDirs.darks);
-  indexOne('flats',  setupDirs.flats);
-
-  return out;
 }
 
-// -----------------------------------------------------------------------------
-// summary
-// -----------------------------------------------------------------------------
-function MI_summarizeMastersIndex(idx){
-  var setups = idx.setups;
-  var names = [];
-  for (var k in setups) if (setups.hasOwnProperty(k)) names.push(k);
-  names.sort();
+/* ---------------- Very rough filename fallback parser ---------------- */
 
-  var lines = [];
-  lines.push('Masters root: ' + idx.root);
-  lines.push('Generated: ' + idx.generatedUTC);
-  lines.push('Setups found: ' + names.length);
-  lines.push('');
+// Used only if MP_parseMaster(...) is not available.
+function _fallbackParseByName(path){
+  var name = File.extractNameAndExtension(path);
+  var s = name.toUpperCase();
 
-  for (var i=0; i<names.length; ++i){
-    var n = names[i];
-    var s = setups[n];
-    lines.push('• ' + n);
-    lines.push('    biases: ' + s.biases.length);
-    lines.push('    darks : ' + s.darks.length);
-    lines.push('    flats : ' + s.flats.length);
+  var type = s.indexOf("MASTERBIAS")>=0 ? "BIAS" :
+             s.indexOf("MASTERDARK")>=0 ? "DARK" :
+             (s.indexOf("MASTERF")>=0 || s.indexOf("MASTERFLAT")>=0 ? "FLAT" : "UNKNOWN");
+
+  // setup: everything before first "_Master"
+  var setup = "UNKNOWN_SETUP";
+  var m = name.match(/^(.+?)_Master/i);
+  if (m) setup = m[1];
+
+  // binning
+  var bin = "";
+  var mb = name.match(/(?:Bin)?(\d+)x(\d+)/i);
+  if (mb) bin = mb[1] + "x" + mb[2];
+
+  // filter for flats
+  var filter = "";
+  var mf = name.match(/_(L|R|G|B|HA|H\-ALPHA|OIII|O3|SII|S2)_/i);
+  if (mf) filter = mf[1].toUpperCase();
+
+  // gain/offset/temp
+  var mg = name.match(/_G(\d+)/i);  var og = mg ? parseInt(mg[1],10) : null;
+  var mo = name.match(/_OS(\d+)/i); var oo = mo ? parseInt(mo[1],10) : null;
+  var mt = name.match(/_(-?\d+)C/i);var tt = mt ? (parseInt(mt[1],10)+"C") : "";
+
+  return {
+    setup: setup,
+    type: type,
+    filter: filter || "",
+    binning: bin || "",
+    gain: og!=null ? og : "",
+    offset: oo!=null ? oo : "",
+    temp: tt || "",
+    readout: "",
+    date: ""
+  };
+}
+
+/* ---------------- Public API ---------------- */
+
+/**
+ * MI_reindexMasters
+ * @param {string} rootPath  Masters root (e.g. D:/.../!!!!!MASTERS)
+ * @param {string} savePath  Optional JSON path to store index (or null/empty)
+ */
+function MI_reindexMasters(rootPath, savePath){
+  var mastersRoot = _norm(rootPath);
+  Console.writeln("[masters] Reindex started: " + mastersRoot);
+
+  var setups = {};  // setup -> {biases, darks, flats}
+  var items  = [];  // detailed list
+
+  var totalVisitedFiles = 0;
+  var fitsCandidates    = 0;
+  var parsedOK          = 0;
+  var parseErrors       = 0;
+
+  _walkDir(mastersRoot, function(fullPath){
+    ++totalVisitedFiles;
+
+    if (!_isFitsLike(fullPath))
+      return;
+
+    ++fitsCandidates;
+
+    var base = File.extractNameAndExtension(fullPath);
+    var info;
+    try{
+      if (typeof MP_parseMaster === "function")
+        info = MP_parseMaster(fullPath);      // full parser (headers + filename)
+      else
+        info = _fallbackParseByName(fullPath); // coarse fallback
+    } catch(e){
+      ++parseErrors;
+      Console.criticalln("[masters] parse failed: " + base + " -> " + e);
+      return;
+    }
+
+    ++parsedOK;
+
+    Console.writeln(
+      "  " + base +
+      " → type=" + info.type +
+      ", filter=" + info.filter +
+      ", bin=" + info.binning +
+      ", gain=" + info.gain +
+      ", offset=" + info.offset +
+      ", temp=" + info.temp +
+      ", readout=" + info.readout
+    );
+
+    var setupKey = info.setup || "UNKNOWN_SETUP";
+    if (!setups[setupKey]) setups[setupKey] = { biases:0, darks:0, flats:0 };
+
+    if (info.type === "BIAS") ++setups[setupKey].biases;
+    else if (info.type === "DARK") ++setups[setupKey].darks;
+    else if (info.type === "FLAT") ++setups[setupKey].flats;
+
+    items.push({
+      path: fullPath,
+      setup: info.setup,
+      type: info.type,
+      filter: info.filter,
+      binning: info.binning,
+      gain: info.gain,
+      offset: info.offset,
+      temp: info.temp,
+      readout: info.readout,
+      date: info.date
+    });
+  });
+
+  // Summary
+  var setupNames = [];
+  for (var k in setups) if (setups.hasOwnProperty(k)) setupNames.push(k);
+
+  Console.writeln("");
+  Console.writeln("Masters root: " + mastersRoot);
+  Console.writeln("Generated: " + (new Date()).toUTCString());
+  Console.writeln("Visited files: " + totalVisitedFiles);
+  Console.writeln("FITS/XISF candidates: " + fitsCandidates);
+  Console.writeln("Parsed OK: " + parsedOK + " | Parse errors: " + parseErrors);
+  Console.writeln("Setups found: " + setupNames.length);
+  Console.writeln("");
+
+  for (var i=0; i<setupNames.length; ++i){
+    var sName = setupNames[i];
+    var st = setups[sName];
+    Console.writeln("• " + sName);
+    Console.writeln("    biases: " + st.biases);
+    Console.writeln("    darks : " + st.darks);
+    Console.writeln("    flats : " + st.flats);
   }
-  return lines.join('\n');
+
+  if (savePath){
+    _saveJSON(_norm(savePath), {
+      mastersRoot: mastersRoot,
+      generatedUTC: (new Date()).toISOString(),
+      visitedFiles: totalVisitedFiles,
+      fitsCandidates: fitsCandidates,
+      parsedOK: parsedOK,
+      parseErrors: parseErrors,
+      setups: setups,
+      items: items
+    });
+  }
 }
