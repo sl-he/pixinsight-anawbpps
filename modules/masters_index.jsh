@@ -69,10 +69,6 @@ function _looksWindows(dir){
 }
 
 /* ---------------- Directory listing (names only) ---------------- */
-
-// Return array of entry *names* (no paths). Never throws.
-// Return array of entry *names* (no paths). Never throws.
-// Tries System.readDirectory first; if it returns empty, falls back to Windows cmd.
 // Return the last path component from a full path (handles / and \)
 function _basename(p){
   if (!p) return "";
@@ -82,6 +78,9 @@ function _basename(p){
   return (i >= 0) ? s.substring(i+1) : s;
 }
 
+// Return array of entry *names* (no paths). Never throws.
+// Tries System.readDirectory first; if empty or gives absolute paths,
+// normalizes to names. Falls back to Windows cmd and writes tmp to %TEMP%.
 // Return array of entry *names* (no paths). Never throws.
 // Uses PixInsight's FileFind iterator (works in PI 1.9.x).
 function _listNames(dir){
@@ -102,6 +101,45 @@ function _listNames(dir){
     if (MI_DEBUG) Console.writeln("[masters] list(FileFind) failed: " + e);
   }
   return out;
+}
+
+// Try to derive setup from the path, if not present in headers/filename.
+// It extracts the path segment immediately under !!!BIASES_LIB / !!!DARKS_LIB / !!!FLATS_LIB.
+function _deriveSetupFromPath(fullPath){
+  var p = _norm(fullPath);
+  var markers = [ "!!!BIASES_LIB", "!!!DARKS_LIB", "!!!FLATS_LIB" ];
+  for (var m = 0; m < markers.length; ++m){
+    var i = p.toUpperCase().indexOf("/" + markers[m] + "/");
+    if (i >= 0){
+      var rest = p.substring(i + markers[m].length + 2); // skip "/MARKER/"
+      var j = rest.indexOf("/");
+      if (j >= 0) return rest.substring(0, j);
+      return rest; // if file directly inside
+    }
+  }
+  return null;
+}
+// Берём первый сегмент пути относительно корня mastersRoot.
+// Пример: root=D:/MASTERS, full=D:/MASTERS/CYPRUS_FSQ/.../file.fit  -> "CYPRUS_FSQ"
+function _setupFromRoot(root, full){
+  var r = _norm(root), f = _norm(full);
+  if (f.substring(0, r.length).toUpperCase() === r.toUpperCase()){
+    var rel = f.substring(r.length);
+    if (rel.charAt(0) === '/') rel = rel.substring(1);
+    var i = rel.indexOf('/');
+    if (i > 0) return rel.substring(0, i);
+  }
+  return null;
+}
+
+// Если вообще ничего не нашлось — берём имя родительской папки файла.
+function _parentDirName(full){
+  var s = _norm(full);
+  var i = s.lastIndexOf('/');
+  if (i <= 0) return null;
+  var parent = s.substring(0, i);
+  var j = parent.lastIndexOf('/');
+  return (j >= 0) ? parent.substring(j+1) : parent;
 }
 
 /* ---------------- Recursive walker ---------------- */
@@ -185,7 +223,13 @@ function MI_reindexMasters(rootPath, savePath){
   _walkDir(mastersRoot, function(fullPath){
     ++totalVisitedFiles;
 
+    // Только FITS/XISF
     if (!_isFitsLike(fullPath))
+      return;
+
+    // DarkFlats — исключаем по имени (позже добавим по хедерам)
+    var upName = File.extractNameAndExtension(fullPath).toUpperCase();
+    if (upName.indexOf("DARKFLAT") >= 0 || upName.indexOf("MASTERDF") >= 0 || upName.indexOf("DFLAT") >= 0)
       return;
 
     ++fitsCandidates;
@@ -194,13 +238,29 @@ function MI_reindexMasters(rootPath, savePath){
     var info;
     try{
       if (typeof MP_parseMaster === "function")
-        info = MP_parseMaster(fullPath);      // full parser (headers + filename)
+        info = MP_parseMaster(fullPath);   // headers->filename
       else
-        info = _fallbackParseByName(fullPath); // coarse fallback
+        info = _fallbackParseByName(fullPath);
+
+      // На будущее: если парсер начнёт возвращать DARKFLAT — тоже выкидываем
+      if (info.type && String(info.type).toUpperCase() === "DARKFLAT")
+        return;
+
     } catch(e){
       ++parseErrors;
       Console.criticalln("[masters] parse failed: " + base + " -> " + e);
       return;
+    }
+
+    // Если setup не пришёл из хедеров/имени — берём из относительного пути от корня.
+    if (!info.setup || info.setup === ""){
+      var s1 = _setupFromRoot(mastersRoot, fullPath);
+      if (s1) info.setup = s1;
+      else {
+        // совсем последний шанс — имя родительской папки
+        var s2 = _parentDirName(fullPath);
+        if (s2) info.setup = s2;
+      }
     }
 
     ++parsedOK;
@@ -212,8 +272,9 @@ function MI_reindexMasters(rootPath, savePath){
       ", bin=" + info.binning +
       ", gain=" + info.gain +
       ", offset=" + info.offset +
-      ", temp=" + info.temp +
-      ", readout=" + info.readout
+      ", tempC=" + info.tempC +
+      (info.exposureSec != null ? (", exp=" + info.exposureSec) : "") +
+      (info.readout ? (", readout=" + info.readout) : "")
     );
 
     var setupKey = info.setup || "UNKNOWN_SETUP";
@@ -223,19 +284,9 @@ function MI_reindexMasters(rootPath, savePath){
     else if (info.type === "DARK") ++setups[setupKey].darks;
     else if (info.type === "FLAT") ++setups[setupKey].flats;
 
-    items.push({
-      path: fullPath,
-      setup: info.setup,
-      type: info.type,
-      filter: info.filter,
-      binning: info.binning,
-      gain: info.gain,
-      offset: info.offset,
-      temp: info.temp,
-      readout: info.readout,
-      date: info.date
-    });
+    items.push(info);
   });
+
 
   // Summary
   var setupNames = [];
