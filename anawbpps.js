@@ -1,6 +1,6 @@
 /*
   ANAWBPPS — UI-only scaffold (folder picker)
-  Author: ChatGPT (Andrey’s helper)
+  Author: https://github.com/sl-he/
   Target: PixInsight 1.9.3+ (PJSR)
 
   Purpose
