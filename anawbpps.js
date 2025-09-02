@@ -19,7 +19,9 @@
 #include "anawbpps.constants.jsh"
 // Optional external modules (commented until implemented)
 #include "modules/masters_parse.jsh"
+#include "modules/lights_parse.jsh"
 #include "modules/masters_index.jsh"
+#include "modules/lights_index.jsh"
 
 // ============================================================================
 // Hardcoded defaults (edit these to your liking)
@@ -206,21 +208,30 @@ function showDialogBox(title, text){
 function ANAWBPPSDialog(){
   this.__base__ = Dialog; this.__base__();
   this.windowTitle = "ANAWBPPS — Project folders (UI-only)";
-
-  // Folder pickers
-  this.rowLights  = new PathRow(this, "Lights Folder:",  "Folder with light frames (.xisf/.fits)");
-
   // Masters folder row + Reindex button (stub)
   this.rowMasters = new PathRow(this, "Masters Folder:", "Folder with master frames (optional)");
   this.btnReindexMasters = new PushButton(this);
   this.btnReindexMasters.text = "Reindex Masters";
   this.btnReindexMasters.toolTip = "Scan the selected Masters folder and rebuild index (stub)";
 
+  // Folder pickers
+  this.rowLights  = new PathRow(this, "Lights Folder:",  "Folder with light frames (.xisf/.fits)");
+
+  // --- Lights row + Reindex button (NEW) ---
+  this.btnReindexLights = new PushButton(this);
+  this.btnReindexLights.text = "Reindex Lights";
+  this.btnReindexLights.toolTip = "Scan the selected Lights folder and build index (lights_index.json)";
+			   
   var mastersRowSizer = new HorizontalSizer;
   mastersRowSizer.spacing = 6;
   mastersRowSizer.add(this.rowMasters.sizer, 100);
   mastersRowSizer.add(this.btnReindexMasters);
 
+  var lightsRowSizer = new HorizontalSizer;
+  lightsRowSizer.spacing = 6;
+  lightsRowSizer.add(this.rowLights.sizer, 100);
+  lightsRowSizer.add(this.btnReindexLights);
+  									   
   // Work folders
   this.rowWork1 = new PathRow(this, "Work1 Folder:", "Primary working folder: will create !!!WORK_LIGHTS here");
   this.cbTwoWork  = new CheckBox(this);
@@ -271,7 +282,7 @@ function ANAWBPPSDialog(){
   this.sizer = new VerticalSizer;
   this.sizer.margin = 6;
   this.sizer.spacing = 6;
-  this.sizer.add(this.rowLights.sizer);
+  this.sizer.add(lightsRowSizer);
   this.sizer.add(mastersRowSizer);
   this.sizer.add(this.rowWork1.sizer);
   this.sizer.add(this.cbTwoWork);
@@ -302,13 +313,29 @@ this.btnReindexMasters.onClick = function(){
     // JSON-отчёт положим в файл _masters_index.json в корне мастеров
     var jsonOut = mastersPath.replace(/\\/g,'/') + "/masters_index.json";
     MI_reindexMasters(mastersPath, jsonOut);
-    showDialogBox("ANAWBPPS", "Masters reindex finished.\nSaved:\n" + jsonOut);
   } catch(e){
     Console.criticalln(e);
     showDialogBox("ANAWBPPS", "Reindex failed:\n" + e);
   }
 };
 
+// Reindex Lights button handler
+this.btnReindexLights.onClick = function(){
+  var lightsPath = self.rowLights.edit.text.trim();
+  if (!lightsPath){
+    showDialogBox("ANAWBPPS", "Please select a Lights folder first.");
+    return;
+  }
+  try{
+    // save index NEXT TO the lights folder
+    var savePath = joinPath(lightsPath, "lights_index.json");
+    LI_reindexLights(lightsPath, savePath); // from modules/lights_index.jsh (v0.2.0 walker)
+    Console.writeln("[lights] Index saved: " + savePath);
+  } catch(e){
+    Console.criticalln("[lights] Reindex failed: " + e);
+    showDialogBox("ANAWBPPS", "Reindex Lights failed:\n" + e);
+  }
+};								
   this.ok_Button.onClick = function(){ self.ok(); };
   this.cancel_Button.onClick = function(){ self.cancel(); };
 }
