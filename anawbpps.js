@@ -22,60 +22,62 @@
 #include "modules/lights_parse.jsh"
 #include "modules/masters_index.jsh"
 #include "modules/lights_index.jsh"
+#include "modules/calibration_match.jsh"
+
 
 // ============================================================================
 // Hardcoded defaults (edit these to your liking)
 // ============================================================================
 var HARDCODED_DEFAULTS = {
-  lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS", // sample
-  masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS",   // sample
-  work1:   "V:/!!!WORK/ASTROFOTO/1",              // base root (script will append !!!WORK_LIGHTS if needed)
-  work2:   "V:/!!!WORK/ASTROFOTO/2",              // base root (optional)
-  useTwo:  true,                                   // two-disk mode on/off
+    lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS", // sample
+    masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS",   // sample
+    work1:   "D:/!!!WORK/ASTROFOTO/",              // base root (script will append !!!WORK_LIGHTS if needed)
+    work2:   "W:/!!!WORK/ASTROFOTO/",              // base root (optional)
+    useTwo:  true,                                   // two-disk mode on/off
 
-  // workflow toggles
-  doCal: true,
-  doCC:  true,
-  doSSMeasure: true,
-  doSSOutput:  true,
-  doSA:  true,
-  doLN:  true,
-  doNSG: true, // alternative to LN
-  doII:  true,
-  doDrizzle: true
+    // workflow toggles
+    doCal: true,
+    doCC:  true,
+    doSSMeasure: true,
+    doSSOutput:  true,
+    doSA:  true,
+    doLN:  true,
+    doNSG: true, // alternative to LN
+    doII:  true,
+    doDrizzle: true
 };
 
 // ============================================================================
 // File-system helpers (no config I/O here)
 // ============================================================================
 function joinPath(){
-  var a = [];
-  for (var i = 0; i < arguments.length; ++i)
-    if (arguments[i]) a.push(arguments[i]);
-  var p = a.join('/');
-  return p.replace(/\\/g, '/').replace(/\/+/g, '/');
+    var a = [];
+    for (var i = 0; i < arguments.length; ++i)
+        if (arguments[i]) a.push(arguments[i]);
+    var p = a.join('/');
+    return p.replace(/\\/g, '/').replace(/\/+/g, '/');
 }
 
 function ensureDir(dir){
-  if (!File.directoryExists(dir))
-    File.createDirectory(dir, true /* recursive */);
+    if (!File.directoryExists(dir))
+        File.createDirectory(dir, true /* recursive */);
 }
 
 // ============================================================================
 // Project base helpers
 // ============================================================================
 function endsWithProjectBase(p){
-  var s = String(p||"").replace(/\\/g,'/').replace(/\/+/g,'/');
-  if (s.length === 0) return false;
-  if (s.length > 1 && s.charAt(s.length-1) === '/') s = s.substring(0, s.length-1);
-  var i = s.lastIndexOf('/');
-  var tail = (i>=0) ? s.substring(i+1) : s;
-  return tail === PROJECT_DEFAULTS_DIRNAME; // e.g. "!!!WORK_LIGHTS"
+    var s = String(p||"").replace(/\\/g,'/').replace(/\/+/g,'/');
+    if (s.length === 0) return false;
+    if (s.length > 1 && s.charAt(s.length-1) === '/') s = s.substring(0, s.length-1);
+    var i = s.lastIndexOf('/');
+    var tail = (i>=0) ? s.substring(i+1) : s;
+    return tail === PROJECT_DEFAULTS_DIRNAME; // e.g. "!!!WORK_LIGHTS"
 }
 
 // Normalize a Work root to the actual project base path
 function projectBase(root){
-  return endsWithProjectBase(root) ? root : joinPath(root, PROJECT_DEFAULTS_DIRNAME);
+    return endsWithProjectBase(root) ? root : joinPath(root, PROJECT_DEFAULTS_DIRNAME);
 }
 
 // ============================================================================
@@ -86,258 +88,336 @@ function projectBase(root){
 //   • Work2: !!!WORK_LIGHTS/CosmeticCorrection and !!!WORK_LIGHTS/!Approved/Lights_Cal_CC_Reg
 // In single-disk mode: everything lives under Work1.
 function makeWorkFolders(work1Root, work2Root, useTwo){
-  // Base in Work1 (avoid duplicating !!!WORK_LIGHTS if user already selected it)
-  var base1 = projectBase(work1Root);
-  ensureDir(base1);
+    // Base in Work1 (avoid duplicating !!!WORK_LIGHTS if user already selected it)
+    var base1 = projectBase(work1Root);
+    ensureDir(base1);
 
-  // !Approved in Work1
-  var approved1 = joinPath(base1, DIR_APPROVED);
-  ensureDir(approved1);
+    // !Approved in Work1
+    var approved1 = joinPath(base1, DIR_APPROVED);
+    ensureDir(approved1);
 
-  // Calibrated in Work1
-  var calibrated = joinPath(base1, DIR_CALIBRATED);
-  ensureDir(calibrated);
+    // Calibrated in Work1
+    var calibrated = joinPath(base1, DIR_CALIBRATED);
+    ensureDir(calibrated);
 
-  // !!!TRASH in Work1
-  var trash = joinPath(base1, DIR_TRASH);
-  ensureDir(trash);
+    // !!!TRASH in Work1
+    var trash = joinPath(base1, DIR_TRASH);
+    ensureDir(trash);
 
-  // Cosmetic + ApprovedSet (Reg set)
-  var base2 = "";
-  var cosmetic = "";
-  var approvedSet;
+    // Cosmetic + ApprovedSet (Reg set)
+    var base2 = "";
+    var cosmetic = "";
+    var approvedSet;
 
-  if (useTwo && work2Root){
-    // Base in Work2 (normalized)
-    base2 = projectBase(work2Root);
-    ensureDir(base2);
+    if (useTwo && work2Root){
+        // Base in Work2 (normalized)
+        base2 = projectBase(work2Root);
+        ensureDir(base2);
 
-    // CosmeticCorrection in Work2
-    cosmetic = joinPath(base2, DIR_COSMETIC);
-    ensureDir(cosmetic);
+        // CosmeticCorrection in Work2
+        cosmetic = joinPath(base2, DIR_COSMETIC);
+        ensureDir(cosmetic);
 
-    // Reg set in Work2 under !Approved/Lights_Cal_CC_Reg
-    var approved2 = joinPath(base2, DIR_APPROVED);
-    ensureDir(approved2);
-    approvedSet = joinPath(approved2, DIR_APPROVED_SET);
-    ensureDir(approvedSet);
-  } else {
-    // Single-disk mode: Cosmetic + Reg set live in Work1
-    cosmetic = joinPath(base1, DIR_COSMETIC);
-    ensureDir(cosmetic);
-    approvedSet = joinPath(approved1, DIR_APPROVED_SET);
-    ensureDir(approvedSet);
-  }
+        // Reg set in Work2 under !Approved/Lights_Cal_CC_Reg
+        var approved2 = joinPath(base2, DIR_APPROVED);
+        ensureDir(approved2);
+        approvedSet = joinPath(approved2, DIR_APPROVED_SET);
+        ensureDir(approvedSet);
+    } else {
+        // Single-disk mode: Cosmetic + Reg set live in Work1
+        cosmetic = joinPath(base1, DIR_COSMETIC);
+        ensureDir(cosmetic);
+        approvedSet = joinPath(approved1, DIR_APPROVED_SET);
+        ensureDir(approvedSet);
+    }
 
-  return {
-    base1: base1,
-    base2: base2,
-    approved: approved1,      // !Approved (Work1)
-    approvedSet: approvedSet, // Reg set (Work2 if two-disk mode, else Work1)
-    calibrated: calibrated,
-    cosmetic: cosmetic,
-    trash: trash
-  };
+    return {
+        base1: base1,
+        base2: base2,
+        approved: approved1,      // !Approved (Work1)
+        approvedSet: approvedSet, // Reg set (Work2 if two-disk mode, else Work1)
+        calibrated: calibrated,
+        cosmetic: cosmetic,
+        trash: trash
+    };
 }
 
 // ============================================================================
 // UI helpers
 // ============================================================================
 function PathRow(parent, labelText, tooltip){
-  this.label = new Label(parent);
-  this.label.text = labelText;
-  this.label.minWidth = 170;
+    this.label = new Label(parent);
+    this.label.text = labelText;
+    this.label.minWidth = 170;
 
-  this.edit = new Edit(parent);
-  this.edit.readOnly = true;
-  this.edit.minWidth = 420;
-  if (tooltip) this.edit.toolTip = tooltip;
+    this.edit = new Edit(parent);
+    this.edit.readOnly = true;
+    this.edit.minWidth = 420;
+    if (tooltip) this.edit.toolTip = tooltip;
 
-  this.btn = new ToolButton(parent);
-  this.btn.icon = parent.scaledResource(":/browser/select-file.png");
-  this.btn.toolTip = "Select folder";
+    this.btn = new ToolButton(parent);
+    this.btn.icon = parent.scaledResource(":/browser/select-file.png");
+    this.btn.toolTip = "Select folder";
 
-  var self = this;
-  this.btn.onClick = function(){
-    var d = new GetDirectoryDialog;
-    d.caption = labelText;
-    if (d.execute())
-      self.edit.text = d.directory;
-  };
+    var self = this;
+    this.btn.onClick = function(){
+        var d = new GetDirectoryDialog;
+        d.caption = labelText;
+        if (d.execute())
+            self.edit.text = d.directory;
+    };
 
-  this.sizer = new HorizontalSizer;
-  this.sizer.spacing = 6;
-  this.sizer.add(this.label);
-  this.sizer.add(this.edit, 100);
-  this.sizer.add(this.btn);
+    this.sizer = new HorizontalSizer;
+    this.sizer.spacing = 6;
+    this.sizer.add(this.label);
+    this.sizer.add(this.edit, 100);
+    this.sizer.add(this.btn);
 }
 
 function showDialogBox(title, text){
-  var d = new Dialog;
-  d.windowTitle = title;
+    var d = new Dialog;
+    d.windowTitle = title;
 
-  var tb = new TextBox(d);
-  tb.readOnly  = true;
-  tb.wordWrap  = false;
-  tb.multiline = true;
-  tb.minWidth  = SUMMARY_WIDTH;
-  tb.minHeight = SUMMARY_HEIGHT;
-  tb.text      = text;
+    var tb = new TextBox(d);
+    tb.readOnly  = true;
+    tb.wordWrap  = false;
+    tb.multiline = true;
+    tb.minWidth  = SUMMARY_WIDTH;
+    tb.minHeight = SUMMARY_HEIGHT;
+    tb.text      = text;
 
-  var ok = new PushButton(d);
-  ok.text = "OK";
-  ok.onClick = function(){ d.ok(); };
+    var ok = new PushButton(d);
+    ok.text = "OK";
+    ok.onClick = function(){ d.ok(); };
 
-  var btns = new HorizontalSizer;
-  btns.addStretch();
-  btns.add(ok);
+    var btns = new HorizontalSizer;
+    btns.addStretch();
+    btns.add(ok);
 
-  d.sizer = new VerticalSizer;
-  d.sizer.margin = 6;
-  d.sizer.spacing = 6;
-  d.sizer.add(tb, 100);
-  d.sizer.add(btns);
+    d.sizer = new VerticalSizer;
+    d.sizer.margin = 6;
+    d.sizer.spacing = 6;
+    d.sizer.add(tb, 100);
+    d.sizer.add(btns);
 
-  d.adjustToContents();
-  d.execute();
+    d.adjustToContents();
+    d.execute();
 }
 
 // ============================================================================
 // Main dialog
 // ============================================================================
 function ANAWBPPSDialog(){
-  this.__base__ = Dialog; this.__base__();
-  this.windowTitle = "ANAWBPPS — Project folders (UI-only)";
-  // Masters folder row + Reindex button (stub)
-  this.rowMasters = new PathRow(this, "Masters Folder:", "Folder with master frames (optional)");
-  this.btnReindexMasters = new PushButton(this);
-  this.btnReindexMasters.text = "Reindex Masters";
-  this.btnReindexMasters.toolTip = "Scan the selected Masters folder and rebuild index (stub)";
+    this.__base__ = Dialog; this.__base__();
+    this.windowTitle = "ANAWBPPS — Project folders (UI-only)";
+    // Masters folder row + Reindex button (stub)
+    this.rowMasters = new PathRow(this, "Masters Folder:", "Folder with master frames (optional)");
+    this.rowLights  = new PathRow(this, "Lights Folder:",  "Folder with light frames (.xisf/.fits)");
 
-  // Folder pickers
-  this.rowLights  = new PathRow(this, "Lights Folder:",  "Folder with light frames (.xisf/.fits)");
+    // --- RUN Calibration button ---
+    this.btnRun = new PushButton(this);
+    this.btnRun.text = "RUN";
+    this.btnRun.toolTip = "RUN";
 
-  // --- Lights row + Reindex button (NEW) ---
-  this.btnReindexLights = new PushButton(this);
-  this.btnReindexLights.text = "Reindex Lights";
-  this.btnReindexLights.toolTip = "Scan the selected Lights folder and build index (lights_index.json)";
-			   
-  var mastersRowSizer = new HorizontalSizer;
-  mastersRowSizer.spacing = 6;
-  mastersRowSizer.add(this.rowMasters.sizer, 100);
-  mastersRowSizer.add(this.btnReindexMasters);
+    var mastersRowSizer = new HorizontalSizer;
+    mastersRowSizer.spacing = 6;
+    mastersRowSizer.add(this.rowMasters.sizer, 100);
 
-  var lightsRowSizer = new HorizontalSizer;
-  lightsRowSizer.spacing = 6;
-  lightsRowSizer.add(this.rowLights.sizer, 100);
-  lightsRowSizer.add(this.btnReindexLights);
-  									   
-  // Work folders
-  this.rowWork1 = new PathRow(this, "Work1 Folder:", "Primary working folder: will create !!!WORK_LIGHTS here");
-  this.cbTwoWork  = new CheckBox(this);
-  this.cbTwoWork.text = "Use two working folders (Work1 + Work2)";
-  this.cbTwoWork.checked = !!HARDCODED_DEFAULTS.useTwo;
-  this.rowWork2   = new PathRow(this, "Work2 Folder:", "Secondary working folder (CosmeticCorrection, Reg set)");
-  this.rowWork2.sizer.visible = this.cbTwoWork.checked;
+    var lightsRowSizer = new HorizontalSizer;
+    lightsRowSizer.spacing = 6;
+    lightsRowSizer.add(this.rowLights.sizer, 100);
 
-  // Apply hardcoded defaults into UI
-  if (HARDCODED_DEFAULTS.lights)  this.rowLights.edit.text  = HARDCODED_DEFAULTS.lights;
-  if (HARDCODED_DEFAULTS.masters) this.rowMasters.edit.text = HARDCODED_DEFAULTS.masters;
-  if (HARDCODED_DEFAULTS.work1)   this.rowWork1.edit.text   = HARDCODED_DEFAULTS.work1;
-  if (HARDCODED_DEFAULTS.work2)   this.rowWork2.edit.text   = HARDCODED_DEFAULTS.work2;
+    // Work folders
+    this.rowWork1 = new PathRow(this, "Work1 Folder:", "Primary working folder: will create !!!WORK_LIGHTS here");
+    this.cbTwoWork  = new CheckBox(this);
+    this.cbTwoWork.text = "Use two working folders (Work1 + Work2)";
+    this.cbTwoWork.checked = !!HARDCODED_DEFAULTS.useTwo;
+    this.rowWork2   = new PathRow(this, "Work2 Folder:", "Secondary working folder (CosmeticCorrection, Reg set)");
+    this.rowWork2.sizer.visible = this.cbTwoWork.checked;
 
-  // Workflow toggles (initialized from hardcoded defaults)
-  this.gbOptions = new GroupBox(this);
-  this.gbOptions.title = "Workflow steps";
-  this.gbOptions.sizer = new VerticalSizer;
-  this.gbOptions.sizer.margin = 6;
-  this.gbOptions.sizer.spacing = 4;
+    // Apply hardcoded defaults into UI
+    if (HARDCODED_DEFAULTS.lights)  this.rowLights.edit.text  = HARDCODED_DEFAULTS.lights;
+    if (HARDCODED_DEFAULTS.masters) this.rowMasters.edit.text = HARDCODED_DEFAULTS.masters;
+    if (HARDCODED_DEFAULTS.work1)   this.rowWork1.edit.text   = HARDCODED_DEFAULTS.work1;
+    if (HARDCODED_DEFAULTS.work2)   this.rowWork2.edit.text   = HARDCODED_DEFAULTS.work2;
 
-  this.cbCal = new CheckBox(this); this.cbCal.text = "ImageCalibration";           this.cbCal.checked = !!HARDCODED_DEFAULTS.doCal;
-  this.cbCC  = new CheckBox(this); this.cbCC.text  = "CosmeticCorrection";         this.cbCC.checked  = !!HARDCODED_DEFAULTS.doCC;
-  this.cbSSM = new CheckBox(this); this.cbSSM.text = "SubframeSelector — Measure"; this.cbSSM.checked = !!HARDCODED_DEFAULTS.doSSMeasure;
-  this.cbSSO = new CheckBox(this); this.cbSSO.text = "SubframeSelector — Output";  this.cbSSO.checked = !!HARDCODED_DEFAULTS.doSSOutput;
-  this.cbSA  = new CheckBox(this); this.cbSA.text  = "StarAlignment";              this.cbSA.checked  = !!HARDCODED_DEFAULTS.doSA;
-  this.cbLN  = new CheckBox(this); this.cbLN.text  = "LocalNormalization";         this.cbLN.checked  = !!HARDCODED_DEFAULTS.doLN;
-  this.cbNSG = new CheckBox(this); this.cbNSG.text = "NSG (instead of LN)";        this.cbNSG.checked = !!HARDCODED_DEFAULTS.doNSG;
-  this.cbII  = new CheckBox(this); this.cbII.text  = "ImageIntegration";           this.cbII.checked  = !!HARDCODED_DEFAULTS.doII;
-  this.cbDrz = new CheckBox(this); this.cbDrz.text = "DrizzleIntegration";         this.cbDrz.checked = !!HARDCODED_DEFAULTS.doDrizzle;
+    // Workflow toggles (initialized from hardcoded defaults)
+    this.gbOptions = new GroupBox(this);
+    this.gbOptions.title = "Workflow steps";
+    this.gbOptions.sizer = new VerticalSizer;
+    this.gbOptions.sizer.margin = 6;
+    this.gbOptions.sizer.spacing = 4;
 
-  this.gbOptions.sizer.add(this.cbCal);
-  this.gbOptions.sizer.add(this.cbCC);
-  this.gbOptions.sizer.add(this.cbSSM);
-  this.gbOptions.sizer.add(this.cbSSO);
-  this.gbOptions.sizer.add(this.cbSA);
-  this.gbOptions.sizer.add(this.cbLN);
-  this.gbOptions.sizer.add(this.cbNSG);
-  this.gbOptions.sizer.add(this.cbII);
-  this.gbOptions.sizer.add(this.cbDrz);
+    this.cbCal = new CheckBox(this); this.cbCal.text = "ImageCalibration";           this.cbCal.checked = !!HARDCODED_DEFAULTS.doCal;
+    this.cbCC  = new CheckBox(this); this.cbCC.text  = "CosmeticCorrection";         this.cbCC.checked  = !!HARDCODED_DEFAULTS.doCC;
+    this.cbSSM = new CheckBox(this); this.cbSSM.text = "SubframeSelector — Measure"; this.cbSSM.checked = !!HARDCODED_DEFAULTS.doSSMeasure;
+    this.cbSSO = new CheckBox(this); this.cbSSO.text = "SubframeSelector — Output";  this.cbSSO.checked = !!HARDCODED_DEFAULTS.doSSOutput;
+    this.cbSA  = new CheckBox(this); this.cbSA.text  = "StarAlignment";              this.cbSA.checked  = !!HARDCODED_DEFAULTS.doSA;
+    this.cbLN  = new CheckBox(this); this.cbLN.text  = "LocalNormalization";         this.cbLN.checked  = !!HARDCODED_DEFAULTS.doLN;
+    this.cbNSG = new CheckBox(this); this.cbNSG.text = "NSG (instead of LN)";        this.cbNSG.checked = !!HARDCODED_DEFAULTS.doNSG;
+    this.cbII  = new CheckBox(this); this.cbII.text  = "ImageIntegration";           this.cbII.checked  = !!HARDCODED_DEFAULTS.doII;
+    this.cbDrz = new CheckBox(this); this.cbDrz.text = "DrizzleIntegration";         this.cbDrz.checked = !!HARDCODED_DEFAULTS.doDrizzle;
 
-  // Dialog buttons
-  this.ok_Button = new PushButton(this);     this.ok_Button.text = "OK";
-  this.cancel_Button = new PushButton(this); this.cancel_Button.text = "Cancel";
-  var buttons = new HorizontalSizer; buttons.addStretch(); buttons.spacing = 6; buttons.add(this.ok_Button); buttons.add(this.cancel_Button);
+    this.gbOptions.sizer.add(this.cbCal);
+    this.gbOptions.sizer.add(this.cbCC);
+    this.gbOptions.sizer.add(this.cbSSM);
+    this.gbOptions.sizer.add(this.cbSSO);
+    this.gbOptions.sizer.add(this.cbSA);
+    this.gbOptions.sizer.add(this.cbLN);
+    this.gbOptions.sizer.add(this.cbNSG);
+    this.gbOptions.sizer.add(this.cbII);
+    this.gbOptions.sizer.add(this.cbDrz);
 
-  // Layout
-  this.sizer = new VerticalSizer;
-  this.sizer.margin = 6;
-  this.sizer.spacing = 6;
-  this.sizer.add(lightsRowSizer);
-  this.sizer.add(mastersRowSizer);
-  this.sizer.add(this.rowWork1.sizer);
-  this.sizer.add(this.cbTwoWork);
-  this.sizer.add(this.rowWork2.sizer);
-  this.sizer.add(this.gbOptions);
-	  
-  this.sizer.add(buttons);
+    // Dialog buttons
+    this.ok_Button = new PushButton(this);     this.ok_Button.text = "OK";
+    this.cancel_Button = new PushButton(this); this.cancel_Button.text = "Cancel";
+    var buttons = new HorizontalSizer; buttons.addStretch(); buttons.spacing = 6; buttons.add(this.btnRun); buttons.add(this.ok_Button); buttons.add(this.cancel_Button);
 
-  this.adjustToContents();
+    // Layout
+    this.sizer = new VerticalSizer;
+    this.sizer.margin = 6;
+    this.sizer.spacing = 6;
+    this.sizer.add(lightsRowSizer);
+    this.sizer.add(mastersRowSizer);
+    this.sizer.add(this.rowWork1.sizer);
+    this.sizer.add(this.cbTwoWork);
+    this.sizer.add(this.rowWork2.sizer);
+    this.sizer.add(this.gbOptions);
 
-  // Handlers
-  var self = this;
+    this.sizer.add(buttons);
 
-  this.cbTwoWork.onCheck = function(checked){
-    self.rowWork2.sizer.visible = checked;
-    self.adjustToContents();
-  };
+    this.adjustToContents();
 
-// Reindex Masters button handler
-this.btnReindexMasters.onClick = function(){
-  var mastersPath = self.rowMasters.edit.text.trim();
-  if (!mastersPath){
-    showDialogBox("ANAWBPPS", "Please select a Masters folder first.");
-    return;
-  }
-  Console.show();
-  try{
-    // JSON-отчёт положим в файл _masters_index.json в корне мастеров
-    var jsonOut = mastersPath.replace(/\\/g,'/') + "/masters_index.json";
-    MI_reindexMasters(mastersPath, jsonOut);
-  } catch(e){
-    Console.criticalln(e);
-    showDialogBox("ANAWBPPS", "Reindex failed:\n" + e);
-  }
-};
+    // Handlers
+    var self = this;
 
-// Reindex Lights button handler
-this.btnReindexLights.onClick = function(){
-  var lightsPath = self.rowLights.edit.text.trim();
-  if (!lightsPath){
-    showDialogBox("ANAWBPPS", "Please select a Lights folder first.");
-    return;
-  }
-  try{
-    // save index NEXT TO the lights folder
-    var savePath = joinPath(lightsPath, "lights_index.json");
-    LI_reindexLights(lightsPath, savePath); // from modules/lights_index.jsh (v0.2.0 walker)
-    Console.writeln("[lights] Index saved: " + savePath);
-  } catch(e){
-    Console.criticalln("[lights] Reindex failed: " + e);
-    showDialogBox("ANAWBPPS", "Reindex Lights failed:\n" + e);
-  }
-};								
-  this.ok_Button.onClick = function(){ self.ok(); };
-  this.cancel_Button.onClick = function(){ self.cancel(); };
+    this.cbTwoWork.onCheck = function(checked){
+        self.rowWork2.sizer.visible = checked;
+        self.adjustToContents();
+    };
+
+// RUN button handler
+    this.btnRun.onClick = function(){
+        var lightsRoot  = self.rowLights.edit.text.trim();
+        var mastersRoot = self.rowMasters.edit.text.trim();
+        if (!lightsRoot){
+            showDialogBox("ANAWBPPS", "Please select Lights folder first.");
+            return;
+        }
+        if (!mastersRoot){
+            showDialogBox("ANAWBPPS", "Please select Masters folder first.");
+            return;
+        }
+
+        Console.show();
+        Console.noteln("[run] START");
+        Console.writeln("  Lights root : " + lightsRoot);
+        Console.writeln("  Masters root: " + mastersRoot);
+
+        // small path normalizer without regex traps
+        function _norm(p){
+            var s = String(p||"");
+            var out = "";
+            for (var i=0;i<s.length;i++){
+                var c = s.charAt(i);
+                out += (c === "\\") ? "/" : c;
+            }
+            // collapse // -> /
+            var res = "";
+            for (var j=0;j<out.length;j++){
+                var ch = out.charAt(j);
+                if (!(ch === "/" && res.length>0 && res.charAt(res.length-1) === "/"))
+                    res += ch;
+            }
+            return res;
+        }
+
+        Console.noteln("[run] Reindex Lights & Masters, then build calibration plan…");
+
+        // paths for control JSON outputs (not read back)
+        var lightsJson  = _norm(lightsRoot  + "/lights_index.json");
+        var mastersJson = _norm(mastersRoot + "/masters_index.json");
+        var planPath    = _norm(lightsRoot  + "/calibration_plan.json");
+
+        var LI = null, MI = null;
+
+        // 1) Reindex Lights (headers-only) → returns in-memory index and writes JSON
+        try{
+            LI = LI_reindexLights(lightsRoot, lightsJson);
+            if (!LI || !LI.items || !LI.items.length){
+                Console.warningln("[run] LI_reindexLights() returned empty. Trying in-memory fallback …");
+                if (typeof LI_GET_LAST_INDEX === "function")
+                    LI = LI_GET_LAST_INDEX();
+                else if (typeof LI_LAST_INDEX !== "undefined")
+                    LI = LI_LAST_INDEX;
+            }
+            if (!LI || !LI.items || !LI.items.length){
+                throw new Error("Lights index is empty after reindex and fallback.");
+            }
+        } catch(e){
+            Console.criticalln("[run] Lights reindex failed: " + e);
+            showDialogBox("ANAWBPPS — Error", "Lights reindex failed:\n" + e);
+            return;
+        }
+
+        // 2) Reindex Masters (name-only) → returns in-memory index and writes JSON
+        try{
+            MI = MI_reindexMasters(mastersRoot, mastersJson);
+            if (!MI || !MI.items || !MI.items.length){
+                Console.warningln("[run] MI_reindexMasters() returned empty. Trying in-memory fallback …");
+                if (typeof MI_GET_LAST_INDEX === "function")
+                    MI = MI_GET_LAST_INDEX();
+                else if (typeof MI_LAST_INDEX !== "undefined")
+                    MI = MI_LAST_INDEX;
+            }
+            if (!MI || !MI.items || !MI.items.length){
+                throw new Error("Masters index is empty after reindex and fallback.");
+            }
+        } catch(e){
+            Console.criticalln("[run] Masters reindex failed: " + e);
+            showDialogBox("ANAWBPPS — Error", "Masters reindex failed:\n" + e);
+            return;
+        }
+        Console.noteln(
+            "[run] Pools: lights=" + LI.items.length +
+            ", biases=" + (MI._pools && MI._pools.biases ? MI._pools.biases.length : 0) +
+            ", darks="  + (MI._pools && MI._pools.darks  ? MI._pools.darks.length  : 0) +
+            ", flats="  + (MI._pools && MI._pools.flats  ? MI._pools.flats.length  : 0)
+        );
+
+        // 3) Build plan entirely in-memory (group by triads) + save plan JSON
+        try{
+            CM_buildPlanInMemory(LI, MI, planPath);
+        } catch(e){
+            Console.criticalln("[run] Plan build failed: " + e);
+            showDialogBox("ANAWBPPS — Error", "Failed to build calibration plan:\n" + e);
+            return;
+        }
+        // 4) Create work folder structure
+        var work1Root = self.rowWork1.edit.text.trim();
+        var work2Root = self.rowWork2.edit.text.trim();
+        var useTwo    = self.cbTwoWork.checked;
+
+        var wf = makeWorkFolders(work1Root, work2Root, useTwo);
+
+        Console.noteln("[run] Work folders created:");
+        Console.writeln("  Calibrated:   " + wf.calibrated);
+        Console.writeln("  Approved:     " + wf.approved);
+        Console.writeln("  ApprovedSet:  " + wf.approvedSet);
+        Console.writeln("  Cosmetic:     " + wf.cosmetic);
+        Console.writeln("  Trash:        " + wf.trash);
+
+        showDialogBox(
+            "ANAWBPPS — Calibration Plan",
+            "Calibration plan has been generated.\n\n" +
+            "• Lights root : " + lightsRoot  + "\n" +
+            "• Masters root: " + mastersRoot + "\n" +
+            "• Saved to    : " + planPath + "\n\n" +
+            "See the Console for a detailed summary."
+        );
+    };
+    this.ok_Button.onClick = function(){ self.ok(); };
+    this.cancel_Button.onClick = function(){ self.cancel(); };
 }
 
 ANAWBPPSDialog.prototype = new Dialog;
@@ -346,72 +426,60 @@ ANAWBPPSDialog.prototype = new Dialog;
 // Entry point
 // ============================================================================
 function main(){
-  Console.show();
+    Console.show();
 
-  var dlg = new ANAWBPPSDialog();
-  if (!dlg.execute()){
-    Console.writeln("[info] Canceled");
-    return;
-  }
+    var dlg = new ANAWBPPSDialog();
+    if (!dlg.execute()){
+        Console.writeln("[info] Canceled");
+        return;
+    }
 
-  var lights  = dlg.rowLights.edit.text.trim();
-  var masters = dlg.rowMasters.edit.text.trim();
-  var work1   = dlg.rowWork1.edit.text.trim();
-  var work2   = dlg.rowWork2.edit.text.trim();
-  var useTwo  = dlg.cbTwoWork.checked;
+    var lights  = dlg.rowLights.edit.text.trim();
+    var masters = dlg.rowMasters.edit.text.trim();
+    var work1   = dlg.rowWork1.edit.text.trim();
+    var work2   = dlg.rowWork2.edit.text.trim();
+    var useTwo  = dlg.cbTwoWork.checked;
 
-  // Workflow toggles
-  var doCal = dlg.cbCal.checked;
-  var doCC  = dlg.cbCC.checked;
-  var doSSM = dlg.cbSSM.checked;
-  var doSSO = dlg.cbSSO.checked;
-  var doSA  = dlg.cbSA.checked;
-  var doLN  = dlg.cbLN.checked;
-  var doNSG = dlg.cbNSG.checked;
-  var doII  = dlg.cbII.checked;
-  var doDrz = dlg.cbDrz.checked;
+    // Workflow toggles
+    var doCal = dlg.cbCal.checked;
+    var doCC  = dlg.cbCC.checked;
+    var doSSM = dlg.cbSSM.checked;
+    var doSSO = dlg.cbSSO.checked;
+    var doSA  = dlg.cbSA.checked;
+    var doLN  = dlg.cbLN.checked;
+    var doNSG = dlg.cbNSG.checked;
+    var doII  = dlg.cbII.checked;
+    var doDrz = dlg.cbDrz.checked;
 
-  // Basic validation
-  if (!lights){ showDialogBox("ANAWBPPS", "Please select Lights folder."); return; }
-  if (!work1){  showDialogBox("ANAWBPPS", "Please select Work1 folder.");  return; }
-  if (useTwo && !work2){ showDialogBox("ANAWBPPS", "Two-disk mode is enabled: please select Work2 folder."); return; }
+    // Basic validation
+    if (!lights){ showDialogBox("ANAWBPPS", "Please select Lights folder."); return; }
+    if (!work1){  showDialogBox("ANAWBPPS", "Please select Work1 folder.");  return; }
+    if (useTwo && !work2){ showDialogBox("ANAWBPPS", "Two-disk mode is enabled: please select Work2 folder."); return; }
 
-  // Create work folders (according to the two-disk rule)
-  var wf = makeWorkFolders(work1, work2, useTwo);
+    // Summary
+    var summary =
+        "Lights : " + lights + "\n" +
+        "Masters: " + (masters || "—") + "\n" +
+        "Work1  : " + work1 + "\n" +
+        (useTwo ? ("Work2  : " + work2 + "\n") : "") +
+        "\n" +
+        "Workflow: " +
+        (doCal ? "Cal "   : "") +
+        (doCC  ? "CC "    : "") +
+        (doSSM ? "SS-M "  : "") +
+        (doSSO ? "SS-O "  : "") +
+        (doSA  ? "SA "    : "") +
+        (doLN  ? "LN "    : "") +
+        (doNSG ? "NSG "   : "") +
+        (doII  ? "II "    : "") +
+        (doDrz ? "Drz "   : "");
 
-  // Summary
-  var summary =
-    "Lights : " + lights + "\n" +
-    "Masters: " + (masters || "—") + "\n" +
-    "Work1  : " + work1 + "\n" +
-    (useTwo ? ("Work2  : " + work2 + "\n") : "") +
-    "\n" +
-    "Workflow: " +
-      (doCal ? "Cal "   : "") +
-      (doCC  ? "CC "    : "") +
-      (doSSM ? "SS-M "  : "") +
-      (doSSO ? "SS-O "  : "") +
-      (doSA  ? "SA "    : "") +
-      (doLN  ? "LN "    : "") +
-      (doNSG ? "NSG "   : "") +
-      (doII  ? "II "    : "") +
-      (doDrz ? "Drz "   : "") +
-    "\n\n" +
-    "Created work folders:\n" +
-    "  Work1 base: " + wf.base1 + "\n" +
-    (useTwo ? ("  Work2 base: " + wf.base2 + "\n") : "") +
-    "  Calibrated: " + wf.calibrated + "\n" +
-    "  Cosmetic:   " + wf.cosmetic + "\n" +
-    "  Approved:   " + wf.approved + "\n" +
-    "  ApprovedSet:" + wf.approvedSet + "\n" +
-    "  Trash:      " + wf.trash + "\n";
-
-  Console.writeln("[ANAWBPPS] Selected settings and work folders:\n" + summary);
-  showDialogBox("ANAWBPPS — Summary", "Folders and options have been selected. Work structure created:\n\n" + summary);
+    Console.writeln("[ANAWBPPS] Selected settings and work folders:\n" + summary);
+    showDialogBox("ANAWBPPS — Summary", "Folders and options have been selected. Work structure created:\n\n" + summary);
 }
 
 try {
-  main();
+    main();
 } catch (e) {
-  Console.criticalln("[FATAL] " + e);
+    Console.criticalln("[FATAL] " + e);
 }
