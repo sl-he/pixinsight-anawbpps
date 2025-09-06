@@ -153,6 +153,8 @@ function LI_walkDir(dir, cb){
  * Requires: LI_parseLight(fullPath) provided by modules/lights_parse.jsh
  */
 function LI_reindexLights(rootPath, savePath){
+    // ensure local declaration exists to avoid Warning [156]
+    var LI_LAST_INDEX = (typeof LI_LAST_INDEX !== 'undefined') ? LI_LAST_INDEX : null;
     var lightsRoot = LI_norm(rootPath);
     Console.writeln("[lights] Reindex started: " + lightsRoot);
 
@@ -274,7 +276,7 @@ function LI_reindexLights(rootPath, savePath){
         setups: setups,
         items: items
     });
-    try { LI_LAST_INDEX = {
+    try { this.LI_LAST_INDEX = {
         lightsRoot: lightsRoot,
         items: items
     }; } catch(_){}
