@@ -214,6 +214,8 @@ function _fallbackParseByName(path){
  * @param {string} savePath  Optional JSON path to store index (or null/empty)
  */
 function MI_reindexMasters(rootPath, savePath){
+    // ensure local declaration exists to avoid Warning [156]
+    var MI_LAST_INDEX = (typeof MI_LAST_INDEX !== 'undefined') ? MI_LAST_INDEX : null;
     var mastersRoot = _norm(rootPath);
     Console.writeln("[masters] Reindex started: " + mastersRoot);
 
@@ -376,7 +378,7 @@ function MI_reindexMasters(rootPath, savePath){
             items: items
         });
     }
-    try { MI_LAST_INDEX = {
+    try { this.MI_LAST_INDEX = {
         mastersRoot: mastersRoot,
         items: items
     }; } catch(_){}
