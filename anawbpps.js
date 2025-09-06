@@ -23,7 +23,7 @@
 #include "modules/masters_index.jsh"
 #include "modules/lights_index.jsh"
 #include "modules/calibration_match.jsh"
-
+#include "modules/calibration_run.jsh"
 
 // ============================================================================
 // Hardcoded defaults (edit these to your liking)
@@ -350,6 +350,8 @@ function ANAWBPPSDialog(){
                     LI = LI_GET_LAST_INDEX();
                 else if (typeof LI_LAST_INDEX !== "undefined")
                     LI = LI_LAST_INDEX;
+                else if (typeof this !== "undefined" && typeof this.LI_LAST_INDEX !== "undefined")
+                    LI = this.LI_LAST_INDEX;
             }
             if (!LI || !LI.items || !LI.items.length){
                 throw new Error("Lights index is empty after reindex and fallback.");
@@ -369,6 +371,8 @@ function ANAWBPPSDialog(){
                     MI = MI_GET_LAST_INDEX();
                 else if (typeof MI_LAST_INDEX !== "undefined")
                     MI = MI_LAST_INDEX;
+                else if (typeof this !== "undefined" && typeof this.MI_LAST_INDEX !== "undefined")
+                    LI = this.MI_LAST_INDEX;
             }
             if (!MI || !MI.items || !MI.items.length){
                 throw new Error("Masters index is empty after reindex and fallback.");
@@ -385,14 +389,44 @@ function ANAWBPPSDialog(){
             ", flats="  + (MI._pools && MI._pools.flats  ? MI._pools.flats.length  : 0)
         );
 
-        // 3) Build plan entirely in-memory (group by triads) + save plan JSON
+// 3) Build plan entirely in-memory (group by triads) + save plan JSON
+        var PLAN = null;
         try{
-            CM_buildPlanInMemory(LI, MI, planPath);
+            PLAN = CM_buildPlanInMemory(LI, MI, planPath); // теперь возвращает объект
         } catch(e){
             Console.criticalln("[run] Plan build failed: " + e);
             showDialogBox("ANAWBPPS — Error", "Failed to build calibration plan:\n" + e);
             return;
         }
+
+// 3.1) Верификация: план в памяти + файл на диске
+        if (!PLAN || !PLAN.groups){
+            Console.criticalln("[run] Plan is not present in memory (no groups).");
+            showDialogBox("ANAWBPPS — Error", "Plan is not present in memory.");
+            return;
+        }
+
+// Короткая проверка: количество групп и пропусков
+        var groupKeys = [];
+        for (var k in PLAN.groups) if (PLAN.groups.hasOwnProperty(k)) groupKeys.push(k);
+
+        Console.noteln("[run] Plan in memory — groups=" + groupKeys.length + ", skipped=" + (PLAN.skipped?PLAN.skipped.length:0));
+
+// Показать первые 3 ключа групп для визуальной проверки
+        if (groupKeys.length){
+            var head = groupKeys.slice(0,3).join(", ");
+            Console.writeln("       sample groups: " + head + (groupKeys.length>3 ? " ..." : ""));
+        }
+
+// Проверка, что файл действительно лежит на диске
+        try{
+            if (File.exists(planPath))
+                Console.writeln("[run] Plan file exists: " + planPath);
+            else
+                Console.warningln("[run] Plan file NOT found (expected at): " + planPath);
+        } catch(_){ /* File.exists может бросить в старых сборках */ }
+
+
         // 4) Create work folder structure
         var work1Root = self.rowWork1.edit.text.trim();
         var work2Root = self.rowWork2.edit.text.trim();
@@ -406,6 +440,23 @@ function ANAWBPPSDialog(){
         Console.writeln("  ApprovedSet:  " + wf.approvedSet);
         Console.writeln("  Cosmetic:     " + wf.cosmetic);
         Console.writeln("  Trash:        " + wf.trash);
+// 3.2) Optional: run ImageCalibration if checkbox is ON
+        if (self.cbCal && self.cbCal.checked){
+            Console.noteln("[run] Calibration checkbox is ON — running ImageCalibration…");
+
+// Explicit path from constants
+            var xpsmCandidates = [ _norm(CONST_IMAGECAL_XPSM) ];
+
+            try{
+                CAL_runCalibration(PLAN, wf /* third arg ignored */);
+            } catch(e){
+                Console.criticalln("[run] Calibration failed: " + e);
+                showDialogBox("ANAWBPPS — Calibration Error", String(e));
+                // продолжаем workflow дальше по желанию — либо return; решайте сами
+            }
+        } else {
+            Console.writeln("[run] Calibration checkbox is OFF — skipping ImageCalibration.");
+        }
 
         showDialogBox(
             "ANAWBPPS — Calibration Plan",
