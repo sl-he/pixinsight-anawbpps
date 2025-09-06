@@ -284,5 +284,3 @@ function MP_parseMaster(path){
         filter: filter
     };
 }
-
-//EOF
