@@ -24,13 +24,12 @@
 #include "modules/lights_index.jsh"
 #include "modules/calibration_match.jsh"
 #include "modules/calibration_run.jsh"
-#include "modules/preprocessing_progress.jsh"
 
 // ============================================================================
 // Hardcoded defaults (edit these to your liking)
 // ============================================================================
 var HARDCODED_DEFAULTS = {
-    lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS/Sivan 2", // sample
+    lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS", // sample
     masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS",   // sample
     work1:   "D:/!!!WORK/ASTROFOTO/",              // base root (script will append !!!WORK_LIGHTS if needed)
     work2:   "W:/!!!WORK/ASTROFOTO/",              // base root (optional)
@@ -446,7 +445,7 @@ function ANAWBPPSDialog(){
             Console.noteln("[run] Calibration checkbox is ON — running ImageCalibration…");
 
             try{
-                CAL_runCalibration_UI(PLAN, wf);
+                CAL_runCalibration(PLAN, wf /* third arg ignored */);
             } catch(e){
                 Console.criticalln("[run] Calibration failed: " + e);
                 showDialogBox("ANAWBPPS — Calibration Error", String(e));
