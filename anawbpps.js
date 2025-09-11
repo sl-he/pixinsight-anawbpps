@@ -24,6 +24,9 @@
 #include "modules/lights_index.jsh"
 #include "modules/calibration_match.jsh"
 #include "modules/calibration_run.jsh"
+#include "modules/preprocessing_progress.jsh"
+#include "modules/cosmetic_plan.jsh"
+#include "modules/cosmetic_run.jsh"
 
 // ============================================================================
 // Hardcoded defaults (edit these to your liking)
@@ -31,7 +34,7 @@
 var HARDCODED_DEFAULTS = {
     lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS", // sample
     masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS",   // sample
-    work1:   "D:/!!!WORK/ASTROFOTO/",              // base root (script will append !!!WORK_LIGHTS if needed)
+    work1:   "V:/!!!WORK/ASTROFOTO/",              // base root (script will append !!!WORK_LIGHTS if needed)
     work2:   "W:/!!!WORK/ASTROFOTO/",              // base root (optional)
     useTwo:  true,                                   // two-disk mode on/off
 
@@ -441,28 +444,73 @@ function ANAWBPPSDialog(){
         Console.writeln("  Cosmetic:     " + wf.cosmetic);
         Console.writeln("  Trash:        " + wf.trash);
 // 3.2) Optional: run ImageCalibration if checkbox is ON
+        // --- Открываем общий прогресс-диалог заранее ---
+        var ppDlg = new CalibrationProgressDialog();
+        try { ppDlg.show(); } catch(_){}
+
+        /* --- Build Cosmetic plan EARLY; DO NOT add rows yet (defer to dlg.flushDeferredCC) --- */
+        var CC_PLAN = CC_makeCosmeticPlan(PLAN, wf /*, { outputPostfix: "_c", outputExtension: ".xisf" } */);
+        CC_printPlanSummary(CC_PLAN);
+
+//        var ccPlanPath = (wf && wf.calibrated) ? (wf.calibrated + "/cosmetic_plan.json") : "cosmetic_plan.json";
+        var ccPlanPath = _norm(lightsRoot  + "/cosmetic_plan.json");
+        CC_savePlan(CC_PLAN, ccPlanPath);
+
+        /* Defer CC row insertion until IC rows are created */
+        try{
+            if (ppDlg){
+                ppDlg.__ccPlan = CC_PLAN;
+                ppDlg.flushDeferredCC = function(){
+                    try{
+                        var plan = this.__ccPlan;
+                        if (!plan || !plan.groups) return;
+                        if (!this.ccRowsMap) this.ccRowsMap = {};
+                        var keys = []; for (var k in plan.groups) if (plan.groups.hasOwnProperty(k)) keys.push(k);
+                        for (var i=0;i<keys.length;i++){
+                            var gkey = keys[i], g = plan.groups[gkey];
+                            var total = 0;
+                            if (g && g.files && g.files.length) total = g.files.length;
+                            else if (g && g.items && g.items.length) total = g.items.length;
+                            else if (g && g.frames && g.frames.length) total = g.frames.length;
+                            var core = (typeof CP__fmtCosmeticGroupLabel==="function") ? CP__fmtCosmeticGroupLabel(gkey) : String(gkey);
+                            var label = core + " (" + total + " subs)";
+                            var node = this.addRow("CosmeticCorrection", label);
+                            try{ node.setText(2, "00:00:00"); }catch(_){}
+                            /* queued rows: no note, keep it empty (match IC behavior) */
+                            try{ if (this.setRowNote) this.setRowNote(node, ""); }catch(_){}
+                            this.ccRowsMap[gkey] = { node: node, total: total };
+                        }
+                        try{ processEvents(); }catch(_){}
+                        this.__ccPreAdded = true;
+                    }catch(_){}
+                };
+            }
+        }catch(_){}
+
+        /* --- Now run Calibration --- */
         if (self.cbCal && self.cbCal.checked){
             Console.noteln("[run] Calibration checkbox is ON — running ImageCalibration…");
-
             try{
-                CAL_runCalibration(PLAN, wf /* third arg ignored */);
+                CAL_runCalibration_UI(PLAN, wf, ppDlg);
             } catch(e){
                 Console.criticalln("[run] Calibration failed: " + e);
-                showDialogBox("ANAWBPPS — Calibration Error", String(e));
-                // продолжаем workflow дальше по желанию — либо return; решайте сами
             }
         } else {
             Console.writeln("[run] Calibration checkbox is OFF — skipping ImageCalibration.");
         }
 
-        showDialogBox(
-            "ANAWBPPS — Calibration Plan",
-            "Calibration plan has been generated.\n\n" +
-            "• Lights root : " + lightsRoot  + "\n" +
-            "• Masters root: " + mastersRoot + "\n" +
-            "• Saved to    : " + planPath + "\n\n" +
-            "See the Console for a detailed summary."
-        );
+
+        // --- Запуск CosmeticCorrection, если включена галочка ---
+        if (self.cbCC && self.cbCC.checked){
+            Console.noteln("[run] CosmeticCorrection checkbox is ON — running CosmeticCorrection…");
+            try{
+                CC_runCosmetic_UI(CC_PLAN, wf, ppDlg);
+            } catch(e){
+                Console.criticalln("[run] CosmeticCorrection failed: " + e);
+            }
+        } else {
+            Console.writeln("[run] CosmeticCorrection checkbox is OFF — skipping CosmeticCorrection.");
+        }
     };
     this.ok_Button.onClick = function(){ self.ok(); };
     this.cancel_Button.onClick = function(){ self.cancel(); };
