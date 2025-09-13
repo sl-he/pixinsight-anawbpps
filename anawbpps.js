@@ -512,7 +512,23 @@ function ANAWBPPSDialog(){
                 Console.criticalln("[run] CosmeticCorrection failed: " + e);
             }
         } else {
-            Console.writeln("[run] CosmeticCorrection checkbox is OFF — skipping CosmeticCorrection.");
+            // CC is OFF — finalize progress UI with DONE
+            try{
+                if (ppDlg.cancelled){ try{ ppDlg.cancel(); }catch(_){ try{ ppDlg.ok(); }catch(__){} } }
+                else {
+                    try{ ppDlg.tick.stop(); }catch(_){ }
+                    ppDlg.cancelButton.text = "DONE";
+                    ppDlg._done = false;
+                    ppDlg.cancelButton.onClick = function(){
+                        try { this.dialog._done = true; } catch(_) { ppDlg._done = true; }
+                        try { ppDlg.ok(); } catch(__) { try { ppDlg.cancel(); } catch(___){} }
+                    };
+                    while (!ppDlg._done){
+                        processEvents();
+                        try { msleep(50); } catch(__){}
+                    }
+                }
+            }catch(__){}
         }
     };
     this.ok_Button.onClick = function(){ self.ok(); };
