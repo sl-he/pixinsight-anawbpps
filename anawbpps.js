@@ -447,6 +447,7 @@ function ANAWBPPSDialog(){
         // --- Открываем общий прогресс-диалог заранее ---
         var ppDlg = new CalibrationProgressDialog();
         try { ppDlg.show(); } catch(_){}
+        try{ ppDlg.ccEnabled = !!(self.cbCC && self.cbCC.checked); }catch(_){}
 
         /* --- Build Cosmetic plan EARLY; DO NOT add rows yet (defer to dlg.flushDeferredCC) --- */
         var CC_PLAN = CC_makeCosmeticPlan(PLAN, wf /*, { outputPostfix: "_c", outputExtension: ".xisf" } */);
@@ -461,6 +462,8 @@ function ANAWBPPSDialog(){
             if (ppDlg){
                 ppDlg.__ccPlan = CC_PLAN;
                 ppDlg.flushDeferredCC = function(){
+                    if (!this.ccEnabled) return; // CC disabled — do not add CC rows
+
                     try{
                         var plan = this.__ccPlan;
                         if (!plan || !plan.groups) return;
