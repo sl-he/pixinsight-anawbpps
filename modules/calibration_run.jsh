@@ -141,7 +141,7 @@ function CAL_applyUserParams(IC){
     IC.noiseReductionFilterRadius = 0;
     IC.minStructureSize        = 0;
 //    IC.psfType                 = "PSFType_Auto";
-    CAL__safeSetStringEnum(IC, "psfType",                 "PSFType_Auto");
+    CAL__safeSetStringEnum(IC, "psfType",                 "PSFType_MoffatA");
     IC.psfGrowth               = 1.00;
     IC.maxStars                = 24576;
     IC.outputDirectory   = "";       // при выполнении подставим workFolders.calibrated, если задан
