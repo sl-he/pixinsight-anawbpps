@@ -286,9 +286,7 @@ function ANAWBPPSDialog(){
     this.sizer.add(this.cbTwoWork);
     this.sizer.add(this.rowWork2.sizer);
     this.sizer.add(this.gbOptions);
-
     this.sizer.add(buttons);
-
     this.adjustToContents();
 
     // Handlers
@@ -342,47 +340,28 @@ function ANAWBPPSDialog(){
         var mastersJson = _norm(mastersRoot + "/masters_index.json");
         var planPath    = _norm(lightsRoot  + "/calibration_plan.json");
 
-        var LI = null, MI = null;
-
-        // 1) Reindex Lights (headers-only) → returns in-memory index and writes JSON
+        // --- Open Progress UI and run indexing via the progress module ---
+        var ppDlg = PP_openProgressUI();
         try{
-            LI = LI_reindexLights(lightsRoot, lightsJson);
-            if (!LI || !LI.items || !LI.items.length){
-                Console.warningln("[run] LI_reindexLights() returned empty. Trying in-memory fallback …");
-                if (typeof LI_GET_LAST_INDEX === "function")
-                    LI = LI_GET_LAST_INDEX();
-                else if (typeof LI_LAST_INDEX !== "undefined")
-                    LI = LI_LAST_INDEX;
-                else if (typeof this !== "undefined" && typeof this.LI_LAST_INDEX !== "undefined")
-                    LI = this.LI_LAST_INDEX;
-            }
-            if (!LI || !LI.items || !LI.items.length){
-                throw new Error("Lights index is empty after reindex and fallback.");
-            }
+            PP_runReindexLights_UI(ppDlg, lightsRoot, lightsJson);
+            PP_runIndexCalibrationFiles_UI(ppDlg, mastersRoot, mastersJson);
         } catch(e){
-            Console.criticalln("[run] Lights reindex failed: " + e);
-            showDialogBox("ANAWBPPS — Error", "Lights reindex failed:\n" + e);
+            Console.criticalln("[run] Indexing failed: " + e);
+            showDialogBox("ANAWBPPS — Error", "Indexing failed:\n" + e);
             return;
         }
 
-        // 2) Reindex Masters (name-only) → returns in-memory index and writes JSON
-        try{
-            MI = MI_reindexMasters(mastersRoot, mastersJson);
-            if (!MI || !MI.items || !MI.items.length){
-                Console.warningln("[run] MI_reindexMasters() returned empty. Trying in-memory fallback …");
-                if (typeof MI_GET_LAST_INDEX === "function")
-                    MI = MI_GET_LAST_INDEX();
-                else if (typeof MI_LAST_INDEX !== "undefined")
-                    MI = MI_LAST_INDEX;
-                else if (typeof this !== "undefined" && typeof this.MI_LAST_INDEX !== "undefined")
-                    LI = this.MI_LAST_INDEX;
-            }
-            if (!MI || !MI.items || !MI.items.length){
-                throw new Error("Masters index is empty after reindex and fallback.");
-            }
-        } catch(e){
-            Console.criticalln("[run] Masters reindex failed: " + e);
-            showDialogBox("ANAWBPPS — Error", "Masters reindex failed:\n" + e);
+        // Retrieve indices via module helpers (no direct globals here)
+        var LI = PP_getLastLightsIndex();
+        var MI = PP_getLastMastersIndex();
+        if (!LI || !LI.items || !LI.items.length){
+            Console.criticalln("[run] Lights index is empty after module run.");
+            showDialogBox("ANAWBPPS — Error", "Lights index is empty after module run.");
+            return;
+        }
+        if (!MI || !MI.items || !MI.items.length){
+            Console.criticalln("[run] Masters index is empty after module run.");
+            showDialogBox("ANAWBPPS — Error", "Masters index is empty after module run.");
             return;
         }
         Console.noteln(
@@ -391,7 +370,6 @@ function ANAWBPPSDialog(){
             ", darks="  + (MI._pools && MI._pools.darks  ? MI._pools.darks.length  : 0) +
             ", flats="  + (MI._pools && MI._pools.flats  ? MI._pools.flats.length  : 0)
         );
-
 // 3) Build plan entirely in-memory (group by triads) + save plan JSON
         var PLAN = null;
         try{
@@ -429,7 +407,6 @@ function ANAWBPPSDialog(){
                 Console.warningln("[run] Plan file NOT found (expected at): " + planPath);
         } catch(_){ /* File.exists может бросить в старых сборках */ }
 
-
         // 4) Create work folder structure
         var work1Root = self.rowWork1.edit.text.trim();
         var work2Root = self.rowWork2.edit.text.trim();
@@ -443,52 +420,32 @@ function ANAWBPPSDialog(){
         Console.writeln("  ApprovedSet:  " + wf.approvedSet);
         Console.writeln("  Cosmetic:     " + wf.cosmetic);
         Console.writeln("  Trash:        " + wf.trash);
-// 3.2) Optional: run ImageCalibration if checkbox is ON
-        // --- Открываем общий прогресс-диалог заранее ---
-        var ppDlg = new CalibrationProgressDialog();
-        try { ppDlg.show(); } catch(_){}
-        try{ ppDlg.ccEnabled = !!(self.cbCC && self.cbCC.checked); }catch(_){}
 
+        /* --- Run ImageCalibration if enabled --- */
+        if (self.cbCal && self.cbCal.checked){
+            try{
+                // Pass the full work folder structure so calibration_run.jsh
+                // writes to Work1/!!!WORK_LIGHTS (and Work2/... if enabled).
+                var icOptions = { workFolders: wf };
+                PP_runImageCalibration_UI(ppDlg, PLAN, icOptions);
+            } catch(e){
+                Console.criticalln("[run] ImageCalibration failed: " + e);
+                showDialogBox("ANAWBPPS — Error", "ImageCalibration failed:\n" + e);
+                return;
+            }
+        }
+
+        // Progress dialog is already open; Total is owned by progress module.
+        try{ ppDlg.ccEnabled = !!(self.cbCC && self.cbCC.checked); }catch(_){}
+        /* Expose PLAN on dialog for deferred insertions (CC → then SS) */
+        try{ ppDlg.__PLAN = PLAN; }catch(_){}
         /* --- Build Cosmetic plan EARLY; DO NOT add rows yet (defer to dlg.flushDeferredCC) --- */
         var CC_PLAN = CC_makeCosmeticPlan(PLAN, wf /*, { outputPostfix: "_c", outputExtension: ".xisf" } */);
         CC_printPlanSummary(CC_PLAN);
 
-//        var ccPlanPath = (wf && wf.calibrated) ? (wf.calibrated + "/cosmetic_plan.json") : "cosmetic_plan.json";
-        var ccPlanPath = _norm(lightsRoot  + "/cosmetic_plan.json");
+        var ccPlanPath = (wf && wf.calibrated) ? (wf.calibrated + "/cosmetic_plan.json") : "cosmetic_plan.json";
         CC_savePlan(CC_PLAN, ccPlanPath);
 
-        /* Defer CC row insertion until IC rows are created */
-        try{
-            if (ppDlg){
-                ppDlg.__ccPlan = CC_PLAN;
-                ppDlg.flushDeferredCC = function(){
-                    if (!this.ccEnabled) return; // CC disabled — do not add CC rows
-
-                    try{
-                        var plan = this.__ccPlan;
-                        if (!plan || !plan.groups) return;
-                        if (!this.ccRowsMap) this.ccRowsMap = {};
-                        var keys = []; for (var k in plan.groups) if (plan.groups.hasOwnProperty(k)) keys.push(k);
-                        for (var i=0;i<keys.length;i++){
-                            var gkey = keys[i], g = plan.groups[gkey];
-                            var total = 0;
-                            if (g && g.files && g.files.length) total = g.files.length;
-                            else if (g && g.items && g.items.length) total = g.items.length;
-                            else if (g && g.frames && g.frames.length) total = g.frames.length;
-                            var core = (typeof CP__fmtCosmeticGroupLabel==="function") ? CP__fmtCosmeticGroupLabel(gkey) : String(gkey);
-                            var label = core + " (" + total + " subs)";
-                            var node = this.addRow("CosmeticCorrection", label);
-                            try{ node.setText(2, "00:00:00"); }catch(_){}
-                            /* queued rows: no note, keep it empty (match IC behavior) */
-                            try{ if (this.setRowNote) this.setRowNote(node, ""); }catch(_){}
-                            this.ccRowsMap[gkey] = { node: node, total: total };
-                        }
-                        try{ processEvents(); }catch(_){}
-                        this.__ccPreAdded = true;
-                    }catch(_){}
-                };
-            }
-        }catch(_){}
 
         /* --- Now run Calibration --- */
         if (self.cbCal && self.cbCal.checked){
@@ -502,36 +459,47 @@ function ANAWBPPSDialog(){
             Console.writeln("[run] Calibration checkbox is OFF — skipping ImageCalibration.");
         }
 
-
-        // --- Запуск CosmeticCorrection, если включена галочка ---
+        // --- CosmeticCorrection (via progress module), if enabled ---
         if (self.cbCC && self.cbCC.checked){
             Console.noteln("[run] CosmeticCorrection checkbox is ON — running CosmeticCorrection…");
             try{
-                CC_runCosmetic_UI(CC_PLAN, wf, ppDlg);
+                PP_runCosmeticCorrection_UI(ppDlg, CC_PLAN, wf);
             } catch(e){
                 Console.criticalln("[run] CosmeticCorrection failed: " + e);
             }
         } else {
-            // CC is OFF — finalize progress UI with DONE
-            try{
-                if (ppDlg.cancelled){ try{ ppDlg.cancel(); }catch(_){ try{ ppDlg.ok(); }catch(__){} } }
-                else {
-                    try{ ppDlg.tick.stop(); }catch(_){ }
+            Console.writeln("[run] CosmeticCorrection checkbox is OFF — skipping CosmeticCorrection.");
+        }
+
+        // Switch Cancel→DONE only AFTER ALL operations (IC, CC) and wait for click
+        try{
+            if (ppDlg && !ppDlg.cancelled){
+                // Finalize Total timer via the progress module
+                try{ PP_finalizeProgress(ppDlg); }catch(_){}
+                /* convert progress Cancel→DONE (ignore any suppressed setDone from submodules) */
+                try{
                     ppDlg.cancelButton.text = "DONE";
                     ppDlg._done = false;
                     ppDlg.cancelButton.onClick = function(){
                         try { this.dialog._done = true; } catch(_) { ppDlg._done = true; }
                         try { ppDlg.ok(); } catch(__) { try { ppDlg.cancel(); } catch(___){} }
                     };
-                    while (!ppDlg._done){
-                        processEvents();
-                        try { msleep(50); } catch(__){}
-                    }
+                }catch(_){}
+                /* also convert the MAIN dialog Cancel→DONE */
+                try{
+                    self.cancel_Button.text = "DONE";
+                    self.cancel_Button.onClick = function(){
+                        try{ self.cancel(); }catch(_){}
+                    };
+                }catch(_){}
+                while (!ppDlg._done){
+                    processEvents();
+                    try{ msleep(50); }catch(__){}
                 }
-            }catch(__){}
-        }
+            }
+        }catch(_){}
     };
-    this.ok_Button.onClick = function(){ self.ok(); };
+    this.ok_Button.onClick = function(){ self.cancel(); };
     this.cancel_Button.onClick = function(){ self.cancel(); };
 }
 
