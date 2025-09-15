@@ -1,458 +1,716 @@
-/*
-  modules/preprocessing_progress.jsh
-  WBPP-like Progress UI + runner for preprocessing operations.
+// preprocessing_progress.jsh
+// Minimal, include-free progress UI + one-function stubs for each pipeline process.
+// UI strings are English-only, timer shows hundredths. Total never pauses until finalize().
+// All comments and UI strings are English-only.
 
-  - Универсальное окно с таблицей (Operation, Group, Elapsed, Status, Note).
-  - Запускает операции сразу по появлению окна.
-  - Поддерживает Cancel (между кадрами/группами).
-  - Сейчас реализован шаг Calibration (через ImageCalibration) и CosmeticCorrection,
-    но легко расширить другими: CosmeticCorrection, StarAlignment и т.п.
-*/
-
-/// ------- small helpers (без регекспов) -------
-function CP__fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var pad = function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss);
-}
-// Отформатировать ключ группы косметики: DARK::<passport>::<full/path>
-// Вернуть «паспорт» из ключа DARK::<passport>::<full/path>
-function CP__fmtCosmeticGroupLabel(key){
-    var s = String(key||"");
-    var first=-1, second=-1, i;
-    for (i=0; i<s.length-1; i++){
-        if (s.charAt(i)===":" && s.charAt(i+1)===":"){ first=i; break; }
-    }
-    if (first>=0){
-        for (i=first+2; i<s.length-1; i++){
-            if (s.charAt(i)===":" && s.charAt(i+1)===":"){ second=i; break; }
-        }
-        if (second>=0) return s.substring(first+2, second);
-    }
-    return s;
-}
-// Уникальная вставка строки (если уже есть — вернуть существующую)
-function PP_addRowUnique(dlg, op, label, opKey){
-    if (!dlg) return null;
-    if (!dlg.rowIndex) dlg.rowIndex = {};
-    if (dlg.rowIndex[opKey]) return dlg.rowIndex[opKey];
-    var node = dlg.addRow(op, label);
-    dlg.rowIndex[opKey] = node;
-    return node;
-}
-function CP__updateTotal(dlg){
+/* ============================
+   Status icons and helpers
+   ============================ */
+function PP_iconQueued(){  return "⏳ Queued";  }
+function PP_iconRunning(){ return "▶ Running"; }
+function PP_iconSuccess(){ return "✔ Success"; }
+function PP_iconError(){   return "✖ Error";   }
+function PP_setStatus(dlg, node, statusText){
     try{
-        var totalSec = (Date.now() - dlg.startEpoch)/1000;
-        dlg.totalTimeLabel.text = "Total: " + CP__fmtHMS(totalSec);
+        if (dlg && typeof dlg.updateRow === "function")
+            dlg.updateRow(node, { status: statusText });
+        else if (node && typeof node.setText === "function")
+            node.setText(3, statusText);
+    }catch(_){}
+}
+function PP_setNote(dlg, node, noteText){
+    try{
+        if (dlg && typeof dlg.updateRow === "function")
+            dlg.updateRow(node, { note: noteText });
+        else if (node && typeof node.setText === "function")
+            node.setText(4, noteText);
+    }catch(_){}
+}
+// -------- Helpers to summarize masters counts (B/D/F) robustly --------
+function PP_guessMastersCounts(MI){
+    var b=0,d=0,f=0;
+    if (!MI) return {b:b,d:d,f:f};
+    // 0) direct top-level arrays
+    if (MI.biases && typeof MI.biases.length === "number") b = MI.biases.length;
+    if (MI.darks  && typeof MI.darks.length  === "number") d = MI.darks.length;
+    if (MI.flats  && typeof MI.flats.length  === "number") f = MI.flats.length;
+    if (b||d||f) return {b:b,d:d,f:f};
+    // 1) explicit pools
+    if (MI._pools){
+        b = (MI._pools.biases||[]).length;
+        d = (MI._pools.darks ||[]).length;
+        f = (MI._pools.flats ||[]).length;
+        return {b:b,d:d,f:f};
+    }
+    if (MI.pools){
+        b = (MI.pools.biases||[]).length;
+        d = (MI.pools.darks ||[]).length;
+        f = (MI.pools.flats ||[]).length;
+        return {b:b,d:d,f:f};
+    }
+    if (MI.byType){
+        b = (MI.byType.bias || MI.byType.biases || []).length;
+        d = (MI.byType.dark || MI.byType.darks  || []).length;
+        f = (MI.byType.flat || MI.byType.flats  || []).length;
+        return {b:b,d:d,f:f};
+    }
+    // 1b) stats/summary objects
+    if (MI.stats){
+        b = MI.stats.biases || MI.stats.bias || 0;
+        d = MI.stats.darks  || MI.stats.dark  || 0;
+        f = MI.stats.flats  || MI.stats.flat  || 0;
+        if (b||d||f) return {b:b,d:d,f:f};
+    }
+    if (MI.counts){
+        b = MI.counts.B || MI.counts.biases || MI.counts.bias || 0;
+        d = MI.counts.D || MI.counts.darks  || MI.counts.dark || 0;
+        f = MI.counts.F || MI.counts.flats  || MI.counts.flat || 0;
+        if (b||d||f) return {b:b,d:d,f:f};
+    }
+    // 2) items with type/kind/name heuristics
+    var items = MI.items || MI.list || [];
+    for (var i=0;i<items.length;i++){
+        var it = items[i] || {};
+        var t  = (it.type||it.kind||it.class||it.category||it.masterType||"").toString().toLowerCase();
+        var n  = (it.name||it.file||it.path||it.fname||"").toString().toLowerCase();
+        if (!t){
+            if (n.indexOf("bias")>=0 || n.indexOf("masterbias")>=0) t="bias";
+            else if (n.indexOf("dark")>=0 || n.indexOf("masterdark")>=0) t="dark";
+            else if (n.indexOf("flat")>=0 || n.indexOf("masterf")>=0 || n.indexOf("masterflat")>=0) t="flat";
+        }
+        if (t.indexOf("bias")>=0) ++b;
+        else if (t.indexOf("dark")>=0) ++d;
+        else if (t.indexOf("flat")>=0 || t==="f") ++f;
+    }
+    return {b:b,d:d,f:f};
+}
+
+
+//============================
+//0) Small helpers for group label formatting
+//============================
+function CP__splitByPipe(s){
+    try{ return String(s).split("|"); }catch(_){ return [String(s)]; }
+}
+// Example input key:
+//   CYPRUS_FSQ106_F3_QHY600M|Sivan 2|B|High Gain Mode 16BIT|56|40|50|1x1|0|30|<bias>|<dark>|<flat>
+// Desired UI label:
+//   CYPRUS_FSQ106_F3_QHY600M|Sivan 2|B|High Gain Mode 16BIT|G56|OS40|U50|bin1x1|0C|30s
+function CP__fmtGroupForUI(gkey){
+    var p = CP__splitByPipe(gkey);
+    if (p.length < 10) return String(gkey);
+    var cam = p[0], target = p[1], filt = p[2], mode = p[3];
+    var g = p[4], os = p[5], u = p[6], bin = p[7], temp = p[8], exp = p[9];
+    var G   = "G"+g;
+    var OS  = "OS"+os;
+    var U   = "U"+u;
+    var BIN = (String(bin).indexOf("x")>=0 ? "bin" : "") + bin;
+    var TEMP= (String(temp).indexOf("C")>=0 ? temp : (temp+"C"));
+    var EXP = (String(exp).indexOf("s")>=0 ? exp  : (exp +"s"));
+    return cam + "|" + target + "|" + filt + "|" + mode + "|" + G + "|" + OS + "|" + U + "|" + BIN + "|" + TEMP + "|" + EXP;
+}
+// Extract YYYY_MM_DD from DARK master path inside the group key
+function CP__extractDarkDateFromKey(gkey){
+    try{
+        var p = CP__splitByPipe(gkey);
+        // [0..9] — паспорт, [10]=bias, [11]=dark, [12]=flat
+        if (p.length < 12) return "";
+        var dark = String(p[11]||"");
+        // Compact: 20240704 / 2024-07-04 / 2024_07_04
+        var m = dark.match(/(20\d{2})[-_\.]?(0[1-9]|1[0-2])[-_\.]?([0-3]\d)/);
+        if (m) return m[1]+"_"+m[2]+"_"+m[3];
+        // Already split with separators; normalize to underscores
+        m = dark.match(/(20\d{2}[-_\.](?:0[1-9]|1[0-2])[-_\.](?:[0-3]\d))/);
+        if (m) return m[1].replace(/[-\.]/g, "_");
+    }catch(_){}
+    return "";
+}
+
+// Set elapsed time robustly (works with/without dlg.updateRow)
+function PP_setElapsed(dlg, node, elapsedText){
+    try{
+        if (dlg && typeof dlg.updateRow === "function")
+            dlg.updateRow(node, { elapsed: elapsedText });
+        else if (node && typeof node.setText === "function")
+            node.setText(2, elapsedText); // column 2 is Elapsed
     }catch(_){}
 }
 
-
-function CP__norm(p){
-    var s = String(p||"");
-    while (s.indexOf("\\") >= 0){ var i = s.indexOf("\\"); s = s.substring(0,i) + "/" + s.substring(i+1); }
-    var changed = true;
-    while (changed){
-        changed = false;
-        for (var j=0; j < s.length-1; j++){
-            if (s.charAt(j)==="/" && s.charAt(j+1)==="/"){ s = s.substring(0,j) + "/" + s.substring(j+2); changed = true; break; }
+// --- Helpers to format CC label robustly from dark path ---
+function __cc_getDarkPath(gkey, g){
+    // 1) prefer explicit field from group
+    if (g){
+        var names = ["darkPath","dark","masterDark","path","file"];
+        for (var i=0;i<names.length;i++){
+            var v = g[names[i]];
+            if (v && typeof v === "string" && v.length) return v;
         }
     }
-    if (s.length>2 && s.charAt(1)===":" && s.charAt(2)=="/"){
-        var c=s.charAt(0); if (c>="a" && c<="z") s=c.toUpperCase()+s.substring(1);
-    }
-    return s;
-}
-function CP__groupLights(g){
-    if (!g) return [];
-    if (g.lights && g.lights.length) return g.lights.slice(0);
-    if (g.items && g.items.length){
-        var a=[], i; for (i=0;i<g.items.length;i++){ var it=g.items[i]; if (typeof it==="string") a.push(it); else if (it && it.path) a.push(it.path); }
-        return a;
-    }
-    if (g.frames && g.frames.length) return g.frames.slice(0);
-    return [];
-}
-function CP__splitByPipe(s){
-    var parts=[], cur=""; for (var i=0;i<s.length;i++){ var ch=s.charAt(i); if (ch==="|"){ parts.push(cur); cur=""; } else cur+=ch; }
-    parts.push(cur); return parts;
-}
-function CP__extractMastersFromKey(gkey){
-    var res={bias:"",dark:"",flat:""}; if (!gkey) return res;
-    var parts = CP__splitByPipe(gkey); if (parts.length>=3){
-        res.bias = parts[parts.length-3];
-        res.dark = parts[parts.length-2];
-        res.flat = parts[parts.length-1];
-    }
-    return res;
-}
-function CP__fmtGroupForUI(gkey){
-    // пример: CYPRUS_FSQ106_F3_QHY600M|Sivan 2|B|High Gain Mode 16BIT|56|40|50|1x1|0|30|<bias>|<dark>|<flat>
-    // хотим:  CYPRUS_FSQ106_F3_QHY600M|Sivan 2|B|High Gain Mode 16BIT|G56|OS40|U50|bin1x1|0C|30s
-    var p = CP__splitByPipe(gkey);
-    if (p.length < 10) return gkey; // fallback
-    var cam = p[0], target = p[1], filt = p[2], mode = p[3];
-    var g = p[4], os = p[5], u = p[6], bin = p[7], temp = p[8], exp = p[9];
-    // нормализации
-    var G  = "G"+g;
-    var OS = "OS"+os;
-    var U  = "U"+u;
-    var BIN = (bin.indexOf("x")>=0?"bin":"") + bin;
-    var TEMP = (String(temp).indexOf("C")>=0? temp : (temp+"C"));
-    var EXP  = (String(exp).indexOf("s")>=0? exp : (exp+"s"));
-    return cam + "|" + target + "|" + filt + "|" + mode + "|" + G + "|" + OS + "|" + U + "|" + BIN + "|" + TEMP + "|" + EXP;
+    // 2) from gkey: last '::' segment is usually a full path
+    try{
+        var s = String(gkey);
+        var idx = s.lastIndexOf("::");
+        if (idx >= 0) return s.substring(idx+2);
+        // fallback: greedy path with .xisf/.fits
+        var m = s.match(/[A-Za-z]:[\\/][^|]*\.(xisf|fits|fit)/i);
+        if (m) return m[0];
+    }catch(_){}
+    return "";
 }
 
-/// ------- Progress Dialog -------
-function CalibrationProgressDialog(){
+function __cc_labelFromDarkPath(darkPath){
+    var full = String(darkPath||""); if (!full) return "";
+    var p = full.replace(/\\/g,"/");
+    var parts = p.split("/");
+    var fnameWithExt = parts.length ? parts[parts.length-1] : "";
+    var fname = fnameWithExt.replace(/\.(xisf|fits?|fts)$/i,"");
+    var setup = parts.length>1 ? parts[parts.length-2] : "";
+
+    // Tokenize by underscores (spaces остаются внутри токенов)
+    var toks = fname.split("_");
+    function findTok(pred){
+        for (var i=0;i<toks.length;i++) if (pred(toks[i])) return toks[i];
+        return "";
+    }
+    // MODE: первый токен, содержащий "Mode"
+    var modeTok = findTok(function(t){ return /mode/i.test(t); });
+    var mode = modeTok ? modeTok.replace(/[-]+/g," ").replace(/\s+/g," ").trim() : "";
+
+    // Параметры из имени
+    function pick(re){ var m=fname.match(re); return m?m[1]:""; }
+    var g    = pick(/(?:^|_)G(\d+)(?:_|$)/i);
+    var os   = pick(/(?:^|_)OS(\d+)(?:_|$)/i);
+    var u    = pick(/(?:^|_)U(\d+)(?:_|$)/i);
+    var bin  = pick(/(?:^|_)Bin(\d+x\d+)(?:_|$)/i);
+    var expS = pick(/(?:^|_)(\d{1,4})s(?:_|$)/i);
+    var tmpC = pick(/(?:^|_)(-?\d+)C(?:_|$)/i);
+
+    // Дата (из имени или полного пути), формат YYYY_MM_DD
+    var dm = (fname.match(/(20\d{2})[-_\.]?(0[1-9]|1[0-2])[-_\.]?([0-3]\d)/) ||
+        p.match(/(20\d{2})[-_\.]?(0[1-9]|1[0-2])[-_\.]?([0-3]\d)/));
+    var date = dm ? (dm[1]+"_"+dm[2]+"_"+dm[3]) : "";
+
+    // Нормализация
+    function nz(x){ return (x===0 || x==="0" || (x && String(x).length)) ? String(x) : ""; }
+    var G   = nz(g)   ? ("G"+g) : "";
+    var OS  = nz(os)  ? ("OS"+os) : "";
+    var U   = nz(u)   ? ("U"+u) : "";
+    var BIN = nz(bin) ? ("bin"+bin.toLowerCase()) : "";
+    var TEMP= nz(tmpC)? (tmpC+"C") : "";
+    var EXP = nz(expS)? (String(parseInt(expS,10))+"s") : "";
+
+    // Итог: SETUP|MODE|G..|OS..|U..|bin..|TEMP|EXP|DATE
+    var out = [];
+    if (setup) out.push(setup);
+    if (mode)  out.push(mode);
+    if (G)     out.push(G);
+    if (OS)    out.push(OS);
+    if (U)     out.push(U);
+    if (BIN)   out.push(BIN);
+    if (TEMP)  out.push(TEMP);
+    if (EXP)   out.push(EXP);
+    if (date)  out.push(date);
+    return out.join("|");
+}
+// Cosmetic group label for UI: SETUP|MODE|G..|OS..|U..|bin..|TEMP|EXP|YYYY_MM_DD
+function CP__fmtCosmeticGroupLabel(gkey, g){
+    var dark = __cc_getDarkPath(gkey, g);
+    var core = __cc_labelFromDarkPath(dark);
+    return core || String(gkey);
+}
+
+//============================
+//1) Single-function process entry points
+//(Real executable logic lives in process modules.)
+//============================
+
+function ReindexLights(lightsRoot, lightsJsonPath) {
+    // Single entry point for Lights indexing: delegate to modules/lights_index.jsh
+    return LI_reindexLights(lightsRoot, lightsJsonPath);
+}
+
+function ReindexCalibrationFiles(mastersRoot, mastersJsonPath) {
+    // Single entry point for Masters indexing: delegate to modules/masters_index.jsh
+    return MI_reindexMasters(mastersRoot, mastersJsonPath);
+}
+
+// Single entry point for ImageCalibration: delegate to modules/calibration_run.jsh
+function RunImageCalibration(plan, options){
+    if (typeof CAL_runCalibration !== "function")
+        throw new Error("CAL_runCalibration(...) not found in calibration_run.jsh");
+    var workFolders = (options && options.workFolders) ? options.workFolders : undefined;
+    return CAL_runCalibration(plan, workFolders);
+}
+
+// Single entry point for CosmeticCorrection: delegate explicitly to modules/cosmetic_run.jsh
+// Do not implement process logic here.
+function RunCosmeticCorrection(plan, workFolders, dlg) {
+    if (typeof CC_runCosmetic_UI !== "function")
+        throw new Error("CC_runCosmetic_UI(...) not found in cosmetic_run.jsh");
+    return CC_runCosmetic_UI(plan, workFolders, dlg || null);
+}
+
+function SubframeSelector_Measure() {
+    // TODO: insert real SubframeSelector Measure code here.
+}
+
+function SubframeSelector_Output() {
+    // TODO: insert real SubframeSelector Output code here.
+}
+
+function StarAlignment() {
+    // TODO: insert real StarAlignment code here.
+}
+
+function LocalNormalization() {
+    // TODO: insert real LocalNormalization code here.
+}
+
+function NSG() {
+    // TODO: insert Real NSG (instead of LN) code here.
+}
+
+function ImageIntegration() {
+    // TODO: insert real ImageIntegration code here.
+}
+
+function DrizzleIntegration() {
+    // TODO: insert real DrizzleIntegration code here.
+}
+
+/* ============================
+   2) Utilities
+   ============================ */
+
+function formatElapsedMS(ms) {
+    if (ms < 0) ms = 0;
+    var totalSeconds = Math.floor(ms / 1000);
+    var hh = Math.floor(totalSeconds / 3600);
+    var mm = Math.floor((totalSeconds % 3600) / 60);
+    var ss = totalSeconds % 60;
+    var hundredths = Math.floor((ms % 1000) / 10);
+
+    function pad2(n) { return (n < 10 ? "0" : "") + n; }
+    return pad2(hh) + ":" + pad2(mm) + ":" + pad2(ss) + "." + pad2(hundredths);
+}
+
+/* ============================
+   3) Progress Dialog (no includes)
+   ============================ */
+
+function ProgressDialog() {
     this.__base__ = Dialog;
     this.__base__();
 
-    this.cancelled = false;
-    this.groupRows = []; // [{node, counters, startedAt, total, key}...]
+    var self = this;
 
-    // Title
     this.windowTitle = "ANAWBPPS — Progress";
+    this.scaledMinWidth = 1400;
+    this.scaledMinHeight = 1000;
 
-    // Tree
-    this.rowIndex = {};   // индекс уже добавленных строк
+    // Tree (table) – same columns as the screenshot.
     this.tree = new TreeBox(this);
-    this.tree.alternatingRowColors = true;
+    this.tree.alternateRowColor = true;
     this.tree.multipleSelection = false;
     this.tree.headerVisible = true;
     this.tree.rootDecoration = false;
-    this.tree.minHeight = 1500;
-    this.tree.minWidth = 1950;
     this.tree.numberOfColumns = 5;
+    this.tree.headerSorting = false;
+
     this.tree.setHeaderText(0, "Operation");
     this.tree.setHeaderText(1, "Group involved");
     this.tree.setHeaderText(2, "Elapsed");
     this.tree.setHeaderText(3, "Status");
     this.tree.setHeaderText(4, "Note");
-    this.tree.setColumnWidth(0, 200);
-    this.tree.setColumnWidth(1, 1200);
-    this.tree.setColumnWidth(2, 130);
-    this.tree.setColumnWidth(3, 150);
-    // отметка старта/финиша строки
-    this.markRowStarted = function(node){
-        try { node._startedAt = Date.now(); node._finished = false; } catch(_){}
-        // при старте сбросим elapsed в 00:00:00
-        try { node.setText(2, "00:00:00"); } catch(_){}
-    };
-    this.markRowFinished = function(node, elapsedSec){
-        try { node._finished = true; node._startedAt = 0; } catch(_){}
-        // финальное значение уже выставляет раннер — здесь лишь флаг
-    };
 
-    // Тикер: обновляет Elapsed только у незавершённых строк
-    var self = this;
-    this._timer = new Timer;
-    this._timer.interval = 1000;
-    this._timer.onTimeout = function(){
-        try {
-            if (!self.tree) return;
-            var n = self.tree.child(0);
-            while (n){
-                // обновляем только «живые» строки
-                if (n._startedAt && !n._finished){
-                    var sec = (Date.now() - n._startedAt)/1000;
-                    n.setText(2, CP__fmtHMS(sec));
-                }
-                n = n.nextSibling();
-            }
-        } catch(_){}
-    };
-    this._timer.enabled = true;
-    // Total time + Cancel
-/*    this.totalTimeLabel = new Label(this);
-    this.totalTimeLabel.text = "Total: 00:00:00";
-    // Старые сборки PI могут не знать TextAlign_* — ставим выравнивание, если доступно
-    try { this.totalTimeLabel.textAlignment = TextAlign_Left|TextAlign_VertCenter; } catch(_){}
-*/
-    this.totalTimeLabel = new Label(this);
-    this.totalTimeLabel.text = "Total: 00:00:00";
+    // Reasonable initial widths (tweak freely later).
+    this.tree.setColumnWidth(0, this.logicalPixelsToPhysical(200));
+    this.tree.setColumnWidth(1, this.logicalPixelsToPhysical(700));
+    this.tree.setColumnWidth(2, this.logicalPixelsToPhysical(100));
+    this.tree.setColumnWidth(3, this.logicalPixelsToPhysical(100));
+    this.tree.setColumnWidth(4, this.logicalPixelsToPhysical(200));
+
+    // Bottom bar: Total timer (never pauses) + Cancel button.
+    this.totalLabel = new Label(this);
+    this.totalLabel.text = "Total: 00:00:00.00";
+    //this.totalLabel.textAlignment = TextAlign_Left | TextAlign_VertCenter;
     // безопасное выставление выравнивания
     var _TA_L = (typeof TextAlign_Left       !== "undefined") ? TextAlign_Left       : 0;
     var _TA_V = (typeof TextAlign_VertCenter !== "undefined") ? TextAlign_VertCenter : 0;
     try { this.totalTimeLabel.textAlignment = _TA_L | _TA_V; } catch(_) {}
-
     this.cancelButton = new PushButton(this);
     this.cancelButton.text = "Cancel";
-    var self = this;
-    this.cancelButton.onClick = function(){ self.cancelled = true; self.setGlobalStatus("Cancelling…"); };
-    // Перевести кнопку Cancel в режим DONE (окно остаётся открытым до клика)
-    this.setDone = function(){
-        try {
-            this.cancelled = false; // на всякий случай
-            this.cancelButton.text = "DONE";
-            var self = this;
-            this.cancelButton.onClick = function(){
-                // закрываем окно по нажатию DONE
-                try { self.ok(); } catch(_){ try { self.cancel(); } catch(__){} }
-            };
-        } catch(_){}
+    this.cancelButton.onClick = function () {
+        self.finalizePipeline(); // stop Total timer
+        self.cancel();
     };
-    var buttonsSizer = new HorizontalSizer;
-    buttonsSizer.spacing = 8;
-    buttonsSizer.add(this.totalTimeLabel, 100);
-    buttonsSizer.add(this.cancelButton);
 
     // Layout
+    this.bottomSizer = new HorizontalSizer;
+    this.bottomSizer.spacing = 6;
+    this.bottomSizer.add(this.totalLabel, 100);
+    this.bottomSizer.addSpacing(8);
+    this.bottomSizer.add(this.cancelButton, 0);
+
     this.sizer = new VerticalSizer;
     this.sizer.margin = 8;
     this.sizer.spacing = 8;
     this.sizer.add(this.tree, 100);
-    this.sizer.add(buttonsSizer);
+    this.sizer.add(this.bottomSizer);
 
-    // Timer to refresh total counter and any running row (между файлами)
-    this.startEpoch = 0;
-    this.tick = new Timer;
-    this.tick.interval = 1000;
-    this.tick.periodic = true;
-    this.tick.onTimeout = function(){
-        if (!self.startEpoch) return;
-        var t = (Date.now() - self.startEpoch) / 1000;
-        var hh = Math.floor(t/3600); var mm = Math.floor((t%3600)/60); var ss = Math.floor(t%60);
-        var pad = function(n){ return (n<10?"0":"")+n; };
-        self.totalTimeLabel.text = "Total: " + pad(hh)+":"+pad(mm)+":"+pad(ss);
-
-        // update any running rows elapsed (после каждого файла будет живо)
-        for (var i=0;i<self.groupRows.length;i++){
-            var gr = self.groupRows[i];
-            if (gr.startedAt && gr.node){ // only when running
-                var tt = (Date.now() - gr.startedAt)/1000;
-                var h = Math.floor(tt/3600); var m=Math.floor((tt%3600)/60); var s=Math.floor(tt%60);
-                gr.node.setText(2, pad(h)+":"+pad(m)+":"+pad(s));
-            }
-        }
+    // --- Total timer (independent high-level clock) ---
+    this._t0 = 0;
+    this._totalTimer = new Timer;
+    this._totalTimer.period = 30; // ~33 fps; hundredths stay smooth
+    this._totalTimer.onTimeout = function () {
+        var ms = new Date().getTime() - self._t0;
+        self.totalLabel.text = "Total: " + formatElapsedMS(ms);
     };
 
-    this.addRow = function(opName, groupUiText){
-        var n = new TreeBoxNode(this.tree);
-        // колонка Operation
-        n.setText(0, String(opName||""));
-        // иконки — по возможности
-        if (opName === "ImageCalibration"){
-            try { n.icon = this.iconCal; } catch(_){}
-        } else if (opName === "CosmeticCorrection"){
-            try { n.icon = this.iconCos; } catch(_){}
-        }
-        // колонка Group involved
-        n.setText(1, String(groupUiText||""));
-        // колонка Elapsed
-        n.setText(2, "00:00:00");
-        // колонка Status
-        n.setText(3, "⏳ Queued");
-        // колонка Note
-        n.setText(4, "");
-        return n;
+    this.startTotal = function () {
+        this._t0 = new Date().getTime();
+        this._totalTimer.start();
     };
 
-    this.setRowStatus = function(node, statusText){ node.setText(3, statusText); };
-    this.setRowNote   = function(node, noteText){ node.setText(4, noteText); };
-    this.setGlobalStatus = function(text){
-        // (опционально можно вынести общий статус; сейчас обновляем только кнопку)
-        this.cancelButton.text = text.indexOf("Cancel")>=0 ? text : ("Cancel — " + text);
+    this.finalizePipeline = function () {
+        if (this._totalTimer && this._totalTimer.enabled)
+            this._totalTimer.stop();
+    };
+
+    // Helpers for future: create and manage rows
+    this.addRow = function (operationText, groupText) {
+        var item = new TreeBoxNode(this.tree);
+        item.setText(0, operationText || "");
+        item.setText(1, groupText || ""); // Group
+        item.setText(2, "00:00:00.00");
+        item.setText(3, "Queued");
+        item.setText(4, ""); // Note
+        return item;
+    };
+    this.updateRow = function (item, fields) {
+        if (!item) return;
+        if (fields.group   !== undefined) item.setText(1, fields.group);
+        if (fields.elapsed !== undefined) item.setText(2, fields.elapsed);
+        if (fields.status  !== undefined) item.setText(3, fields.status);
+        if (fields.note    !== undefined) item.setText(4, fields.note);
+    };
+    // For completeness if you later want to reset the grid:
+    this.clearRows = function () {
+        this.tree.clear();
     };
 }
-CalibrationProgressDialog.prototype = new Dialog;
+ProgressDialog.prototype = new Dialog;
+//============================
+//2) Progress UI orchestrators & generic row runner
+//(No process logic here; only UI + timing.)
+//============================
 
-/// ------- Публичная точка входа -------
-function CAL_runCalibration_UI(plan, workFolders, dlg /* optional external dialog */){
-    if (!plan || !plan.groups){
-        Console.warningln("[cal-ui] No plan.groups — nothing to run.");
-        return;
+// Open the Progress UI and start the Total timer.
+function PP_openProgressUI(){
+    var dlg = new ProgressDialog();
+    if (!dlg._t0) dlg._t0 = Date.now();
+    dlg._totalTimer.start();
+    try { dlg.show(); } catch(_){}
+    return dlg;
+}
+
+// Stop Total timer (call once at the very end of the whole pipeline).
+function PP_finalizeProgress(dlg){
+    if (dlg && typeof dlg.finalizePipeline === "function")
+        dlg.finalizePipeline();
+}
+
+/* ---------- Generic one-liner runner for any step (universal row renderer) ---------- */
+// Runs `stepFn()`, paints a row with op/group, measures elapsed, sets Status and Note.
+// If `successNoteFn` is provided, it will be called AFTER success to compute Note text.
+function PP_runStep_UI(dlg, opText, groupText, stepFn, successNoteFn){
+    if (!dlg) throw new Error("Progress dialog is not provided.");
+    var row = dlg.addRow(opText || "", String(groupText||""));
+    PP_setStatus(dlg, row, PP_iconRunning());
+    try{ processEvents(); }catch(_){}
+    var ok = true, err = "", t0 = Date.now();
+    try { if (typeof stepFn === "function") stepFn(); } catch(e){ ok=false; err = e.toString(); }
+    var dt = Date.now() - t0;
+    var elapsedText = (typeof formatElapsedMS === "function")
+        ? formatElapsedMS(dt)
+        : (function(ms){ var s=Math.floor(ms/1000),hh=Math.floor(s/3600),mm=Math.floor((s%3600)/60),ss=s%60,hs=Math.floor((ms%1000)/10);
+            function p2(n){return (n<10?"0":"")+n;} return p2(hh)+":"+p2(mm)+":"+p2(ss)+"."+p2(hs);} )(dt);
+    var noteText = "";
+    if (ok && typeof successNoteFn === "function"){
+        try { noteText = String(successNoteFn()) || ""; } catch(_){ /* ignore */ }
     }
-    var gkeys = []; for (var k in plan.groups) if (plan.groups.hasOwnProperty(k)) gkeys.push(k);
+    if (!ok) noteText = err;
+    PP_setElapsed(dlg, row, elapsedText);
+    PP_setNote(dlg, row, noteText);
+    PP_setStatus(dlg, row, ok ? PP_iconSuccess() : PP_iconError());
+    try{ processEvents(); }catch(_){}
+    if (!ok) throw new Error(err);
+    return { ok: ok, elapsedMS: dt, row: row };
+}
 
-    var outDirBase = (workFolders && workFolders.calibrated) ? CP__norm(workFolders.calibrated) : "";
-    try{ if (outDirBase && !File.directoryExists(outDirBase)) File.createDirectory(outDirBase, true); }catch(_){}
-
-    // Build or reuse UI
-    var ownDlg = false;
-    if (!dlg) { dlg = new CalibrationProgressDialog; ownDlg = true; }
-    if (!dlg.startEpoch) dlg.startEpoch = Date.now();
-    try{ dlg.totalTimeLabel.text = "Total: 00:00:00"; }catch(_){}
-    try{ dlg.tick.start(); }catch(_){}
-    if (ownDlg){ dlg.show(); processEvents(); }
-
-    // rows
-    var rows = [];
-    for (var gi=0; gi<gkeys.length; gi++){
-        var gkey = gkeys[gi];
-        // считаем количество файлов в группе (lights)
-        var g = plan.groups[gkey];
-        var nSubs = 0;
-        if (g && g.lights && g.lights.length) nSubs = g.lights.length;
-        else if (g && g.items && g.items.length) nSubs = g.items.length;
-        else if (g && g.frames && g.frames.length) nSubs = g.frames.length;
-
-        var label = CP__fmtGroupForUI(gkey) + " (" + nSubs + " subs)";
-        var n = dlg.addRow("ImageCalibration", label);
-        rows.push({ node:n, key:gkey, counters:{ok:0, err:0, skip:0}, total:nSubs, startedAt:0 });
-        dlg.groupRows.push(rows[rows.length-1]);
+/* ---------- CosmeticCorrection: pre-add rows per group and run ---------- */
+function PP__preAddCosmeticRows(dlg, ccPlan){
+    if (!dlg || !ccPlan || !ccPlan.groups) return;
+    if (!dlg.ccRowsMap) dlg.ccRowsMap = {};
+    var keys = [];
+    for (var k in ccPlan.groups) if (ccPlan.groups.hasOwnProperty(k)) keys.push(k);
+    for (var i=0;i<keys.length;i++){
+        var gkey = keys[i], g = ccPlan.groups[gkey];
+        // count subs
+        var subs = 0;
+        if (g && g.files && g.files.length) subs = g.files.length;
+        else if (g && g.items && g.items.length) subs = g.items.length;
+        else if (g && g.frames && g.frames.length) subs = g.frames.length;
+        // label = formatted passport + " (N subs)"
+        var label = CP__fmtCosmeticGroupLabel(gkey, g) + (subs?(" ("+subs+" subs)"):"");
+        var node = dlg.addRow("CosmeticCorrection", label);
+        var subs = 0;
+        if (g && g.files && g.files.length) subs = g.files.length;
+        else if (g && g.items && g.items.length) subs = g.items.length;
+        else if (g && g.frames && g.frames.length) subs = g.frames.length;
+        var label = CP__fmtCosmeticGroupLabel(gkey) + (subs?(" ("+subs+" subs)"):"");
+        PP_setStatus(dlg, node, PP_iconQueued());
+        PP_setNote(dlg, node, subs? (subs+"/"+subs+" queued") : "");
+        dlg.ccRowsMap[gkey] = { node: node, subs: subs };
     }
+    try{ processEvents(); }catch(_){}
+}
 
-    /* IC rows are now present — flush deferred CC rows so they appear AFTER IC */
+// Public UI entry for CC: adds per-group rows and runs the module
+function PP_runCosmeticCorrection_UI(dlg, ccPlan, workFolders){
+    if (!dlg) throw new Error("Progress dialog is not provided.");
+    if (!ccPlan || !ccPlan.groups) throw new Error("Cosmetic plan is empty (no groups).");
+
+    // 0) Pre-add rows (⏳ queued, "(N subs)" уже добавлено в PP__preAddCosmeticRows)
+    PP__preAddCosmeticRows(dlg, ccPlan);
+
+    // 1) Собираем стабильный порядок групп
+    var keys = [];
     try{
-        if (dlg && typeof dlg.flushDeferredCC === "function" && !dlg.__ccPreAdded){
-            dlg.flushDeferredCC();
-        }
+        if (ccPlan.order && ccPlan.order.length) keys = ccPlan.order.slice(0);
+        else for (var k in ccPlan.groups) if (ccPlan.groups.hasOwnProperty(k)) keys.push(k);
     }catch(_){}
 
+    // 2) Построитель мини-плана на одну группу
+    function __miniCCPlanFor(key){
+        var mp = {};
+        for (var p in ccPlan)
+            if (ccPlan.hasOwnProperty(p) && p !== "groups" && p !== "order")
+                mp[p] = ccPlan[p];
+        mp.groups = {}; mp.groups[key] = ccPlan.groups[key];
+        mp.order = [key];
+        return mp;
+    }
 
-    // Show modeless and start running
-    dlg.show();
-    processEvents();
+    // 3) Бежим по группам: ▶ running → RunCosmeticCorrection(miniPlan) → ✔/✖ processed
+    for (var i=0; i<keys.length; i++){
+        var gkey = keys[i];
+        var rec  = dlg.ccRowsMap && dlg.ccRowsMap[gkey];
+        if (!rec || !rec.node) continue;
 
-    // Runner (по группам; каждый запуск — вся группа целиком)
-    for (var gi=0; gi<gkeys.length; gi++){
-        var entry = rows[gi];
-        var gkey = entry.key;
-        var g = plan.groups[gkey];
+        // Переводим строку в Running и ставим "N/N running"
+        PP_setStatus(dlg, rec.node, PP_iconRunning());
+        PP_setNote  (dlg, rec.node, rec.subs ? (rec.subs+"/"+rec.subs+" running") : "running");
+        try{ processEvents(); }catch(_){}
 
-        var lights = CP__groupLights(g);
-        entry.total = lights.length;
-
-        // resolve masters
-        var biasP = ""; try{ if (g.masterBias) biasP = CP__norm(g.masterBias); }catch(_){}
-        var darkP = ""; try{ if (g.masterDark) darkP = CP__norm(g.masterDark); }catch(_){}
-        var flatP = ""; try{ if (g.masterFlat) flatP = CP__norm(g.masterFlat); }catch(_){}
-        if (!biasP || !darkP || !flatP){
-            var m = CP__extractMastersFromKey(gkey);
-            if (!biasP && m.bias) biasP = CP__norm(m.bias);
-            if (!darkP && m.dark) darkP = CP__norm(m.dark);
-            if (!flatP && m.flat) flatP = CP__norm(m.flat);
-        }
-
-        // update UI: start group
-        entry.startedAt = Date.now();
-        dlg.setRowStatus(entry.node, "▶ Running");
-        dlg.setRowNote(entry.node, "0/"+entry.total+" processing");
-        if (dlg && typeof dlg.markRowStarted === "function")
-            dlg.markRowStarted(entry.node);
-        dlg.setRowNote(entry.node, "0/"+entry.total+" processing");
-        entry.node.setText(2, "00:00:00");   // elapsed по группе
-           if (dlg && typeof dlg.markRowStarted === "function")
-               dlg.markRowStarted(entry.node);
-        processEvents();
-
-        if (typeof ImageCalibration !== "function"){
-            // dry-run
-            for (var i=0;i<lights.length;i++){
-                if (dlg.cancelled){ entry.counters.skip += (entry.total - i); break; }
-                entry.counters.ok++;
-                dlg.setRowNote(entry.node, (entry.counters.ok)+"/"+entry.total+" processed");
-                processEvents();
-            }
-            dlg.setRowStatus(entry.node, dlg.cancelled ? "⨯ Cancelled" : "✔ Success");
+        // Если в группе нет кадров — считаем её успешно обработанной «по нулям»
+        if (!rec.subs || rec.subs <= 0){
+            PP_setStatus(dlg, rec.node, PP_iconSuccess());
+            PP_setNote  (dlg, rec.node, "0/0 processed");
             continue;
         }
 
-        // Пакетная калибровка: формируем таблицу targetFrames со всеми файлами
-        if (dlg.cancelled){
-            entry.counters.skip = entry.total;
-            dlg.setRowStatus(entry.node, "⨯ Cancelled");
-            processEvents();
-            break;
-        }
-
-        var rowsTF = [];
-        for (var i=0; i<lights.length; i++){
-            var L = CP__norm(lights[i]);
-            if (L && L.length) rowsTF.push([true, L]); else entry.counters.skip++;
-        }
-
-        var IC = new ImageCalibration;
-        try{ CAL_applyUserParams(IC); }catch(_){}
-        try{ if (biasP){ IC.masterBiasPath = biasP; IC.masterBiasEnabled = true; } }catch(_){}
-        try{ if (darkP){ IC.masterDarkPath = darkP; IC.masterDarkEnabled = true; } }catch(_){}
-        try{ if (flatP){ IC.masterFlatPath = flatP; IC.masterFlatEnabled = true; } }catch(_){}
-        try{ if (outDirBase) IC.outputDirectory = outDirBase; }catch(_){}
-        try{ IC.targetFrames = rowsTF; }
-        catch(eTF){
-            entry.counters.err = entry.total;
-            dlg.setRowStatus(entry.node, "✖ Error");
-            dlg.setRowNote(entry.node, "targetFrames failed");
-            processEvents();
-            continue;
-        }
-
-        // Обновим примечание перед запуском
-        dlg.setRowNote(entry.node, "0/"+entry.total+" queued");
-        processEvents();
-
-        /// ВАЖНО: executeGlobal() блокирует UI; поэтому таймер не тикает. Проставим elapsed вручную ПОСЛЕ.
-        var ok = true;
+        // Запуск раннера на мини-план
+        var mp   = __miniCCPlanFor(gkey);
+        var okG  = true, errG = "", t0 = Date.now();
+        try{ RunCosmeticCorrection(mp, workFolders, dlg); }catch(e){ okG=false; errG = e.toString(); }
+        var dt = Date.now() - t0;
         try{
-            if (typeof IC.executeGlobal === "function") ok = !!IC.executeGlobal();
-            else if (typeof IC.executeOn === "function") ok = !!IC.executeOn(null);
-            else throw new Error("No execute* method available");
-        }catch(runErr){ ok = false; }
+            if (typeof formatElapsedMS === "function")
+                dlg.updateRow(rec.node, { elapsed: formatElapsedMS(dt) });
+        }catch(_){}
 
-        // После возврата: считаем все как processed (без детализации по файлам от процесса)
-        if (ok){
-            entry.counters.ok = entry.total - entry.counters.skip;
-            dlg.setRowStatus(entry.node, "✔ Success");
-        } else {
-            entry.counters.err = entry.total - entry.counters.skip;
-            dlg.setRowStatus(entry.node, "✖ Error");
-        }
-        // Elapsed по группе — после выполнения
-        var gElapsedFinal = (Date.now() - entry.startedAt)/1000;
-        entry.node.setText(2, CP__fmtHMS(gElapsedFinal));
+        // Отмечаем итог по группе
+        PP_setStatus(dlg, rec.node, okG ? PP_iconSuccess() : PP_iconError());
+        PP_setNote  (dlg, rec.node, okG ? (rec.subs+"/"+rec.subs+" processed") : (errG || "Error"));
+        try{ processEvents(); }catch(_){}
 
-
-        /* заморозить elapsed */
-        entry.startedAt = 0;
-        try{ entry.node._startedAt = 0; }catch(_){}
-        try{ entry.node.__frozen = true; }catch(_){}
-        if (dlg && typeof dlg.markRowFinished === "function")
-            dlg.markRowFinished(entry.node, gElapsedFinal);
-//        processEvents();
-        // Note
-        dlg.setRowNote(entry.node,
-            (entry.counters.ok)+"/"+entry.total+" processed" +
-            (entry.counters.skip>0? ("; skip="+entry.counters.skip) : "") +
-            (entry.counters.err>0? ("; err="+entry.counters.err) : "")
-        );
-        CP__updateTotal(dlg);
-        processEvents();
-
-        // finalize row
-        if (dlg.cancelled){
-            dlg.setRowStatus(entry.node, "⨯ Cancelled");
-        } else if (entry.counters.err>0){
-            dlg.setRowStatus(entry.node, "✖ Error");
-        } else {
-            dlg.setRowStatus(entry.node, "✔ Success");
-        }
-        processEvents();
-
-        if (dlg.cancelled) break;
+        if (!okG) throw new Error(errG || "CosmeticCorrection failed");
     }
 
-    try{ dlg.tick.stop(); }catch(_){}
-    if (!ownDlg){
-        // Внешний диалог — не блокируем поток, управление остаётся у вызывающей стороны
-        return;
-    }
-    if (dlg.cancelled){
-        try{ dlg.cancel(); }catch(_){ try{ dlg.ok(); }catch(__){} }
-        return;
-    } else {
-        // Оставляем окно открытым: меняем кнопку на DONE и ждём клика
-        dlg.cancelButton.text = "DONE";
-        dlg._done = false;
-        dlg.cancelButton.onClick = function(){
-            try { this.dialog._done = true; } catch(_) { dlg._done = true; }
-            try { dlg.ok(); } catch(_) { try { dlg.cancel(); } catch(__) {} }
-        };
-        while (!dlg._done){
-            processEvents();
-            try { msleep(50); } catch(_) {}
+    return { ok:true, groups: keys.length };
+    // Finalize Total after the last operation of the pipeline
+    try{ PP_finalizeProgress(dlg); }catch(_){}
+    return { ok:true, groups: keys.length };
+}
+
+// Thin wrappers built on top of the generic runner (kept for clarity/back-compat).
+function PP_runReindexLights_UI(dlg, lightsRoot, lightsJsonPath){
+    return PP_runStep_UI(
+        dlg,
+        "Index Lights",
+        String(lightsRoot||""),
+        function(){ ReindexLights(lightsRoot, lightsJsonPath); },
+        function(){
+                var LI = PP_getLastLightsIndex();
+                var nItems  = (LI && LI.items ) ? LI.items.length  : 0;
+                return nItems + " subs";
+            }
+    );
+}
+function PP_runIndexCalibrationFiles_UI(dlg, mastersRoot, mastersJsonPath){
+    var __MI = null; // capture return value if module provides it
+    return PP_runStep_UI(
+        dlg,
+        "Index Calibration Files",
+        String(mastersRoot||""),
+        function(){
+            try { __MI = ReindexCalibrationFiles(mastersRoot, mastersJsonPath); }
+            catch(e){ __MI = null; throw e; }
+        },
+        function(){
+            // Prefer the just-returned object; fallback to last-known index getter.
+            var MI = __MI || PP_getLastMastersIndex();
+            var c = PP_guessMastersCounts(MI);
+            return "B:" + c.b + "  D:" + c.d + "  F:" + c.f;
         }
+    );
+}
+
+// --- UI wrapper for ImageCalibration (mini-plans: one runner call per group) ---
+function PP_runImageCalibration_UI(dlg, plan, options){
+    if (!dlg) throw new Error("Progress dialog is not provided.");
+
+    // No groups → один ряд и один запуск, для совместимости
+    if (!plan || !plan.groups){
+        var r = dlg.addRow("ImageCalibration", "Apply masters to lights");
+        PP_setStatus(dlg, r, PP_iconQueued());
+        try{ processEvents(); }catch(_){}
+        PP_setStatus(dlg, r, PP_iconRunning());
+        var ok=true, err="", t0=Date.now();
+        try{ RunImageCalibration(plan, options); }catch(e){ ok=false; err=e.toString(); }
+        var dt = Date.now()-t0;
+        if (typeof formatElapsedMS==="function")
+            dlg.updateRow(r, { elapsed: formatElapsedMS(dt), note: ok? "" : "Error" });
+        PP_setStatus(dlg, r, ok?PP_iconSuccess():PP_iconError());
+        if (!ok) throw new Error(err);
+            // If CC is disabled, finish Total here
+            try{ if (!dlg.ccEnabled) PP_finalizeProgress(dlg); }catch(_){}
+        return { ok:true, groups:1 };
     }
 
+    // Собираем порядок групп
+    var keys = [];
+    try{
+        if (plan.order && plan.order.length) keys = plan.order.slice(0);
+        else for (var k in plan.groups) if (plan.groups.hasOwnProperty(k)) keys.push(k);
+    }catch(_){}
+
+    // Предсоздаём строки: "паспорт (N subs)" + ⏳ queued
+    if (!dlg.icRowsMap) dlg.icRowsMap = {};
+    for (var i=0; i<keys.length; i++){
+        var gkey   = keys[i];
+        var g      = plan.groups[gkey] || {};
+        var frames = (g && g.lights && g.lights.length) ? g.lights.length : 0;
+        var core   = (typeof CP__fmtGroupForUI==="function" ? CP__fmtGroupForUI(gkey) : String(gkey));
+        var label  = core + (frames ? (" ("+frames+" subs)") : "");
+        var node   = dlg.addRow("ImageCalibration", label);
+        PP_setStatus(dlg, node, PP_iconQueued());
+        PP_setNote(dlg, node, frames ? (frames+"/"+frames+" queued") : "");
+        dlg.icRowsMap[gkey] = { node: node, frames: frames };
+    }
+    try{ processEvents(); }catch(_){}
+
+    // Вспомогалка: построить мини-план на одну группу
+    function __miniPlanFor(key){
+        var mp = {};
+        for (var prop in plan)
+            if (plan.hasOwnProperty(prop) && prop !== "groups" && prop !== "order")
+                mp[prop] = plan[prop];
+        mp.groups = {}; mp.groups[key] = plan.groups[key];
+        mp.order = [key];
+        return mp;
+    }
+
+    // Бежим по группам: для каждой — ▶ running → RunImageCalibration(miniPlan) → ✔/✖ processed
+    for (var j=0; j<keys.length; j++){
+        var gkey = keys[j];
+        var rec  = dlg.icRowsMap[gkey];
+        if (!rec || !rec.node) continue;
+
+        // ▶ Running
+        PP_setStatus(dlg, rec.node, PP_iconRunning());
+        PP_setNote  (dlg, rec.node, rec.frames ? (rec.frames+"/"+rec.frames+" running") : "running");
+        try{ processEvents(); }catch(_){}
+
+        // Запуск раннера на мини-план
+        var mp = __miniPlanFor(gkey);
+        var okG = true, errG = "", t0 = Date.now();
+        try{ RunImageCalibration(mp, options); }catch(e){ okG=false; errG = e.toString(); }
+        var dt = Date.now()-t0;
+        try{
+            if (typeof formatElapsedMS==="function")
+                dlg.updateRow(rec.node, { elapsed: formatElapsedMS(dt) });
+        }catch(_){}
+
+        // Попробуем вытащить per-group статистику из calibration_run.jsh (если она есть)
+        var processed = null, failed = null, gErr = null;
+        try{
+            var S   = PP_getLastImageCalibrationStats();
+            var per = S && (S.groups || S.byGroup || S.perGroup || S.results || S.map);
+            var st  = per ? (per[gkey] || per[String(gkey)] || null) : null;
+            if (st){
+                gErr      = st.error || st.err || st.message || null;
+                processed = st.processed || st.ok || st.calibrated || st.success || st.done || null;
+                failed    = st.failed || st.errors || st.bad || null;
+                if (processed==null && failed!=null) processed = Math.max(0, (rec.frames||0) - failed);
+                if (processed==null && !gErr)        processed = (rec.frames||0);
+                if (gErr) okG = false;
+            }
+        }catch(_){}
+
+        if (processed==null) processed = okG ? (rec.frames||0) : 0;
+
+        // ✔/✖ + финальная Note
+        PP_setStatus(dlg, rec.node, okG ? PP_iconSuccess() : PP_iconError());
+        PP_setNote  (dlg, rec.node, okG ? (processed+"/"+(rec.frames||0)+" processed")
+            : (gErr || errG || "Error"));
+        try{ processEvents(); }catch(_){}
+        if (!okG) throw new Error(errG || gErr || "ImageCalibration failed");
+    }
+
+    return { ok:true, groups: keys.length };
+}
+
+
+
+// Helpers to fetch last indices without leaking globals into anawbpps.js
+function PP_getLastLightsIndex(){
+    try{
+        if (typeof LI_GET_LAST_INDEX === "function") return LI_GET_LAST_INDEX();
+        if (typeof LI_LAST_INDEX !== "undefined")    return LI_LAST_INDEX;
+        if (typeof this !== "undefined" && typeof this.LI_LAST_INDEX !== "undefined") return this.LI_LAST_INDEX;
+    }catch(_){}
+    return null;
+}
+function PP_getLastMastersIndex(){
+    try{
+        if (typeof MI_GET_LAST_INDEX === "function") return MI_GET_LAST_INDEX();
+        if (typeof MI_LAST_INDEX !== "undefined")    return MI_LAST_INDEX;
+        if (typeof this !== "undefined" && typeof this.MI_LAST_INDEX !== "undefined") return this.MI_LAST_INDEX;
+    }catch(_){}
+    return null;
+}
+function PP_getLastImageCalibrationStats(){
+    try{
+        if (typeof CAL_GET_LAST_STATS === "function") return CAL_GET_LAST_STATS();
+        if (typeof IC_GET_LAST_STATS  === "function") return IC_GET_LAST_STATS();
+        if (typeof CAL_LAST_STATS     !== "undefined") return CAL_LAST_STATS;
+        if (typeof IC_LAST_STATS      !== "undefined") return IC_LAST_STATS;
+        if (typeof this !== "undefined"){
+            if (typeof this.CAL_LAST_STATS !== "undefined") return this.CAL_LAST_STATS;
+            if (typeof this.IC_LAST_STATS  !== "undefined") return this.IC_LAST_STATS;
+        }
+    }catch(_){}
+    return null;
 }
