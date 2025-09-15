@@ -280,4 +280,9 @@ function LI_reindexLights(rootPath, savePath){
         lightsRoot: lightsRoot,
         items: items
     }; } catch(_){}
+    return {
+        lightsRoot: lightsRoot,
+        items: items,
+        setups: setups
+    };
 }
