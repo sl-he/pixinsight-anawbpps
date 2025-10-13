@@ -1,15 +1,16 @@
-/*=============================================================================
-  modules/masters_index.jsh
-  Purpose:
-    Reindex Masters library recursively. Version-agnostic directory listing:
-      - System.readDirectory (preferred)
-      - Windows 'cmd /c dir /b' fallback via temp file
-    For each FITS/XISF file calls MP_parseMaster(path) from masters_parse.jsh.
-    Logs per-file info and final per-setup summary. Optionally saves JSON index.
-  Requirements:
-    - Include modules/masters_parse.jsh BEFORE this module to provide
-      MP_parseMaster(path)
-=============================================================================*/
+/*
+ * ANAWBPPS - Master calibration frames indexer
+ * Recursively indexes master frames library and generates JSON index
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 // Debug switch (kept for future use)
 var MI_DEBUG = true;
@@ -66,16 +67,6 @@ function _looksWindows(dir){
     if (!dir || dir.length < 2) return false;
     var c0 = dir.charAt(0), c1 = dir.charAt(1);
     return ((c0 >= 'A' && c0 <= 'Z') || (c0 >= 'a' && c0 <= 'z')) && c1 === ':';
-}
-
-/* ---------------- Directory listing (names only) ---------------- */
-// Return the last path component from a full path (handles / and \)
-function _basename(p){
-    if (!p) return "";
-    var s = String(p);
-    // normalize slashes just for splitting
-    var i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
-    return (i >= 0) ? s.substring(i+1) : s;
 }
 
 // Return array of entry *names* (no paths). Never throws.
