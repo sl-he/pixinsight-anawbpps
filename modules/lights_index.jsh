@@ -1,17 +1,16 @@
-/*=============================================================================
-  modules/lights_index.jsh
-  Purpose:
-    Reindex light frames (FITS/XISF) recursively using header-only parsing
-    (LI_parseLight). No filename parsing is used here.
-  Notes:
-    - Uses the same directory walking strategy as v0.2.0 (masters):
-      * Try global _listNames (if masters module provided it).
-      * Else use LI_listNames:
-          - System.readDirectory
-          - Windows fallback via 'cmd /c dir /b' + temporary file.
-    - Writes JSON into <lightsRoot>/lights_index.json
-    - All helpers are prefixed with LI_ to avoid redeclarations.
-=============================================================================*/
+/*
+ * ANAWBPPS - Light frames indexer
+ * Recursively indexes light frames and generates JSON index
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 /* ---------------- Small helpers (unique names) ---------------- */
 
