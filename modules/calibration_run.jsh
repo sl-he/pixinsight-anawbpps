@@ -1,10 +1,16 @@
 /*
-  modules/calibration_run.jsh
-  ImageCalibration runner using inline parameters (no file I/O, no globals).
-  - Parameters live in CAL_applyUserParams(IC) — edit there.
-  - Lights and masters are taken ONLY from plan.groups[...] (triads).
-  - Output directory: workFolders.calibrated if provided, else PI default near source.
-*/
+ * ANAWBPPS - ImageCalibration runner
+ * Executes PixInsight ImageCalibration process for matched groups
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 // ----------------- tiny helpers (no regex) -----------------
 function CAL__safeSetStringEnum(IC, key, strVal){
