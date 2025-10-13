@@ -1,17 +1,16 @@
 /*
-  modules/cosmetic_plan.jsh
-  Build a CosmeticCorrection plan from the existing calibration PLAN + Calibrated folder.
-
-  - Groups by DARK only (masterDarkPath).
-  - For each light in calibration plan, predicts calibrated name in workFolders.calibrated:
-      <basename(light)> + POSTFIX + EXTENSION
-    defaults: POSTFIX="_c", EXTENSION=".xisf" (override via opts).
-
-  Exposed API:
-    CC_makeCosmeticPlan(calibPlan, workFolders, opts) -> planCC
-    CC_printPlanSummary(planCC)
-    CC_savePlan(planCC, jsonPath) -> bool
-*/
+ * ANAWBPPS - CosmeticCorrection planner
+ * Builds cosmetic correction plan grouped by dark master
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 // ---------- tiny helpers (no regex, no '//' in strings) ----------
 function CPATH_norm(p){
