@@ -1,16 +1,16 @@
 /*
-  modules/cosmetic_run.jsh
-  Runner for CosmeticCorrection by dark-group, using a prebuilt cosmetic plan.
-
-  Public API:
-    CC_applyUserParams(CC)                           // sets ALL params in XPSM order
-    CC_runCosmetic_UI(planCC, workFolders, dlgOpt)   // run groups, optionally update progress dialog
-
-  Notes:
-    - One executeGlobal() per group (batch).
-    - Uses workFolders.cosmetic as output directory when available.
-    - No regex literals; comments use block style only.
-*/
+ * ANAWBPPS - CosmeticCorrection runner
+ * Executes PixInsight CosmeticCorrection process for grouped frames
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 /* ---------- tiny helpers ---------- */
 function CR_norm(p){
@@ -36,10 +36,6 @@ function CR_fmtHMS(sec){
     var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
     var pad=function(n){ return (n<10?"0":"")+n; };
     return pad(hh)+":"+pad(mm)+":"+pad(ss);
-}
-// Legacy guard: if some old code still calls _CR_processOneCCGroup(...), avoid ReferenceError
-if (typeof _CR_processOneCCGroup !== "function"){
-    function _CR_processOneCCGroup(){ /* no-op for legacy calls */ }
 }
 
 /* ---------- ALL parameters in XPSM order ---------- */
@@ -93,7 +89,7 @@ function CC_applyUserParams(CC){
     /* no extra fields here on purpose: stick 1:1 to XPSM */
 }
 
-/* ---------- small UI helpers (safe to call only if dlg provided) ---------- */
+/* ---------- small UI helpers ---------- */
 function CR_progressAddRowIfNeeded(dlg, label, total, opName){
     if (!dlg) return null;
     var n = null;
@@ -106,12 +102,12 @@ function CR_progressAddRowIfNeeded(dlg, label, total, opName){
         }
         if (n){
             try { n.setText(2, "00:00:00"); }catch(_){}
-            /* queued rows: keep note empty */
             try { if (dlg.setRowNote) dlg.setRowNote(n, ""); }catch(_){}
         }
     }catch(_){}
     return n;
 }
+
 function CR_progressFinishRow(dlg, node, okCount, total, skip, err, elapsedSec, statusText){
     if (!dlg || !node) return;
     try { node.setText(2, CR_fmtHMS(elapsedSec)); }catch(_){}
@@ -122,106 +118,107 @@ function CR_progressFinishRow(dlg, node, okCount, total, skip, err, elapsedSec, 
             (err>0 ? "; err="+err : "")
         );
     }catch(_){}
-    try { if (dlg.setRowStatus) dlg.setRowStatus(node, statusText||"✔ Success"); }catch(_){}
-
-    /* process exactly ONE CC group; return on early-exit instead of 'continue' */
-    function _CR_processOneCCGroup(dlg, planCC, gkey, gi, gkeys, __ccMap, __ccRows, outDirBase){
-        var g    = planCC.groups[gkey];
-        var total = 0;
-        if (g && g.files && g.files.length) total = g.files.length;
-        else if (g && g.items && g.items.length) total = g.items.length;
-        else if (g && g.frames && g.frames.length) total = g.frames.length;
-
-        var labelCore = String(gkey||"");
-        try{
-            if (typeof CC_fmtCosmeticGroupLabel === "function")
-                labelCore = CC_fmtCosmeticGroupLabel(gkey);
-        }catch(_){}
-        var label = labelCore + " (" + total + " subs)";
-
-        /* progress row (pre-added or created) */
-        var node = null, rowInfo = null;
-        if (dlg){
-            try{ rowInfo = (__ccMap && __ccMap[gkey]) || null; }catch(_){ rowInfo=null; }
-            if (rowInfo){ node = rowInfo.node; total = rowInfo.total; }
-            if (!node){
-                node = CR_progressAddRowIfNeeded(dlg, label, total, "CC");
-            }
-            if (node){
-                try{ if (dlg.setRowStatus) dlg.setRowStatus(node, "▶ Running"); }catch(_){}
-                try{ if (dlg.markRowStarted) dlg.markRowStarted(node); }catch(_){}
-                try { if (dlg.setRowNote) dlg.setRowNote(n, ""); }catch(_){}
-                try{ node.setText(2, "00:00:00"); }catch(_){}
-                try{ processEvents(); }catch(_){}
-            }
-        }
-
-        Console.noteln("");
-        Console.noteln("[cc-run] Group " + (gi+1) + "/" + gkeys.length + ":");
-        Console.writeln("         key   : " + gkey);
-
-        var items = (g && g.items) ? g.items : [];
-        /* re-resolve 'total' if necessary */
-        if (!total) total = items.length;
-
-        var tf = [];
-        var skip = 0, missing = 0;
-        for (var i=0;i<items.length;i++){
-            var p = items[i] && items[i].path ? CR_norm(items[i].path) : "";
-            if (!p){ skip++; continue; }
-            var ex=false; try{ ex = File.exists(p); }catch(_){ ex=false; }
-            if (ex) tf.push([true, p]); else missing++;
-        }
-        if (tf.length === 0){
-            Console.warningln("[cc-run]   skip group: no existing files (missing="+missing+")");
-            if (node) CR_progressFinishRow(dlg, node, 0, total, skip, missing, 0, "⨯ Cancelled");
-            return;
-        }
-        if (missing>0) Console.warningln("[cc-run]   note: " + missing + " file(s) missing; proceeding with " + tf.length);
-
-        /* process availability */
-        if (typeof CosmeticCorrection !== "function"){
-            Console.warningln("[cc-run]   CosmeticCorrection process not available — dry-run");
-            if (node) CR_progressFinishRow(dlg, node, tf.length, total, skip, missing, 0, "✔ Success (dry)");
-            return;
-        }
-
-        /* create and set params */
-        var CC = new CosmeticCorrection;
-        CC_applyUserParams(CC);
-        /* overwrite compatibility */
-        try { CC.overwriteExistingFiles = true; } catch(_){}
-        try { CC.overwriteFiles        = true; } catch(_){}
-        try { CC.overwrite             = true; } catch(_){}
-        try { CC.replaceExistingFiles  = true; } catch(_){}
-
-        /* output dir compatibility */
-        try{
-            if (outDirBase){
-                CC.outputDir = outDirBase;
-                CC.outputDirectory = outDirBase;
-            }
-        }catch(_){}
-
-        var setOK = true;
-        try{ CC.targetFrames = tf; }catch(_){ setOK = false; }
-        if (!setOK){
-            Console.criticalln("[cc-run]   targetFrames failed.");
-            if (node) CR_progressFinishRow(dlg, node, 0, total, skip, tf ? tf.length : 0, 0, "✖ Error");
-            return;
-        }
-
-        /* run */
-        var gStart = Date.now();
-        var okCount = 0, err = 0;
-        var ok = CR_executeProcess(CC, function(onOk){ okCount=onOk; }, function(onErr){ err=onErr; }, node, total);
-        var gElapsed = (Date.now() - gStart)/1000;
-        var status = ok ? "✔ Success" : "✖ Error";
-        if (node) CR_progressFinishRow(dlg, node, okCount, total, skip, err, gElapsed, status);
-        try{ processEvents(); }catch(_){}
-    }
+    try { if (dlg.setRowStatus) dlg.setRowStatus(node, statusText||"✓ Success"); }catch(_){}
     try { if (dlg.markRowFinished) dlg.markRowFinished(node, elapsedSec); }catch(_){}
     try { processEvents(); }catch(_){}
+}
+
+/* ---------- Process one CC group ---------- */
+
+function CR_processOneCCGroup(dlg, planCC, gkey, gi, gkeys, ccMap, ccRows, outDirBase){
+    var g = planCC.groups[gkey];
+    var total = 0;
+    if (g && g.files && g.files.length) total = g.files.length;
+    else if (g && g.items && g.items.length) total = g.items.length;
+    else if (g && g.frames && g.frames.length) total = g.frames.length;
+
+    var labelCore = String(gkey||"");
+    try{
+        if (typeof CC_fmtCosmeticGroupLabel === "function")
+            labelCore = CC_fmtCosmeticGroupLabel(gkey);
+    }catch(_){}
+    var label = labelCore + " (" + total + " subs)";
+
+    var node = null, rowInfo = null;
+    if (dlg){
+        try{ rowInfo = (ccMap && ccMap[gkey]) || null; }catch(_){ rowInfo=null; }
+        if (rowInfo){ node = rowInfo.node; total = rowInfo.total; }
+        if (!node){
+            node = CR_progressAddRowIfNeeded(dlg, label, total, "CC");
+        }
+        if (node){
+            try{ if (dlg.setRowStatus) dlg.setRowStatus(node, "▶ Running"); }catch(_){}
+            try{ if (dlg.markRowStarted) dlg.markRowStarted(node); }catch(_){}
+            try{ if (dlg.setRowNote) dlg.setRowNote(node, ""); }catch(_){}
+            try{ node.setText(2, "00:00:00"); }catch(_){}
+            try{ processEvents(); }catch(_){}
+        }
+    }
+
+    Console.noteln("");
+    Console.noteln("[cc-run] Group " + (gi+1) + "/" + gkeys.length + ":");
+    Console.writeln("         key   : " + gkey);
+
+    var items = (g && g.items) ? g.items : [];
+    if (!total) total = items.length;
+
+    var tf = [];
+    var skip = 0, missing = 0;
+    for (var i=0;i<items.length;i++){
+        var p = items[i] && items[i].path ? CR_norm(items[i].path) : "";
+        if (!p){ skip++; continue; }
+        var ex=false; try{ ex = File.exists(p); }catch(_){ ex=false; }
+        if (ex) tf.push([true, p]); else missing++;
+    }
+
+    if (tf.length === 0){
+        Console.warningln("[cc-run]   skip group: no existing files (missing="+missing+")");
+        if (node) CR_progressFinishRow(dlg, node, 0, total, skip, missing, 0, "⨯ Cancelled");
+        return;
+    }
+    if (missing>0) Console.warningln("[cc-run]   note: " + missing + " file(s) missing; proceeding with " + tf.length);
+
+    if (typeof CosmeticCorrection !== "function"){
+        Console.warningln("[cc-run]   CosmeticCorrection process not available — dry-run");
+        if (node) CR_progressFinishRow(dlg, node, tf.length, total, skip, missing, 0, "✓ Success (dry)");
+        return;
+    }
+
+    var CC = new CosmeticCorrection;
+    CC_applyUserParams(CC);
+
+    try { CC.overwriteExistingFiles = true; } catch(_){}
+    try { CC.overwrite = true; } catch(_){}
+
+    try{
+        if (outDirBase){
+            CC.outputDir = outDirBase;
+            CC.outputDirectory = outDirBase;
+        }
+    }catch(_){}
+
+    var setOK = true;
+    try{ CC.targetFrames = tf; }catch(_){ setOK = false; }
+    if (!setOK){
+        Console.criticalln("[cc-run]   targetFrames failed.");
+        if (node) CR_progressFinishRow(dlg, node, 0, total, skip, tf.length, 0, "✖ Error");
+        return;
+    }
+
+    var gStart = Date.now();
+    var ok = true;
+    try{
+        if (typeof CC.executeGlobal === "function") ok = !!CC.executeGlobal();
+        else if (typeof CC.executeOn === "function") ok = !!CC.executeOn(null);
+        else throw new Error("No execute* method available");
+    }catch(runErr){
+        ok = false;
+    }
+
+    var gElapsed = (Date.now() - gStart)/1000;
+    var status = ok ? "✓ Success" : "✖ Error";
+    if (node) CR_progressFinishRow(dlg, node, ok ? tf.length : 0, total, skip, ok ? 0 : tf.length, gElapsed, status);
+    try{ processEvents(); }catch(_){}
 }
 
 /* ---------- main runner ---------- */
@@ -419,10 +416,16 @@ function CC_runCosmetic_UI(planCC, workFolders, dlg /* optional */){
             }
             break;
         }
-        /* обработать текущую группу здесь, пока мы внутри цикла */
-            _CR_processOneCCGroup(dlg, planCC, gkey, gi, gkeys, __ccMap, __ccRows, outDirBase);
+
+
+        if (dlg && dlg.cancelled) {
+            Console.warningln("[cc-run] User cancelled, stopping...");
+            break;
         }
 
+        /* обработать текущую группу здесь, пока мы внутри цикла */
+            CR_processOneCCGroup(dlg, planCC, gkey, gi, gkeys, __ccMap, __ccRows, outDirBase);
+    }
 
     var totalSec = (Date.now() - totalStart)/1000;
     Console.noteln("");
