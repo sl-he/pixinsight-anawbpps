@@ -1,15 +1,16 @@
-/*=============================================================================
-  modules/masters_parse.jsh
-  Exports: MP_parseMaster(path)
-  Policy:
-    - Prefer FITS/XISF headers.
-    - If header field is missing, fall back to filename tokens.
-    - If setup is still missing, the caller derives it from the path.
-  Note:
-    This version stubs header reading (to be implemented next step),
-    so it currently relies on filename parsing while keeping the correct
-    precedence structure for future header support.
-=============================================================================*/
+/*
+ * ANAWBPPS - Master calibration frames parser
+ * Parses master bias/dark/flat filenames and headers
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 // --- tiny utils ------------------------------------------------------------
 
