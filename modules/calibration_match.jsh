@@ -1,13 +1,24 @@
-// modules/calibration_match.jsh
-// Strict in-memory matcher for ANAWBPPS.
-// No regexes. Verbose tracing. Bias/Dark require usb; Flat uses setup+filter+binning.
+/*
+ * ANAWBPPS - Calibration matcher
+ * Smart matching of lights to master calibration frames
+ * Groups lights by setup, object, filter, and acquisition parameters
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 // --- in-memory storage for the last built plan
 var CM_LAST_PLAN = null;
 function CM_GET_LAST_PLAN(){ return CM_LAST_PLAN; }
 
-function _norm(p){ return String(p||"").replace(/\\/g,'/'); }
-function _saveJSON(path, obj){
+function CM_norm(p){ return String(p||"").replace(/\\/g,'/'); }
+function CM_saveJSON(path, obj){
     try{
         var f = new File;
         f.createForWriting(path);
@@ -18,7 +29,7 @@ function _saveJSON(path, obj){
         Console.criticalln("[plan] Failed to save JSON: " + e);
     }
 }
-function _dateToKey(d){ // "YYYY-MM-DD" -> "YYYY-MM-DD"
+function CM_dateToKey(d){ // "YYYY-MM-DD" -> "YYYY-MM-DD"
     if (!d) return "";
     var s = String(d).trim();
     // accept "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
@@ -254,13 +265,6 @@ function _filterFlatsForLight(L, FLATS){
         out.push(F);
     }
     return out;
-}
-
-function _isValidLight(L){
-    // минимально необходимый набор (под вас): setup, object, filter, readout, gain, offset, usb, binning, tempC, exposureSec, date
-    return !!(L && L.setup && L.object && L.filter && L.readout &&
-        (L.gain!=null) && (L.offset!=null) && (L.usb!=null) &&
-        L.binning && (L.tempC!=null) && (L.exposureSec!=null) && L.date);
 }
 
 function CM_buildPlanInMemory(lightsIndex, mastersIndex, savePath){
