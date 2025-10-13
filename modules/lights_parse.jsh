@@ -1,20 +1,16 @@
-/*=============================================================================
-  modules/lights_parse.jsh
-  Purpose:
-    Header-only parser for light frames (FITS/XISF) without loading image data.
-    Uses FileFormat / FileFormatInstance to read keywords quickly (WBPP style).
-  Output (returned object):
-    {
-      path, filename, type: "LIGHT",
-      setup, telescope, camera, object,
-      filter, binning, gain, offset, usb, readout,
-      exposureSec, tempSetC, tempC, date, focalLen,
-      width, height
-    }
-  Notes:
-    - No filename parsing here (lights are header-only by design).
-    - setup is built only if both TELESCOP and INSTRUME exist.
-=============================================================================*/
+/*
+ * ANAWBPPS - Light frames parser (header-only)
+ * Extracts metadata from FITS/XISF light frames without loading image data
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 
 /* -------- Small helpers (no regex to avoid PI parser quirks) -------- */
 
