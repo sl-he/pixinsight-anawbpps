@@ -10,6 +10,7 @@ Automated calibration, cosmetic correction, and subframe selection for PixInsigh
 - ✅ CosmeticCorrection with dark grouping
 - ✅ SubframeSelector with manual weight computation
 - ✅ TOP-5 best frames extraction per group
+- ✅ StarAlignment process with with grouping by objects/targets
 - ✅ Ranked prefixes (!1-!5) for easy identification
 - ✅ Automatic organization by acquisition conditions
 - ✅ Two-disk workflow support
