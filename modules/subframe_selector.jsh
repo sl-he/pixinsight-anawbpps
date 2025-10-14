@@ -462,7 +462,7 @@ function SS_copyRejectedFile(srcPath, dstPath){
  */
 function SS_saveWeightsCSV(csvData, csvPath){
     try{
-        var csv = "filename,weight\n";
+        var csv = "";
         for (var i=0; i<csvData.length; ++i){
             csv += csvData[i].filename + "," + csvData[i].weight.toFixed(6) + "\n";
         }
@@ -595,7 +595,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
             m[1] = true; // enabled
             approvedMeasurements.push(m);
             approved++;
-            Console.writeln("[ss]   ✔ " + basename + " → weight=" + result.weight.toFixed(2));
+            Console.writeln("[ss]   ✓ " + basename + " → weight=" + result.weight.toFixed(2));
         } else {
             m[1] = false; // disabled
             rejected++;
@@ -620,10 +620,9 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         try{
             if (node) node.setText(4, "0/" + approvedMeasurements.length + " copying approved");
             if (typeof processEvents === "function") processEvents();
-            }catch(_){}
+        }catch(_){}
 
         // Copy files to approved directory
-        var csvData = [];
         for (var j=0; j<approvedMeasurements.length; ++j){
             var m = approvedMeasurements[j];
             var srcPath = SS_norm(String(m[3]));
@@ -636,9 +635,9 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
                 // Remove existing file if present
                 if (File.exists(dstPath)){
                     File.remove(dstPath);
-                    }
-                    File.copyFile(dstPath, srcPath);
-                Console.writeln("[ss]     ✔ " + basename);
+                }
+                File.copyFile(dstPath, srcPath);
+                Console.writeln("[ss]     ✓ " + basename);
                 // Update UI progress during copying
                 if (j % 5 === 0){
                     try{
@@ -650,15 +649,46 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
                 Console.warningln("[ss]     ✖ Failed to copy: " + basename + " - " + eCopy);
                 continue;
             }
+        }
 
-            // Add to CSV data
+        // ================================================================
+        // NEW: Determine TOP-5 and build complete CSV data
+        // ================================================================
+
+        // Sort by weight DESC to get TOP-5
+        var sorted = approvedMeasurements.slice(0);
+        sorted.sort(function(a, b){ return b[4] - a[4]; }); // [4] = weight
+        var top5 = sorted.slice(0, Math.min(5, sorted.length));
+
+        // Build CSV data: ALL approved files + TOP-5 files
+        var csvData = [];
+
+        // Add all approved files
+        for (var j=0; j<approvedMeasurements.length; ++j){
+            var m = approvedMeasurements[j];
+            var srcPath = SS_norm(String(m[3]));
+            var stem = SS_noext(SS_basename(srcPath));
+
             csvData.push({
                 filename: stem + "_a.xisf",
                 weight: m[4]
             });
         }
 
-        // Save CSV with weights
+        // Add TOP-5 files with !N_ prefix
+        for (var t=0; t<top5.length; ++t){
+            var m = top5[t];
+            var srcPath = SS_norm(String(m[3]));
+            var stem = SS_noext(SS_basename(srcPath));
+            var rank = t + 1;
+
+            csvData.push({
+                filename: "!" + rank + "_" + stem + "_a.xisf",
+                weight: m[4]
+            });
+        }
+
+        // Save CSV with weights (includes both regular and TOP-5 files)
         if (csvData.length > 0){
             // Create CSV filename from group key (replace | and spaces with _)
             var csvName = "subframe_weights_" + gkey.replace(/\|/g, "_").replace(/\s+/g, "_") + ".csv";
@@ -670,9 +700,9 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
             }
         }
 
-            // Copy TOP-5 best files to separate folder
-                if (best5BaseDir){
-            SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir);
+        // Copy TOP-5 best files to separate folder
+        if (best5BaseDir){
+            SS_copyTop5(gkey, top5, approvedDir, best5BaseDir);
         }
     } else {
         Console.writeln("[ss]   No approved files, skipping copy");
@@ -697,8 +727,6 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
 
     return { approved: approved, rejected: rejected };
 }
-
-
 
 function SS_collectGroupFiles(PLAN, wf, preferCC){
     if (!PLAN || !PLAN.groups) return [];
