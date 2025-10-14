@@ -32,6 +32,7 @@
 #include "modules/cosmetic_plan.jsh"
 #include "modules/cosmetic_run.jsh"
 #include "modules/subframe_selector.jsh"
+#include "modules/star_alignment.jsh"
 
 // ============================================================================
 // Progress UI (inline - no external module to avoid reload crashes)
@@ -654,6 +655,16 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     Console.noteln("[ss] SubframeSelector complete.");
 }
 
+function PP_runStarAlignment_UI(dlg, PLAN, workFolders){
+    Console.noteln("[sa] Running StarAlignment...");
+    SA_runForAllTargets({
+        PLAN: PLAN,
+        workFolders: workFolders,
+        dlg: dlg
+    });
+    Console.noteln("[sa] StarAlignment complete.");
+}
+
 function PP_finalizeProgress(dlg){
     if (dlg && typeof dlg.finalizePipeline === "function")
         dlg.finalizePipeline();
@@ -1026,6 +1037,9 @@ function ANAWBPPSDialog(){
                     subframeScale: 2.4230
                 });
             }
+            if (self.cbSA && self.cbSA.checked){
+                PP_runStarAlignment_UI(ppDlg, PLAN, wf);
+                }
 
             PP_finalizeProgress(ppDlg);
 
