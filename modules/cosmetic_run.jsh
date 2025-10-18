@@ -430,9 +430,4 @@ function CC_runCosmetic_UI(planCC, workFolders, dlg /* optional */){
     var totalSec = (Date.now() - totalStart)/1000;
     Console.noteln("");
     Console.noteln("[cc-run] Done. Total: " + CR_fmtHMS(totalSec));
-    // Переводим кнопку в DONE, если не было отмены
-    try {
-        if (dlg && !dlg.cancelled && typeof dlg.setDone === "function")
-            dlg.setDone();
-    } catch(_){}
 }
