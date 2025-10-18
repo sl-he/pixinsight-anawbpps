@@ -33,6 +33,7 @@
 #include "modules/cosmetic_run.jsh"
 #include "modules/subframe_selector.jsh"
 #include "modules/star_alignment.jsh"
+#include "modules/local_normalization.jsh"
 
 // ============================================================================
 // Progress UI (inline - no external module to avoid reload crashes)
@@ -637,8 +638,9 @@ function PP_runCosmeticCorrection_UI(dlg, ccPlan, workFolders){
 function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     if (!dlg) throw new Error("Progress dialog is not provided.");
     if (!PLAN || !PLAN.groups) throw new Error("Plan is empty (no groups).");
-    var cameraGain = (options && options.cameraGain) || 0.7720;
-    var scale = (options && options.subframeScale) || 2.4230;
+    var cameraGain = (options && options.cameraGain) || 0.3330;
+    var scale = (options && options.subframeScale) || 0.7210; //ES150_F7
+
     var preferCC = (options && options.preferCC !== false);
 
     Console.noteln("[ss] Running SubframeSelector (Measure+Output) for all groups...");
@@ -663,6 +665,15 @@ function PP_runStarAlignment_UI(dlg, PLAN, workFolders){
         dlg: dlg
     });
     Console.noteln("[sa] StarAlignment complete.");
+}
+function PP_runLocalNormalization_UI(dlg, PLAN, workFolders){
+    Console.noteln("[ln] Running LocalNormalization...");
+    LN_runForAllGroups({
+        PLAN: PLAN,
+        workFolders: workFolders,
+        dlg: dlg
+    });
+    Console.noteln("[ln] LocalNormalization complete.");
 }
 
 function PP_finalizeProgress(dlg){
@@ -690,10 +701,9 @@ var HARDCODED_DEFAULTS = {
     doCC:  true,
     doSS: true,
     doSA:  true,
-    doLN:  true,
-    doNSG: true,
+    doLN:  false,
     doII:  true,
-    doDrizzle: true
+    doDrizzle: false
 };
 
 // ============================================================================
@@ -892,18 +902,24 @@ function ANAWBPPSDialog(){
     this.cbCal = new CheckBox(this); this.cbCal.text = "ImageCalibration";     this.cbCal.checked = !!HARDCODED_DEFAULTS.doCal;
     this.cbCC  = new CheckBox(this); this.cbCC.text  = "CosmeticCorrection";   this.cbCC.checked  = !!HARDCODED_DEFAULTS.doCC;
     this.cbSS  = new CheckBox(this); this.cbSS.text  = "SubframeSelector";     this.cbSS.checked  = !!HARDCODED_DEFAULTS.doSS;
+
+    // INFO: After SS, manually select reference for each group in TOP-5 folders
+    this.lblRefInfo = new Label(this);
+    this.lblRefInfo.text = "⚠ After SubframeSelector you need MANUALLY select reference for each group";
+//    this.lblRefInfo.textAlignment = TextAlign_Left;
+    this.lblRefInfo.styleSheet = "QLabel { color: #0000FF; font-style: bold; }";
+
     this.cbSA  = new CheckBox(this); this.cbSA.text  = "StarAlignment";        this.cbSA.checked  = !!HARDCODED_DEFAULTS.doSA;
     this.cbLN  = new CheckBox(this); this.cbLN.text  = "LocalNormalization";   this.cbLN.checked  = !!HARDCODED_DEFAULTS.doLN;
-    this.cbNSG = new CheckBox(this); this.cbNSG.text = "NSG (instead of LN)";  this.cbNSG.checked = !!HARDCODED_DEFAULTS.doNSG;
     this.cbII  = new CheckBox(this); this.cbII.text  = "ImageIntegration";     this.cbII.checked  = !!HARDCODED_DEFAULTS.doII;
     this.cbDrz = new CheckBox(this); this.cbDrz.text = "DrizzleIntegration";   this.cbDrz.checked = !!HARDCODED_DEFAULTS.doDrizzle;
 
     this.gbOptions.sizer.add(this.cbCal);
     this.gbOptions.sizer.add(this.cbCC);
     this.gbOptions.sizer.add(this.cbSS);
+    this.gbOptions.sizer.add(this.lblRefInfo);
     this.gbOptions.sizer.add(this.cbSA);
     this.gbOptions.sizer.add(this.cbLN);
-    this.gbOptions.sizer.add(this.cbNSG);
     this.gbOptions.sizer.add(this.cbII);
     this.gbOptions.sizer.add(this.cbDrz);
 
@@ -1034,12 +1050,16 @@ function ANAWBPPSDialog(){
                 PP_runSubframeSelector_UI(ppDlg, PLAN, wf, {
                     preferCC: (self.cbCC && self.cbCC.checked),
                     cameraGain: 0.3330,
-                    subframeScale: 2.4230
+                    subframeScale: 0.7210 //ES150_F7
                 });
             }
             if (self.cbSA && self.cbSA.checked){
                 PP_runStarAlignment_UI(ppDlg, PLAN, wf);
                 }
+
+            if (self.cbLN && self.cbLN.checked){
+                PP_runLocalNormalization_UI(ppDlg, PLAN, wf);
+            }
 
             PP_finalizeProgress(ppDlg);
 
