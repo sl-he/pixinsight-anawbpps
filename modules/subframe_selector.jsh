@@ -373,7 +373,6 @@ function SS_computeWeight(measurement, minMax, scale){
     if (!measurement || measurement.length < 8){
         return { weight: 0, approved: false, reason: "Invalid measurement" };
     }
-
     var FWHM = measurement[5];
     var Eccentricity = measurement[6];
     var PSFSignalWeight = measurement[7];
@@ -383,6 +382,7 @@ function SS_computeWeight(measurement, minMax, scale){
 //    var high = 6.0 * scale;
     var low = 0.5;
     var high = 6.0;
+
     // Check approval
     var approved = true;
     var reason = "";
@@ -396,6 +396,11 @@ function SS_computeWeight(measurement, minMax, scale){
     } else if (Eccentricity > 0.70){
         approved = false;
         reason = "Eccentricity=" + Eccentricity.toFixed(2) + " > 0.70";
+    } else if (PSFSignalWeight * 4 <= minMax.PSFSignalWeightMax){
+        // NEW: Reject files with PSFSignalWeight < 25% of maximum
+        // This catches clouds, closed roof, heavy light pollution, etc.
+        approved = false;
+        reason = "PSFSignal=" + PSFSignalWeight.toFixed(6) + " < 25% of max (" + minMax.PSFSignalWeightMax.toFixed(6) + ")";
     }
 
     if (!approved){
@@ -827,8 +832,8 @@ function SS_runForAllGroups(params){
     // params: { PLAN, workFolders, preferCC, cameraGain, subframeScale, dlg }
     var PLAN = params.PLAN, wf = params.workFolders, LI = params.LI;
     var preferCC = !!params.preferCC;
-    var cameraGain = params.cameraGain || 0.772;
-    var scale = params.subframeScale || 2.423;
+    var cameraGain = params.cameraGain || 0.333;
+    var scale = params.subframeScale || 0.7210;
     var dlg = params.dlg || null;
 // Log parameters
     Console.writeln("[ss] SubframeSelector: Manual weight computation");
