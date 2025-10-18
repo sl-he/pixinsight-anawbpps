@@ -11,7 +11,7 @@
  *
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
-/* helper: pre-add Measure/Output rows for all groups, mark as Queued */
+
 // ============================================================================
 // Helpers
 // ============================================================================
