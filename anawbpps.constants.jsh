@@ -1,10 +1,15 @@
-// ============================================================================
-// ANAWBPPS (Advanced Not Another WBPP Script) — Constants
-// ============================================================================
-// This file is included into the main script and contains all constants,
-// so that folder names, file names, and UI parameters can be changed in one place.
-// ============================================================================
-
+/*
+ * ANAWBPPS - Constants and configuration
+ *
+ * Copyright (C) 2024-2025 sl-he
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Repository: https://github.com/sl-he/pixinsight-anawbpps
+ */
 // --- project defaults (stored inside Work1)
 var PROJECT_DEFAULTS_DIRNAME  = "!!!WORK_LIGHTS";            // main working dir name
 
@@ -28,7 +33,6 @@ var WORKFLOW_FLAGS = [
   { key: "doSSOutput",  label: "SubframeSelector — Output",     short: "SS-O" },
   { key: "doSA",        label: "StarAlignment",                 short: "SA"   },
   { key: "doLN",        label: "LocalNormalization",            short: "LN"   },
-  { key: "doNSG",       label: "NSG (instead of LN)",           short: "NSG"  },
   { key: "doII",        label: "ImageIntegration",              short: "II"   },
   { key: "doDrizzle",   label: "DrizzleIntegration",            short: "Drz"  }
 ];
