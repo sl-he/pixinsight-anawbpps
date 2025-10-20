@@ -13,6 +13,7 @@ Automated calibration, cosmetic correction, subframe selection and star alignmen
 - ✅ Automatic organization by acquisition conditions
 - ✅ StarAlignment process with with grouping by objects/targets
 - ✅ LocalNormalization process with with grouping by objects/targets (switching OFF by default)
+- ✅ ImageIntegration process with with grouping by objects/targets and saving results on disk (with right naming by the groups)
 - ✅ Two-disk workflow support
 
 
