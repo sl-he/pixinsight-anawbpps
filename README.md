@@ -1,7 +1,7 @@
 # ANAWBPPS - Automated Night Astrophotography Workflow Batch Pre-Processing Script
 It just ANAWBPPS = Automated Night Astrophotography Workflow Batch Pre-Processing Script!
 
-Automated calibration, cosmetic correction, subframe selection and star alignment for PixInsight.
+Automated calibration, cosmetic correction, subframe selection, star alignment, local normalization, image integration and drizzle integration for PixInsight.
 
 ## Features
 - ✅ Automatic lights/masters indexing
