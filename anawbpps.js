@@ -34,6 +34,7 @@
 #include "modules/subframe_selector.jsh"
 #include "modules/star_alignment.jsh"
 #include "modules/local_normalization.jsh"
+#include "modules/image_integration.jsh"
 
 // ============================================================================
 // Progress UI (inline - no external module to avoid reload crashes)
@@ -675,6 +676,16 @@ function PP_runLocalNormalization_UI(dlg, PLAN, workFolders){
     });
     Console.noteln("[ln] LocalNormalization complete.");
 }
+function PP_runImageIntegration_UI(dlg, PLAN, workFolders, useLN){
+    Console.noteln("[ii] Running ImageIntegration...");
+    II_runForAllGroups({
+        PLAN: PLAN,
+        workFolders: workFolders,
+        useLN: useLN,
+        dlg: dlg
+    });
+    Console.noteln("[ii] ImageIntegration complete.");
+}
 
 function PP_finalizeProgress(dlg){
     if (dlg && typeof dlg.finalizePipeline === "function")
@@ -1053,12 +1064,18 @@ function ANAWBPPSDialog(){
                     subframeScale: 0.7210 //ES150_F7
                 });
             }
+
             if (self.cbSA && self.cbSA.checked){
                 PP_runStarAlignment_UI(ppDlg, PLAN, wf);
                 }
 
             if (self.cbLN && self.cbLN.checked){
                 PP_runLocalNormalization_UI(ppDlg, PLAN, wf);
+            }
+
+            if (self.cbII && self.cbII.checked){
+                var useLN = (self.cbLN && self.cbLN.checked);
+                PP_runImageIntegration_UI(ppDlg, PLAN, wf, useLN);
             }
 
             PP_finalizeProgress(ppDlg);
