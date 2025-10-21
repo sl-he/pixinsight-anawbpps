@@ -35,6 +35,7 @@
 #include "modules/star_alignment.jsh"
 #include "modules/local_normalization.jsh"
 #include "modules/image_integration.jsh"
+#include "modules/drizzle_integration.jsh"
 
 // ============================================================================
 // Progress UI (inline - no external module to avoid reload crashes)
@@ -687,6 +688,18 @@ function PP_runImageIntegration_UI(dlg, PLAN, workFolders, useLN){
     Console.noteln("[ii] ImageIntegration complete.");
 }
 
+function PP_runDrizzleIntegration_UI(dlg, PLAN, workFolders, useLN, scale){
+    Console.noteln("[di] Running DrizzleIntegration...");
+    DI_runForAllGroups({
+        PLAN: PLAN,
+        workFolders: workFolders,
+        useLN: useLN,
+        scale: scale || 1.0,
+        dlg: dlg
+    });
+    Console.noteln("[di] DrizzleIntegration complete.");
+}
+
 function PP_finalizeProgress(dlg){
     if (dlg && typeof dlg.finalizePipeline === "function")
         dlg.finalizePipeline();
@@ -1076,6 +1089,12 @@ function ANAWBPPSDialog(){
             if (self.cbII && self.cbII.checked){
                 var useLN = (self.cbLN && self.cbLN.checked);
                 PP_runImageIntegration_UI(ppDlg, PLAN, wf, useLN);
+            }
+
+            if (self.cbDrz && self.cbDrz.checked){
+                var useLN = (self.cbLN && self.cbLN.checked);
+                var scale = 1.0;
+                PP_runDrizzleIntegration_UI(ppDlg, PLAN, wf, useLN, scale);
             }
 
             PP_finalizeProgress(ppDlg);
