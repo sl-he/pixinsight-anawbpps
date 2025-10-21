@@ -34,7 +34,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 | 7 | **ImageIntegration** | Stack approved frames | ✅ ON |
 | 8 | **DrizzleIntegration** | Increase resolution (optional) | ☐ OFF |
 
-**Processing time:** ~1-2 hours for 300 subframes (standard workflow) (AMD Ryzen 7950X/192GB RAM/4x4TB Seagate Firecuda 530)
+**Processing time:** ~1-2 hours for 300 subframes (standard workflow) **(AMD Ryzen 7950X/192GB RAM/4x4TB Seagate Firecuda 530)**
 
 ---
 
