@@ -17,6 +17,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 - ✅ **32-bit Float output** for maximum dynamic range
 - ✅ **Progress tracking** with detailed UI
 - ✅ **Flexible configuration** (enable/disable any stage)
+- ✅ **Batch processing multiple nights/objects/setups/filters at the same time**
 
 ---
 
@@ -276,9 +277,7 @@ Contributions are welcome! Process:
 - [ ] UI for Camera Gain and Subframe Scale configuration
 - [ ] Presets for popular cameras/telescopes
 - [ ] Save/load configuration
-- [ ] Batch processing multiple nights
 - [ ] Advanced settings for experts
-- [ ] Integration with N.I.N.A. / SGP
 
 ---
 
