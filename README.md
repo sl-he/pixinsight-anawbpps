@@ -163,7 +163,7 @@ scale = (pixel_size_µm / focal_length_mm) × 206.265
 
 ## 🧪 Testing Results
 
-Tested on 300+ subframes:
+Tested on 21 subframes:
 
 | Method | SNR | FWHM | Time | Recommendation |
 |--------|-----|------|------|----------------|
@@ -222,12 +222,12 @@ After **SubframeSelector** completes, you must **manually** verify the reference
 
 ### Performance Recommendations
 
-- **SSD** for Work1 (intermediate files)
-- **HDD** for Work2 (large final files)
-- **16GB RAM** minimum, 32GB+ recommended
+- **SSD1** for Work1 (intermediate files)
+- **SSD2** for Work2 (large final files)
+- **64GB RAM** minimum, **128GB+** recommended
 - **Close other applications** during processing
 
-### Processing Time Estimates
+### Processing Time Estimates (AMD Ryzen 7950X/192GB RAM/4x4TB Seagate Firecuda 530)
 
 | Subframe Count | Standard Workflow | + LocalNorm | + Drizzle |
 |----------------|------------------|-------------|-----------|
