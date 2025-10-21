@@ -164,14 +164,14 @@ scale = (pixel_size_µm / focal_length_mm) × 206.265
 
 ## 🧪 Testing Results (Measuring for now)
 
-Tested on 21 subframes (only DrizzleIntegration):
+Tested on 21 subframes (only last stage):
 
 | Method | SNR | FWHM | Time | Recommendation |
 |--------|-----|------|------|----------------|
 | **ImageIntegration** | **62.99 db** | 2.671 px | 01:09 | ✅ **Main result** |
-| DrizzleIntegration (Square) | 54.69 db | 2.223 px | 02:20 | ⚠️ For undersampling |
-| DrizzleIntegration (Gaussian) | 52.94 db | 2.129 px | 03:28 | ⚠️ Best FWHM, slower |
-| DrizzleIntegration 2x | 52.81 db | 4.076 px | 05:06 | ⚠️ For resolution only |
+| ImageIntegration+DrizzleIntegration (Square) | 54.69 db | 2.223 px | 03:30 | ⚠️ For undersampling |
+| ImageIntegration+DrizzleIntegration (Gaussian) | 52.94 db | 2.129 px | 04:37 | ⚠️ Best FWHM, slower |
+| ImageIntegration+DrizzleIntegration 2x | 52.81 db | 4.076 px | 06:15 | ⚠️ For resolution only |
 
 **Conclusion:** Use **ImageIntegration** as main result. DrizzleIntegration only for specific needs.
 
