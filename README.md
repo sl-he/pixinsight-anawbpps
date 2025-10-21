@@ -162,9 +162,9 @@ scale = (pixel_size_µm / focal_length_mm) × 206.265
 
 ---
 
-## 🧪 Testing Results
+## 🧪 Testing Results (Measuring for now)
 
-Tested on 21 subframes:
+Tested on 21 subframes (only DrizzleIntegration):
 
 | Method | SNR | FWHM | Time | Recommendation |
 |--------|-----|------|------|----------------|
