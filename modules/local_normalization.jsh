@@ -245,7 +245,7 @@ function LN_collectAndGroupFiles(PLAN, workFolders){
 // ============================================================================
 
 function LN_applyInstanceSettings(P){
-    P.scale = 256;
+    P.scale = 1024;
     P.noScale = false;
     P.globalLocationNormalization = false;
     P.truncate = true;
