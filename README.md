@@ -33,7 +33,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 | 7 | **ImageIntegration** | Stack approved frames | ✅ ON |
 | 8 | **DrizzleIntegration** | Increase resolution (optional) | ☐ OFF |
 
-**Processing time:** ~1-2 hours for 300 subframes (standard workflow)
+**Processing time:** ~1-2 hours for 300 subframes (standard workflow) (AMD Ryzen 7950X/192GB RAM/4x4TB Seagate Firecuda 530)
 
 ---
 
@@ -129,7 +129,7 @@ scale = (pixel_size_µm / focal_length_mm) × 206.265
 
 | Camera | Pixel | Telescope | Focal | Scale |
 |--------|-------|-----------|-------|-------|
-| QHY600M | 3.76µm | ES150 F7 | 1050mm | 0.721" |
+| QHY600M | 3.76µm | Esprit 150 | 1050mm | 0.721" |
 | ASI2600MM | 3.76µm | Newt 200/800 | 800mm | 0.970" |
 | ASI2600MM | 3.76µm | RC 8" F8 | 1600mm | 0.485" |
 
