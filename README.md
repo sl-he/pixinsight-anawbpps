@@ -237,7 +237,7 @@ After **SubframeSelector** completes, you must **manually** verify the reference
 | 300 | 1-2 hours | +45 min | +20 min |
 | 500 | 2-3 hours | +75 min | +30 min |
 
-### Testing Time for 353 subs
+### Testing Time for 353 subs (AMD Ryzen 7950X/192GB RAM/4x4TB Seagate Firecuda 530)
 
 | Workflow Stage | Subs | Time, hh:mm:ss.ss | Rejected by some reason | Reject Reason |
 |----------------|------|------|-------------------------|---------------|
