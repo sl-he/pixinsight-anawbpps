@@ -137,7 +137,7 @@ scale = (pixel_size_µm / focal_length_mm) × 206.265
 | ASI2600MM | 3.76µm | Newt 200/800 | 800mm | 0.970" |
 | ASI2600MM | 3.76µm | RC 8" F8 | 1600mm | 0.485" |
 
-**Online calculator:** [AstroBin Image Scale Calculator](https://www.astrob.in/equipment/scale/)
+**Online calculator:** [Astronomy Tools Online Calculator](https://astronomy.tools/calculators/ccd)
 
 ### Workflow Options
 
