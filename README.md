@@ -34,7 +34,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 | 7 | **ImageIntegration** | Stack approved frames | ✅ ON |
 | 8 | **DrizzleIntegration** | Increase resolution (optional) | ☐ OFF |
 
-**Processing time:** ~1-2 hours for 300 subframes (standard workflow) **(AMD Ryzen 7950X/192GB RAM/4x4TB Seagate Firecuda 530)**
+**Processing time:** ~1-2 hours for 300 subframes (standard workflow) **(AMD Ryzen 7950X/192GB RAM/4x4TB NVMe Seagate Firecuda 530)**
 
 ---
 
@@ -45,8 +45,8 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 - **PixInsight** 1.8.9 or later
 - **Calibrated master frames** (bias, dark, flat)
 - **Light frames** in XISF or FITS format
-- **16GB+ RAM** (recommended)
-- **SSD** for working files (recommended)
+- **64GB+ of free RAM** (recommended for 200+ subs)
+- **SSD/NVMe** for working files (recommended)
 
 ### Installation
 
@@ -54,7 +54,8 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 ```bash
    git clone https://github.com/sl-he/pixinsight-anawbpps.git
 ```
-or here https://github.com/sl-he/pixinsight-anawbpps/releases
+or
+download here https://github.com/sl-he/pixinsight-anawbpps/releases
 
 2. **Copy to PixInsight scripts folder:**
 
@@ -235,6 +236,22 @@ After **SubframeSelector** completes, you must **manually** verify the reference
 | 100 | 30-60 min | +20 min | +10 min |
 | 300 | 1-2 hours | +45 min | +20 min |
 | 500 | 2-3 hours | +75 min | +30 min |
+
+### Testing Time for 353 subs
+
+| Workflow Stage | Subs | Time, hh:mm:ss.ss | Rejected by some reason | Reject Reason |
+|----------------|------|------|-------------------------|---------------|
+| Index Lights | 353 | 00:00:02.61 | 36 | There were no necessary calibration files|
+| Index Calibration Files | 972 | 00:00:00.24 | - | B:58 D:164 F:414 |
+| Image Calibration | 316 | 00:10:52.15 | 0 | - |
+| Subframe Selector - Measure | 316 | 00:05:13.01 | 0 | - |
+| Subframe Selector - Output | 234 | 00:02:38.74 | 82 | By rejecting formula (bad SNR/FWHM/etc) |
+| StarAlignment | 234+1 (reference) | 00:08:30.01 | 3 | not enough stars |
+| LocalNormalization | 232 | 00:14:25.56 | 0 | - |
+| ImageIntegration | 232 | 00:11:16.10 | 0 | - |
+| DrizzleIntegration | 232 | 00:20:39.65 | | 0 | - |
+
+#### Total: 01:05:30.51
 
 ---
 
