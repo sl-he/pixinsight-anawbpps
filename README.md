@@ -249,7 +249,7 @@ After **SubframeSelector** completes, you must **manually** verify the reference
 | StarAlignment | 234+1 (reference) | 00:08:30.01 | 3 | not enough stars |
 | LocalNormalization | 232 | 00:14:25.56 | 0 | - |
 | ImageIntegration | 232 | 00:11:16.10 | 0 | - |
-| DrizzleIntegration | 232 | 00:20:39.65 | | 0 | - |
+| DrizzleIntegration | 232 | 00:20:39.65 | 0 | - |
 
 #### Total: 01:05:30.51
 
