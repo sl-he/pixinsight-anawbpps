@@ -56,8 +56,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 ```bash
    git clone https://github.com/sl-he/pixinsight-anawbpps.git
 ```
-or
-download here https://github.com/sl-he/pixinsight-anawbpps/releases
+or download here https://github.com/sl-he/pixinsight-anawbpps/releases
 
 2. **Copy to PixInsight scripts folder:**
 
