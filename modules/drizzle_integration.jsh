@@ -436,7 +436,7 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
     if (node){
         try{
             node.setText(2, DI_fmtHMS(elapsed));
-            node.setText(3, "✓ Success");
+            node.setText(3, "✔ Success");
             node.setText(4, inputData.length + " subs drizzled");
             if (typeof processEvents === "function") processEvents();
         }catch(_){}

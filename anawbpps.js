@@ -29,8 +29,9 @@
 #include "modules/lights_index.jsh"
 #include "modules/calibration_match.jsh"
 #include "modules/calibration_run.jsh"
-#include "modules/cosmetic_plan.jsh"
-#include "modules/cosmetic_run.jsh"
+#include "modules/cosmetic_correction.jsh"
+//#include "modules/cosmetic_plan.jsh"
+//#include "modules/cosmetic_run.jsh"
 #include "modules/subframe_selector.jsh"
 #include "modules/star_alignment.jsh"
 #include "modules/local_normalization.jsh"
@@ -158,79 +159,6 @@ function CP__fmtGroupForUI(gkey){
     var TEMP= (String(temp).indexOf("C")>=0 ? temp : (temp+"C"));
     var EXP = (String(exp).indexOf("s")>=0 ? exp  : (exp +"s"));
     return cam + "|" + target + "|" + filt + "|" + mode + "|" + G + "|" + OS + "|" + U + "|" + BIN + "|" + TEMP + "|" + EXP;
-}
-
-function __cc_getDarkPath(gkey, g){
-    if (g){
-        var names = ["darkPath","dark","masterDark","path","file"];
-        for (var i=0;i<names.length;i++){
-            var v = g[names[i]];
-            if (v && typeof v === "string" && v.length) return v;
-        }
-    }
-    try{
-        var s = String(gkey);
-        var idx = s.lastIndexOf("::");
-        if (idx >= 0) return s.substring(idx+2);
-        var m = s.match(/[A-Za-z]:[\\/][^|]*\.(xisf|fits|fit)/i);
-        if (m) return m[0];
-    }catch(_){}
-    return "";
-}
-
-function __cc_labelFromDarkPath(darkPath){
-    var full = String(darkPath||""); if (!full) return "";
-    var p = full.replace(/\\/g,"/");
-    var parts = p.split("/");
-    var fnameWithExt = parts.length ? parts[parts.length-1] : "";
-    var fname = fnameWithExt.replace(/\.(xisf|fits?|fts)$/i,"");
-    var setup = parts.length>1 ? parts[parts.length-2] : "";
-
-    var toks = fname.split("_");
-    function findTok(pred){
-        for (var i=0;i<toks.length;i++) if (pred(toks[i])) return toks[i];
-        return "";
-    }
-    var modeTok = findTok(function(t){ return /mode/i.test(t); });
-    var mode = modeTok ? modeTok.replace(/[-]+/g," ").replace(/\s+/g," ").trim() : "";
-
-    function pick(re){ var m=fname.match(re); return m?m[1]:""; }
-    var g    = pick(/(?:^|_)G(\d+)(?:_|$)/i);
-    var os   = pick(/(?:^|_)OS(\d+)(?:_|$)/i);
-    var u    = pick(/(?:^|_)U(\d+)(?:_|$)/i);
-    var bin  = pick(/(?:^|_)Bin(\d+x\d+)(?:_|$)/i);
-    var expS = pick(/(?:^|_)(\d{1,4})s(?:_|$)/i);
-    var tmpC = pick(/(?:^|_)(-?\d+)C(?:_|$)/i);
-
-    var dm = (fname.match(/(20\d{2})[-_\.]?(0[1-9]|1[0-2])[-_\.]?([0-3]\d)/) ||
-        p.match(/(20\d{2})[-_\.]?(0[1-9]|1[0-2])[-_\.]?([0-3]\d)/));
-    var date = dm ? (dm[1]+"_"+dm[2]+"_"+dm[3]) : "";
-
-    function nz(x){ return (x===0 || x==="0" || (x && String(x).length)) ? String(x) : ""; }
-    var G   = nz(g)   ? ("G"+g) : "";
-    var OS  = nz(os)  ? ("OS"+os) : "";
-    var U   = nz(u)   ? ("U"+u) : "";
-    var BIN = nz(bin) ? ("bin"+bin.toLowerCase()) : "";
-    var TEMP= nz(tmpC)? (tmpC+"C") : "";
-    var EXP = nz(expS)? (String(parseInt(expS,10))+"s") : "";
-
-    var out = [];
-    if (setup) out.push(setup);
-    if (mode)  out.push(mode);
-    if (G)     out.push(G);
-    if (OS)    out.push(OS);
-    if (U)     out.push(U);
-    if (BIN)   out.push(BIN);
-    if (TEMP)  out.push(TEMP);
-    if (EXP)   out.push(EXP);
-    if (date)  out.push(date);
-    return out.join("|");
-}
-
-function CP__fmtCosmeticGroupLabel(gkey, g){
-    var dark = __cc_getDarkPath(gkey, g);
-    var core = __cc_labelFromDarkPath(dark);
-    return core || String(gkey);
 }
 
 /* ProgressDialog class */
@@ -378,12 +306,6 @@ function RunImageCalibration(plan, options){
         throw new Error("CAL_runCalibration not found");
     var workFolders = (options && options.workFolders) ? options.workFolders : undefined;
     return CAL_runCalibration(plan, workFolders);
-}
-
-function RunCosmeticCorrection(plan, workFolders, dlg) {
-    if (typeof CC_runCosmetic_UI !== "function")
-        throw new Error("CC_runCosmetic_UI not found");
-    return CC_runCosmetic_UI(plan, workFolders, dlg || null);
 }
 
 /* Getters for last indices */
@@ -559,79 +481,6 @@ function PP_runImageCalibration_UI(dlg, plan, options){
             : (gErr || errG || "Error"));
         try{ processEvents(); }catch(_){}
         if (!okG) throw new Error(errG || gErr || "ImageCalibration failed");
-    }
-
-    return { ok:true, groups: keys.length };
-}
-
-function PP__preAddCosmeticRows(dlg, ccPlan){
-    if (!dlg || !ccPlan || !ccPlan.groups) return;
-    if (!dlg.ccRowsMap) dlg.ccRowsMap = {};
-    var keys = [];
-    for (var k in ccPlan.groups) if (ccPlan.groups.hasOwnProperty(k)) keys.push(k);
-    for (var i=0;i<keys.length;i++){
-        var gkey = keys[i], g = ccPlan.groups[gkey];
-        var subs = 0;
-        if (g && g.files && g.files.length) subs = g.files.length;
-        else if (g && g.items && g.items.length) subs = g.items.length;
-        else if (g && g.frames && g.frames.length) subs = g.frames.length;
-        var label = CP__fmtCosmeticGroupLabel(gkey, g) + (subs?(" ("+subs+" subs)"):"");
-        var node = dlg.addRow("CosmeticCorrection", label);
-        PP_setStatus(dlg, node, PP_iconQueued());
-        PP_setNote(dlg, node, subs? (subs+"/"+subs+" queued") : "");
-        dlg.ccRowsMap[gkey] = { node: node, subs: subs };
-    }
-    try{ processEvents(); }catch(_){}
-}
-
-function PP_runCosmeticCorrection_UI(dlg, ccPlan, workFolders){
-    if (!dlg) throw new Error("Progress dialog is not provided.");
-    if (!ccPlan || !ccPlan.groups) throw new Error("Cosmetic plan is empty (no groups).");
-
-    PP__preAddCosmeticRows(dlg, ccPlan);
-
-    var keys = [];
-    try{
-        if (ccPlan.order && ccPlan.order.length) keys = ccPlan.order.slice(0);
-        else for (var k in ccPlan.groups) if (ccPlan.groups.hasOwnProperty(k)) keys.push(k);
-    }catch(_){}
-
-    function __miniCCPlanFor(key){
-        var mp = {};
-        for (var p in ccPlan)
-            if (ccPlan.hasOwnProperty(p) && p !== "groups" && p !== "order")
-                mp[p] = ccPlan[p];
-        mp.groups = {}; mp.groups[key] = ccPlan.groups[key];
-        mp.order = [key];
-        return mp;
-    }
-
-    for (var i=0; i<keys.length; i++){
-        var gkey = keys[i];
-        var rec  = dlg.ccRowsMap && dlg.ccRowsMap[gkey];
-        if (!rec || !rec.node) continue;
-
-        PP_setStatus(dlg, rec.node, PP_iconRunning());
-        PP_setNote  (dlg, rec.node, rec.subs ? (rec.subs+"/"+rec.subs+" running") : "running");
-        try{ processEvents(); }catch(_){}
-
-        if (!rec.subs || rec.subs <= 0){
-            PP_setStatus(dlg, rec.node, PP_iconSuccess());
-            PP_setNote  (dlg, rec.node, "0/0 processed");
-            continue;
-        }
-
-        var mp   = __miniCCPlanFor(gkey);
-        var okG  = true, errG = "", t0 = Date.now();
-        try{ RunCosmeticCorrection(mp, workFolders, dlg); }catch(e){ okG=false; errG = e.toString(); }
-        var dt = Date.now() - t0;
-        try{ dlg.updateRow(rec.node, { elapsed: formatElapsedMS(dt) }); }catch(_){}
-
-        PP_setStatus(dlg, rec.node, okG ? PP_iconSuccess() : PP_iconError());
-        PP_setNote  (dlg, rec.node, okG ? (rec.subs+"/"+rec.subs+" processed") : (errG || "Error"));
-        try{ processEvents(); }catch(_){}
-
-        if (!okG) throw new Error(errG || "CosmeticCorrection failed");
     }
 
     return { ok:true, groups: keys.length };
@@ -1065,9 +914,18 @@ function ANAWBPPSDialog(){
                 PP_runImageCalibration_UI(ppDlg, PLAN, { workFolders: wf });
             }
 
+//            if (self.cbCC && self.cbCC.checked){
+//                var CC_PLAN = CC_makeCosmeticPlan(PLAN, wf);
+//                PP_runCosmeticCorrection_UI(ppDlg, CC_PLAN, wf);
+//            }
             if (self.cbCC && self.cbCC.checked){
-                var CC_PLAN = CC_makeCosmeticPlan(PLAN, wf);
-                PP_runCosmeticCorrection_UI(ppDlg, CC_PLAN, wf);
+                Console.noteln("[cc] Running CosmeticCorrection...");
+                CC_runForAllGroups({
+                    PLAN: PLAN,
+                    workFolders: wf,
+                    dlg: ppDlg
+                });
+                Console.noteln("[cc] CosmeticCorrection complete.");
             }
 
             if (self.cbSS && self.cbSS.checked){
