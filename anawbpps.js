@@ -21,7 +21,7 @@
  */
 
 #feature-id    sl-he > ANAWBPPS
-#feature-info  Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. \
+#feature-info  Automated Night Astrophotography Workflow Batch Pre-Processing Script. \
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
