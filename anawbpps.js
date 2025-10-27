@@ -20,6 +20,13 @@
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
 
+#feature-id    sl-he > ANAWBPPS
+#feature-info  Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. \
+               Automates the entire preprocessing workflow from calibration to final integration.
+//#feature-icon  ANAWBPPS.xpm
+#define TITLE "ANAWBPPS"
+#define VERSION "0.8.0"
+
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
 #include "anawbpps.constants.jsh"
