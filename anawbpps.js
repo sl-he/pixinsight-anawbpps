@@ -37,8 +37,6 @@
 #include "modules/calibration_match.jsh"
 #include "modules/calibration_run.jsh"
 #include "modules/cosmetic_correction.jsh"
-//#include "modules/cosmetic_plan.jsh"
-//#include "modules/cosmetic_run.jsh"
 #include "modules/subframe_selector.jsh"
 #include "modules/star_alignment.jsh"
 #include "modules/local_normalization.jsh"
