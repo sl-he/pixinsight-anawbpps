@@ -25,7 +25,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "0.8.0"
+#define VERSION "0.8.1"
 
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
