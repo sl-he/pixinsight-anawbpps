@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<xri version="1.0">
+   <repository update-url="https://sl-he.github.io/pixinsight-anawbpps/updates.xri" title="pixinsight-anawbpps" description="Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts" location="https://sl-he.github.io/pixinsight-anawbpps">
+      <package fileName="pixinsight-anawbpps-main_v0.8.1.zip" name="pixinsight-anawbpps" version="0.8.1" releaseDate="2025-10-28" platform="all" description="**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.8.0...v0.8.1">
+         <title>pixinsight-anawbpps</title>
+         <download-url>https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.8.1/pixinsight-anawbpps-main_v0.8.1.zip</download-url>
+         <download-size>84866</download-size>
+         <release-notes>**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.8.0...v0.8.1</release-notes>
+      </package>
+      <package fileName="pixinsight-anawbpps-main_v0.8.0.zip" name="pixinsight-anawbpps" version="0.8.0" releaseDate="2025-10-21" platform="all" description="Adding DrizzleIntegration Module with scale 1.0. Some cosmetic changes. Updating README.  **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.3...v0.8.0">
+         <title>pixinsight-anawbpps</title>
+         <download-url>https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.8.0/pixinsight-anawbpps-main_v0.8.0.zip</download-url>
+         <download-size>92280</download-size>
+         <release-notes>Adding DrizzleIntegration Module with scale 1.0.
+Some cosmetic changes.
+Updating README.
+
+**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.3...v0.8.0</release-notes>
+      </package>
+      <package fileName="pixinsight-anawbpps-main_v0.7.3.zip" name="pixinsight-anawbpps" version="0.7.3" releaseDate="2025-10-20" platform="all" description="Adding ImageIntegration process. Some cosmetic changes.  **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.2...v0.7.3">
+         <title>pixinsight-anawbpps</title>
+         <download-url>https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.3/pixinsight-anawbpps-main_v0.7.3.zip</download-url>
+         <download-size>83966</download-size>
+         <release-notes>Adding ImageIntegration process.
+Some cosmetic changes.
+
+**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.2...v0.7.3</release-notes>
+      </package>
+      <package fileName="pixinsight-anawbpps-main_v0.7.2.zip" name="pixinsight-anawbpps" version="0.7.2" releaseDate="2025-10-18" platform="all" description="Add LocalNormalization. Adding PSFSignalWeight rejection in SubframeSelector. Some cosmetic changes.  **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.1...v0.7.2">
+         <title>pixinsight-anawbpps</title>
+         <download-url>https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.2/pixinsight-anawbpps-main_v0.7.2.zip</download-url>
+         <download-size>77277</download-size>
+         <release-notes>Add LocalNormalization.
+Adding PSFSignalWeight rejection in SubframeSelector.
+Some cosmetic changes.
+
+**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.1...v0.7.2</release-notes>
+      </package>
+      <package fileName="pixinsight-anawbpps-main_v0.7.1.zip" name="pixinsight-anawbpps" version="0.7.1" releaseDate="2025-10-14" platform="all" description="Adding StarAlignment process. Some cosmetic changes in SS. Delete modules/preprocessing_progress.jsh  **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.0...v0.7.1">
+         <title>pixinsight-anawbpps</title>
+         <download-url>https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.1/pixinsight-anawbpps-main_v0.7.1.zip</download-url>
+         <download-size>72449</download-size>
+         <release-notes>Adding StarAlignment process.
+Some cosmetic changes in SS.
+Delete modules/preprocessing_progress.jsh
+
+**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.0...v0.7.1</release-notes>
+      </package>
+      <package fileName="pixinsight-anawbpps-main_v0.7.0.zip" name="pixinsight-anawbpps" version="0.7.0" releaseDate="2025-10-13" platform="all" description="Full code rewrite on main module, move preprocessing_progress.jsh functionality into main module. Update headers with GPL 3.0  **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compa...">
+         <title>pixinsight-anawbpps</title>
+         <download-url>https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.0/pixinsight-anawbpps-main_v0.7.0.zip</download-url>
+         <download-size>75161</download-size>
+         <release-notes>Full code rewrite on main module, move preprocessing_progress.jsh functionality into main module.
+Update headers with GPL 3.0
+
+**Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.6.0...v0.7.0</release-notes>
+      </package>
+   </repository>
+</xri>
