@@ -36,11 +36,11 @@ jobs:
           echo "Creating archive: $ARCHIVE_NAME"
           
           # Create temporary directory with module structure
-          mkdir -p /tmp/build/ANAWBPPS
+          mkdir -p /tmp/build/ANAWBPPS/src/scripts
           
           # Copy files
-          cp anawbpps.js /tmp/build/ANAWBPPS/
-          cp -r modules /tmp/build/ANAWBPPS/
+          cp anawbpps.js /tmp/build/ANAWBPPS/src/scripts/
+          cp -r modules /tmp/build/ANAWBPPS/src/scripts/
           
           # Create ZIP
           cd /tmp/build
