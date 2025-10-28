@@ -89,23 +89,23 @@ jobs:
           
           echo "✓ Uploaded to release"
       
-      - name: Get latest 5 releases
+      - name: Get latest release
         id: get_releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Fetching releases..."
           
-          # Get all releases (not draft, not prerelease)
+          # Get latest release only (not draft, not prerelease)
           RELEASES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
             "https://api.github.com/repos/${{ github.repository }}/releases" \
-            | jq -r '[.[] | select(.draft == false and .prerelease == false)] | .[0:5]')
+            | jq -r '[.[] | select(.draft == false and .prerelease == false)] | .[0:1]')
           
           echo "$RELEASES" > /tmp/releases.json
           
           # Count releases
           COUNT=$(echo "$RELEASES" | jq 'length')
-          echo "Found $COUNT releases to include"
+          echo "Found $COUNT release to include"
           
           # Extract info for each release
           echo "$RELEASES" | jq -r '.[] | "\(.tag_name)|\(.published_at)|\(.id)"' | while IFS='|' read -r TAG DATE RELEASE_ID; do
