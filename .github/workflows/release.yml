@@ -182,39 +182,35 @@ jobs:
         run: |
           echo "Generating updates.xml..."
           
-          cat > docs/updates.xml << 'EOF'
-<xri version="1.0">
-<script/>
-<description>
-<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>
-</description>
-<platform os="all" arch="noarch" version="1.8.0:1.8.99">
-EOF
+           # Start XML file
+           echo '<xri version="1.0">' > docs/updates.xml
+           echo '<script/>' >> docs/updates.xml
+           echo '<description>' >> docs/updates.xml
+           echo '<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>' >> docs/updates.xml
+           echo '</description>' >> docs/updates.xml
+           echo '<platform os="all" arch="noarch" version="1.8.0:1.8.99">' >> docs/updates.xml
+
           
           # Add packages
           if [ -f /tmp/packages.txt ]; then
             while IFS='|' read -r TAG ARCHIVE_NAME SHA1 RELEASE_DATE; do
-              cat >> docs/updates.xml << EOF
-<package fileName="packages/$ARCHIVE_NAME" sha1="$SHA1" type="script" releaseDate="$RELEASE_DATE">
-<title> sl-he/ANAWBPPS scripts </title>
-<description>
-<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>
-<dl>
-<dt>ANAWBPPS</dt>
-<dd>Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>
-</dl>
-<p> https://github.com/sl-he/pixinsight-anawbpps </p>
-</description>
-</package>
-EOF
+               echo "<package fileName=\"packages/$ARCHIVE_NAME\" sha1=\"$SHA1\" type=\"script\" releaseDate=\"$RELEASE_DATE\">" >> docs/updates.xml
+               echo '<title> sl-he/ANAWBPPS scripts </title>' >> docs/updates.xml
+               echo '<description>' >> docs/updates.xml
+               echo '<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>' >> docs/updates.xml
+               echo '<dl>' >> docs/updates.xml
+               echo '<dt>ANAWBPPS</dt>' >> docs/updates.xml
+               echo '<dd>Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>' >> docs/updates.xml
+               echo '</dl>' >> docs/updates.xml
+               echo '<p> https://github.com/sl-he/pixinsight-anawbpps </p>' >> docs/updates.xml
+               echo '</description>' >> docs/updates.xml
+               echo '</package>' >> docs/updates.xml
             done < /tmp/packages.txt
           fi
           
           # Close XML
-          cat >> docs/updates.xml << 'EOF'
-</platform>
-</xri>
-EOF
+          echo '</platform>' >> docs/updates.xml
+          echo '</xri>' >> docs/updates.xml
           
           echo "✓ updates.xml generated"
           echo ""
