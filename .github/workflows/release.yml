@@ -36,15 +36,15 @@ jobs:
           echo "Creating archive: $ARCHIVE_NAME"
           
           # Create temporary directory with module structure
-          mkdir -p /tmp/build/ANAWBPPS/src/scripts
+          mkdir -p /tmp/build/src/scripts/ANAWBPPS
           
           # Copy files
-          cp anawbpps.js /tmp/build/ANAWBPPS/src/scripts/
-          cp -r modules /tmp/build/ANAWBPPS/src/scripts/
+          cp anawbpps.js /tmp/build/src/scripts/ANAWBPPS/
+          cp -r modules /tmp/build/src/scripts/ANAWBPPS/
           
           # Create ZIP
           cd /tmp/build
-          zip -r "$ARCHIVE_NAME" ANAWBPPS/
+          zip -r "$ARCHIVE_NAME" src/
           
           # Move to workspace
           mv "$ARCHIVE_NAME" $GITHUB_WORKSPACE/
@@ -195,7 +195,7 @@ jobs:
           if [ -f /tmp/packages.txt ]; then
             while IFS='|' read -r TAG ARCHIVE_NAME SHA1 RELEASE_DATE; do
                echo "<package fileName=\"packages/$ARCHIVE_NAME\" sha1=\"$SHA1\" type=\"script\" releaseDate=\"$RELEASE_DATE\">" >> docs/updates.xri
-               echo '<title> sl-he/ANAWBPPS scripts </title>' >> docs/updates.xri
+               echo '<title> ANAWBPPS </title>' >> docs/updates.xri
                echo '<description>' >> docs/updates.xri
                echo '<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>' >> docs/updates.xri
                echo '<dl>' >> docs/updates.xri
