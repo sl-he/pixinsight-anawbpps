@@ -1,55 +1,14 @@
 <xri version="1.0">
 <script/>
 <description>
-<p> pixinsight-anawbpps — Automated Night Astrophotography Workflow Based on PixInsight Processing Scripts. </p>
+<p> pixinsight-anawbpps — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>
 </description>
 <platform os="all" arch="noarch" version="1.8.0:1.8.99">
 <package fileName="pixinsight-anawbpps-main_v0.8.1.zip" type="script" releaseDate="20251028">
-<title> pixinsight-anawbpps </title>
+<title> pixinsight-anawbpps v0.8.1 </title>
 <description>
 <p> Install or update pixinsight-anawbpps in PixInsight. </p>
-<p> **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.8.0...v0.8.1 </p>
-<p> https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.8.1/pixinsight-anawbpps-main_v0.8.1.zip </p>
-</description>
-</package>
-<package fileName="pixinsight-anawbpps-main_v0.8.0.zip" type="script" releaseDate="20251021">
-<title> pixinsight-anawbpps </title>
-<description>
-<p> Install or update pixinsight-anawbpps in PixInsight. </p>
-<p> Adding DrizzleIntegration Module with scale 1.0. Some cosmetic changes. Updating README. **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.3...v0.8.0 </p>
-<p> https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.8.0/pixinsight-anawbpps-main_v0.8.0.zip </p>
-</description>
-</package>
-<package fileName="pixinsight-anawbpps-main_v0.7.3.zip" type="script" releaseDate="20251020">
-<title> pixinsight-anawbpps </title>
-<description>
-<p> Install or update pixinsight-anawbpps in PixInsight. </p>
-<p> Adding ImageIntegration process. Some cosmetic changes. **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.2...v0.7.3 </p>
-<p> https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.3/pixinsight-anawbpps-main_v0.7.3.zip </p>
-</description>
-</package>
-<package fileName="pixinsight-anawbpps-main_v0.7.2.zip" type="script" releaseDate="20251018">
-<title> pixinsight-anawbpps </title>
-<description>
-<p> Install or update pixinsight-anawbpps in PixInsight. </p>
-<p> Add LocalNormalization. Adding PSFSignalWeight rejection in SubframeSelector. Some cosmetic changes. **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.1...v0.7.2 </p>
-<p> https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.2/pixinsight-anawbpps-main_v0.7.2.zip </p>
-</description>
-</package>
-<package fileName="pixinsight-anawbpps-main_v0.7.1.zip" type="script" releaseDate="20251014">
-<title> pixinsight-anawbpps </title>
-<description>
-<p> Install or update pixinsight-anawbpps in PixInsight. </p>
-<p> Adding StarAlignment process. Some cosmetic changes in SS. Delete modules/preprocessing_progress.jsh **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.7.0...v0.7.1 </p>
-<p> https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.1/pixinsight-anawbpps-main_v0.7.1.zip </p>
-</description>
-</package>
-<package fileName="pixinsight-anawbpps-main_v0.7.0.zip" type="script" releaseDate="20251013">
-<title> pixinsight-anawbpps </title>
-<description>
-<p> Install or update pixinsight-anawbpps in PixInsight. </p>
-<p> Full code rewrite on main module, move preprocessing_progress.jsh functionality into main module. Update headers with GPL 3.0 **Full Changelog**: https://github.com/sl-he/pixinsight-anawbpps/compare/v0.6.0...v0.7.0 </p>
-<p> https://github.com/sl-he/pixinsight-anawbpps/releases/download/v0.7.0/pixinsight-anawbpps-main_v0.7.0.zip </p>
+<p> https://github.com/sl-he/pixinsight-anawbpps </p>
 </description>
 </package>
 </platform>
