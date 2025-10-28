@@ -3,7 +3,7 @@
 <description>
 <p> pixinsight-anawbpps — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>
 </description>
-<platform os="all" arch="noarch" version="1.8.0:1.8.99">
+<platform os="all" arch="noarch" version="1.8.0:1.9.99">
 <package fileName="pixinsight-anawbpps-main_v0.8.1.zip" sha1="99598be22a87d96ac36ad079c28d03acb4b72070" type="script" releaseDate="20251028">
 <title> pixinsight-anawbpps v0.8.1 </title>
 <description>
