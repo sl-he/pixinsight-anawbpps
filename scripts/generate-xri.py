@@ -3,7 +3,7 @@
 Generate PixInsight Repository Index (updates.xri) from GitHub Releases
 """
 import os
-import json
+import hashlib
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -32,16 +32,43 @@ def get_releases():
     print(f'Found {len(releases)} releases')
     return releases
 
+def calculate_sha1_from_url(download_url):
+    """Скачивает файл и вычисляет SHA1 хеш"""
+    try:
+        print(f'  Downloading file to calculate SHA1...')
+        response = requests.get(download_url, stream=True)
+        response.raise_for_status()
+        
+        sha1 = hashlib.sha1()
+        for chunk in response.iter_content(chunk_size=8192):
+            sha1.update(chunk)
+        
+        hash_value = sha1.hexdigest()
+        print(f'  SHA1: {hash_value}')
+        return hash_value
+    except Exception as e:
+        print(f'  Warning: Could not calculate SHA1: {e}')
+        return None
+
 def generate_xri():
     """Генерирует updates.xri на основе GitHub Releases"""
     
     # Создаём корневой элемент
     root = ET.Element('xri', version='1.0')
-    repo = ET.SubElement(root, 'repository',
-        title=REPO_NAME,
-        description='Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts',
-        location=BASE_URL,
-        attrib={'update-url': f'{BASE_URL}/updates.xri'})
+    
+    # Добавляем обязательный тег script
+    ET.SubElement(root, 'script')
+    
+    # Добавляем описание репозитория
+    repo_desc = ET.SubElement(root, 'description')
+    repo_desc_p = ET.SubElement(repo_desc, 'p')
+    repo_desc_p.text = f' {REPO_NAME} — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. '
+    
+    # Создаём platform элемент
+    platform = ET.SubElement(root, 'platform', 
+        os='all',
+        arch='noarch', 
+        version='1.8.0:1.8.99')
     
     # Получаем все релизы
     releases = get_releases()
@@ -55,9 +82,11 @@ def generate_xri():
         
         tag_name = release['tag_name']
         version = tag_name.lstrip('v')  # Убираем 'v' если есть
+        
+        # Форматируем дату как YYYYMMDD
         release_date = datetime.fromisoformat(
             release['published_at'].replace('Z', '+00:00')
-        ).strftime('%Y-%m-%d')
+        ).strftime('%Y%m%d')
         
         print(f'Processing release: {tag_name} ({release_date})')
         
@@ -70,55 +99,72 @@ def generate_xri():
                 print(f"  Skipping non-zip asset: {filename}")
                 continue
             
-            # Определяем платформу
-            if 'x64' in filename or 'amd64' in filename:
-                platform = 'x64'
-            elif 'arm64' in filename:
-                platform = 'arm64'
-            else:
-                platform = 'all'
+            print(f'  Adding package: {filename}')
             
-            print(f'  Adding package: {filename} ({platform})')
+            # Вычисляем SHA1
+            sha1_hash = calculate_sha1_from_url(asset['browser_download_url'])
             
-            # Создаём описание (обрезаем если слишком длинное)
-            description = release.get('body', 'No description')
-            if description:
-                # Убираем markdown и ограничиваем длину
-                description = description.replace('\r\n', ' ').replace('\n', ' ')
-                if len(description) > 200:
-                    description = description[:197] + '...'
+            # Создаём package элемент
+            package_attrs = {
+                'fileName': filename,
+                'type': 'script',
+                'releaseDate': release_date
+            }
             
-            package = ET.SubElement(repo, 'package',
-                fileName=filename,
-                name=REPO_NAME,
-                version=version,
-                releaseDate=release_date,
-                platform=platform,
-                description=description)
+            # Добавляем SHA1 если удалось вычислить
+            if sha1_hash:
+                package_attrs['sha1'] = sha1_hash
             
-            ET.SubElement(package, 'title').text = REPO_NAME
-            ET.SubElement(package, 'download-url').text = asset['browser_download_url']
-            ET.SubElement(package, 'download-size').text = str(asset['size'])
+            package = ET.SubElement(platform, 'package', **package_attrs)
             
-            # Добавляем release notes если есть
+            # Заголовок
+            title = ET.SubElement(package, 'title')
+            title.text = f' {REPO_NAME} '
+            
+            # Описание пакета
+            pkg_desc = ET.SubElement(package, 'description')
+            
+            # Основное описание
+            desc_p = ET.SubElement(pkg_desc, 'p')
+            desc_p.text = f' Install or update {REPO_NAME} in PixInsight. '
+            
+            # Release notes если есть
             if release.get('body'):
-                notes = ET.SubElement(package, 'release-notes')
-                notes_text = release['body']
-                if len(notes_text) > 1000:
-                    notes_text = notes_text[:997] + '...'
-                notes.text = notes_text
+                notes_p = ET.SubElement(pkg_desc, 'p')
+                # Очищаем markdown
+                notes_text = release['body'].replace('\r\n', ' ').replace('\n', ' ')
+                if len(notes_text) > 300:
+                    notes_text = notes_text[:297] + '...'
+                notes_p.text = f' {notes_text} '
+            
+            # Ссылка на GitHub
+            link_p = ET.SubElement(pkg_desc, 'p')
+            link_p.text = f' {asset["browser_download_url"]} '
             
             package_count += 1
     
     # Создаём директорию если не существует
     os.makedirs('docs', exist_ok=True)
     
-    # Сохраняем XML
+    # Сохраняем XML с правильным форматированием
     tree = ET.ElementTree(root)
-    ET.indent(tree, space='   ')
-    tree.write('docs/updates.xri', 
-               encoding='UTF-8', 
-               xml_declaration=True)
+    ET.indent(tree, space='')
+    
+    # Сохраняем в строку
+    import xml.dom.minidom as minidom
+    xml_str = ET.tostring(root, encoding='UTF-8', method='xml')
+    
+    # Красиво форматируем
+    dom = minidom.parseString(xml_str)
+    pretty_xml = dom.toprettyxml(indent='', encoding='UTF-8')
+    
+    # Убираем лишние пустые строки
+    lines = pretty_xml.decode('utf-8').split('\n')
+    lines = [line for line in lines if line.strip()]
+    
+    # Сохраняем
+    with open('docs/updates.xri', 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
     
     print(f'\n✓ Successfully generated docs/updates.xri')
     print(f'✓ Added {package_count} packages from {len([r for r in releases if not r["draft"] and not r["prerelease"]])} releases')
