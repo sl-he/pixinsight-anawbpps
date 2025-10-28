@@ -39,7 +39,7 @@ jobs:
           mkdir -p /tmp/build/ANAWBPPS
           
           # Copy files
-          cp ANAWBPPS.js /tmp/build/ANAWBPPS/
+          cp anawbpps.js /tmp/build/ANAWBPPS/
           cp -r modules /tmp/build/ANAWBPPS/
           
           # Create ZIP
