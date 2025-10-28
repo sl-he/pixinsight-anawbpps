@@ -1,0 +1,255 @@
+name: PixInsight Release Automation
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      
+      - name: Get release version
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION_CLEAN="${VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_clean=$VERSION_CLEAN" >> $GITHUB_OUTPUT
+          echo "Release version: $VERSION"
+      
+      - name: Create ZIP archive
+        id: create_zip
+        run: |
+          VERSION="${{ steps.version.outputs.version_clean }}"
+          ARCHIVE_NAME="pixinsight-anawbpps-main_v${VERSION}.zip"
+          
+          echo "Creating archive: $ARCHIVE_NAME"
+          
+          # Create temporary directory with module structure
+          mkdir -p /tmp/build/ANAWBPPS
+          
+          # Copy files
+          cp ANAWBPPS.js /tmp/build/ANAWBPPS/
+          cp -r modules /tmp/build/ANAWBPPS/
+          
+          # Create ZIP
+          cd /tmp/build
+          zip -r "$ARCHIVE_NAME" ANAWBPPS/
+          
+          # Move to workspace
+          mv "$ARCHIVE_NAME" $GITHUB_WORKSPACE/
+          
+          # Calculate SHA1
+          SHA1=$(sha1sum "$GITHUB_WORKSPACE/$ARCHIVE_NAME" | cut -d' ' -f1)
+          
+          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+          echo "archive_path=$GITHUB_WORKSPACE/$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+          echo "sha1=$SHA1" >> $GITHUB_OUTPUT
+          
+          echo "✓ Created: $ARCHIVE_NAME"
+          echo "✓ SHA1: $SHA1"
+      
+      - name: Upload ZIP to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARCHIVE_NAME="${{ steps.create_zip.outputs.archive_name }}"
+          ARCHIVE_PATH="${{ steps.create_zip.outputs.archive_path }}"
+          RELEASE_ID="${{ github.event.release.id }}"
+          
+          echo "Uploading $ARCHIVE_NAME to release..."
+          
+          # Check if asset already exists
+          EXISTING_ASSET=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
+            | jq -r ".[] | select(.name == \"$ARCHIVE_NAME\") | .id")
+          
+          if [ ! -z "$EXISTING_ASSET" ]; then
+            echo "Asset already exists (ID: $EXISTING_ASSET), deleting..."
+            curl -X DELETE -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/assets/$EXISTING_ASSET"
+          fi
+          
+          # Upload new asset
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/zip" \
+            --data-binary @"$ARCHIVE_PATH" \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets?name=$ARCHIVE_NAME"
+          
+          echo "✓ Uploaded to release"
+      
+      - name: Get latest 5 releases
+        id: get_releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching releases..."
+          
+          # Get all releases (not draft, not prerelease)
+          RELEASES=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/releases" \
+            | jq -r '[.[] | select(.draft == false and .prerelease == false)] | .[0:5]')
+          
+          echo "$RELEASES" > /tmp/releases.json
+          
+          # Count releases
+          COUNT=$(echo "$RELEASES" | jq 'length')
+          echo "Found $COUNT releases to include"
+          
+          # Extract info for each release
+          echo "$RELEASES" | jq -r '.[] | "\(.tag_name)|\(.published_at)|\(.id)"' | while IFS='|' read -r TAG DATE RELEASE_ID; do
+            echo "  - $TAG ($DATE)"
+          done
+      
+      - name: Download and process release archives
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Processing release archives..."
+          
+          # Create packages directory
+          mkdir -p docs/packages
+          
+          # Read releases and download assets
+          cat /tmp/releases.json | jq -r '.[] | "\(.tag_name)|\(.published_at)|\(.id)"' | while IFS='|' read -r TAG DATE RELEASE_ID; do
+            VERSION_CLEAN="${TAG#v}"
+            ARCHIVE_NAME="pixinsight-anawbpps-main_v${VERSION_CLEAN}.zip"
+            
+            echo "Processing release $TAG..."
+            
+            # Get asset download URL
+            ASSET_URL=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$RELEASE_ID/assets" \
+              | jq -r ".[] | select(.name == \"$ARCHIVE_NAME\") | .browser_download_url")
+            
+            if [ -z "$ASSET_URL" ]; then
+              echo "  Warning: No asset found for $TAG, skipping"
+              continue
+            fi
+            
+            # Download asset
+            echo "  Downloading: $ARCHIVE_NAME"
+            curl -L -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              "$ASSET_URL" -o "docs/packages/$ARCHIVE_NAME"
+            
+            # Calculate SHA1
+            SHA1=$(sha1sum "docs/packages/$ARCHIVE_NAME" | cut -d' ' -f1)
+            
+            # Format date as YYYYMMDD
+            RELEASE_DATE=$(date -d "$DATE" +%Y%m%d)
+            
+            # Save metadata
+            echo "$TAG|$ARCHIVE_NAME|$SHA1|$RELEASE_DATE" >> /tmp/packages.txt
+            
+            echo "  ✓ Downloaded and verified (SHA1: $SHA1)"
+          done
+          
+          echo "✓ All archives downloaded"
+      
+      - name: Clean old packages
+        run: |
+          echo "Cleaning old packages..."
+          
+          # Get list of current packages
+          if [ -f /tmp/packages.txt ]; then
+            CURRENT_PACKAGES=$(cut -d'|' -f2 /tmp/packages.txt)
+            
+            # Remove any ZIP files not in current list
+            for file in docs/packages/*.zip; do
+              BASENAME=$(basename "$file")
+              if ! echo "$CURRENT_PACKAGES" | grep -q "$BASENAME"; then
+                echo "  Removing old package: $BASENAME"
+                rm "$file"
+              fi
+            done
+          fi
+          
+          echo "✓ Cleanup complete"
+      
+      - name: Generate updates.xml
+        run: |
+          echo "Generating updates.xml..."
+          
+          cat > docs/updates.xml << 'EOF'
+<xri version="1.0">
+<script/>
+<description>
+<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>
+</description>
+<platform os="all" arch="noarch" version="1.8.0:1.8.99">
+EOF
+          
+          # Add packages
+          if [ -f /tmp/packages.txt ]; then
+            while IFS='|' read -r TAG ARCHIVE_NAME SHA1 RELEASE_DATE; do
+              cat >> docs/updates.xml << EOF
+<package fileName="packages/$ARCHIVE_NAME" sha1="$SHA1" type="script" releaseDate="$RELEASE_DATE">
+<title> sl-he/ANAWBPPS scripts </title>
+<description>
+<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>
+<dl>
+<dt>ANAWBPPS</dt>
+<dd>Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>
+</dl>
+<p> https://github.com/sl-he/pixinsight-anawbpps </p>
+</description>
+</package>
+EOF
+            done < /tmp/packages.txt
+          fi
+          
+          # Close XML
+          cat >> docs/updates.xml << 'EOF'
+</platform>
+</xri>
+EOF
+          
+          echo "✓ updates.xml generated"
+          echo ""
+          echo "Contents:"
+          cat docs/updates.xml
+      
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
+          git add docs/packages/*.zip
+          git add docs/updates.xml
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update repository for release ${{ github.event.release.tag_name }}"
+            git push
+            echo "✓ Changes pushed to repository"
+          fi
+      
+      - name: Summary
+        run: |
+          echo "## ✅ Release automation completed!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release:** ${{ github.event.release.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Archive:** ${{ steps.create_zip.outputs.archive_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA1:** ${{ steps.create_zip.outputs.sha1 }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository URL:** https://sl-he.github.io/pixinsight-anawbpps/updates.xml" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Included packages:" >> $GITHUB_STEP_SUMMARY
+          if [ -f /tmp/packages.txt ]; then
+            while IFS='|' read -r TAG ARCHIVE_NAME SHA1 RELEASE_DATE; do
+              echo "- $TAG → $ARCHIVE_NAME" >> $GITHUB_STEP_SUMMARY
+            done < /tmp/packages.txt
+          fi
