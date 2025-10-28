@@ -178,44 +178,44 @@ jobs:
           
           echo "✓ Cleanup complete"
       
-      - name: Generate updates.xml
+      - name: Generate updates.xri
         run: |
-          echo "Generating updates.xml..."
+          echo "Generating updates.xri..."
           
-           # Start XML file
-           echo '<xri version="1.0">' > docs/updates.xml
-           echo '<script/>' >> docs/updates.xml
-           echo '<description>' >> docs/updates.xml
-           echo '<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>' >> docs/updates.xml
-           echo '</description>' >> docs/updates.xml
-           echo '<platform os="all" arch="noarch" version="1.8.0:1.8.99">' >> docs/updates.xml
+           # Start xri file
+           echo '<xri version="1.0">' > docs/updates.xri
+           echo '<script/>' >> docs/updates.xri
+           echo '<description>' >> docs/updates.xri
+           echo '<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>' >> docs/updates.xri
+           echo '</description>' >> docs/updates.xri
+           echo '<platform os="all" arch="noarch" version="1.8.0:1.9.99">' >> docs/updates.xri
 
           
           # Add packages
           if [ -f /tmp/packages.txt ]; then
             while IFS='|' read -r TAG ARCHIVE_NAME SHA1 RELEASE_DATE; do
-               echo "<package fileName=\"packages/$ARCHIVE_NAME\" sha1=\"$SHA1\" type=\"script\" releaseDate=\"$RELEASE_DATE\">" >> docs/updates.xml
-               echo '<title> sl-he/ANAWBPPS scripts </title>' >> docs/updates.xml
-               echo '<description>' >> docs/updates.xml
-               echo '<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>' >> docs/updates.xml
-               echo '<dl>' >> docs/updates.xml
-               echo '<dt>ANAWBPPS</dt>' >> docs/updates.xml
-               echo '<dd>Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>' >> docs/updates.xml
-               echo '</dl>' >> docs/updates.xml
-               echo '<p> https://github.com/sl-he/pixinsight-anawbpps </p>' >> docs/updates.xml
-               echo '</description>' >> docs/updates.xml
-               echo '</package>' >> docs/updates.xml
+               echo "<package fileName=\"packages/$ARCHIVE_NAME\" sha1=\"$SHA1\" type=\"script\" releaseDate=\"$RELEASE_DATE\">" >> docs/updates.xri
+               echo '<title> sl-he/ANAWBPPS scripts </title>' >> docs/updates.xri
+               echo '<description>' >> docs/updates.xri
+               echo '<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>' >> docs/updates.xri
+               echo '<dl>' >> docs/updates.xri
+               echo '<dt>ANAWBPPS</dt>' >> docs/updates.xri
+               echo '<dd>Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>' >> docs/updates.xri
+               echo '</dl>' >> docs/updates.xri
+               echo '<p> https://github.com/sl-he/pixinsight-anawbpps </p>' >> docs/updates.xri
+               echo '</description>' >> docs/updates.xri
+               echo '</package>' >> docs/updates.xri
             done < /tmp/packages.txt
           fi
           
-          # Close XML
-          echo '</platform>' >> docs/updates.xml
-          echo '</xri>' >> docs/updates.xml
+          # Close xri
+          echo '</platform>' >> docs/updates.xri
+          echo '</xri>' >> docs/updates.xri
           
-          echo "✓ updates.xml generated"
+          echo "✓ updates.xri generated"
           echo ""
           echo "Contents:"
-          cat docs/updates.xml
+          cat docs/updates.xri
       
       - name: Commit and push changes
         run: |
@@ -223,7 +223,7 @@ jobs:
           git config user.email "actions@github.com"
           
           git add docs/packages/*.zip
-          git add docs/updates.xml
+          git add docs/updates.xri
           
           if git diff --staged --quiet; then
             echo "No changes to commit"
@@ -241,7 +241,7 @@ jobs:
           echo "**Archive:** ${{ steps.create_zip.outputs.archive_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**SHA1:** ${{ steps.create_zip.outputs.sha1 }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Repository URL:** https://sl-he.github.io/pixinsight-anawbpps/updates.xml" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository URL:** https://sl-he.github.io/pixinsight-anawbpps/updates.xri" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Included packages:" >> $GITHUB_STEP_SUMMARY
           if [ -f /tmp/packages.txt ]; then
