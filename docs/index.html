@@ -179,11 +179,6 @@
             <li>Progress tracking and error handling</li>
         </ul>
         
-        <h2>Repository Index</h2>
-        <p>
-            View the raw repository index: <a href="updates.xri">updates.xri</a>
-        </p>
-        
         <h2>Source Code</h2>
         <p>
             ANAWBPPS is open source and available on GitHub:
@@ -201,7 +196,7 @@
         const repoName = pathParts[0] || 'ANAWBPPS';
         const username = window.location.hostname.split('.')[0];
         
-        const repoUrl = `https://${username}.github.io/${repoName}/updates.xri`;
+        const repoUrl = `https://${username}.github.io/${repoName}/`;
         const githubUrl = `https://github.com/${username}/${repoName}`;
         
         document.getElementById('repoUrl').textContent = repoUrl;
