@@ -186,7 +186,7 @@ jobs:
            echo '<xri version="1.0">' > docs/updates.xri
            echo '<script/>' >> docs/updates.xri
            echo '<description>' >> docs/updates.xri
-           echo '<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts. </p>' >> docs/updates.xri
+           echo '<p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Night Astrophotography Workflow Based on PixInsight Processing Scripts. </p>' >> docs/updates.xri
            echo '</description>' >> docs/updates.xri
            echo '<platform os="all" arch="noarch" version="1.8.0:1.9.99">' >> docs/updates.xri
 
@@ -200,7 +200,7 @@ jobs:
                echo '<p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>' >> docs/updates.xri
                echo '<dl>' >> docs/updates.xri
                echo '<dt>ANAWBPPS</dt>' >> docs/updates.xri
-               echo '<dd>Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>' >> docs/updates.xri
+               echo '<dd>Automated Night Astrophotography Workflow Based on PixInsight Processing Scripts.</dd>' >> docs/updates.xri
                echo '</dl>' >> docs/updates.xri
                echo '<p> https://github.com/sl-he/pixinsight-anawbpps </p>' >> docs/updates.xri
                echo '</description>' >> docs/updates.xri
