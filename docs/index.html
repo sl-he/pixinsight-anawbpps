@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANAWBPPS - PixInsight Module Repository</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+        
+        h2 {
+            color: #444;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+        
+        p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e83e8c;
+        }
+        
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        ol {
+            margin-left: 20px;
+            margin-bottom: 20px;
+        }
+        
+        li {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        
+        strong {
+            color: #333;
+        }
+        
+        .url-box {
+            background: #f8f9fa;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            word-break: break-all;
+        }
+        
+        .url-box code {
+            background: transparent;
+            color: #667eea;
+            font-size: 1em;
+            font-weight: 600;
+        }
+        
+        a {
+            color: #667eea;
+            text-decoration: none;
+            border-bottom: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+        
+        a:hover {
+            border-bottom-color: #667eea;
+        }
+        
+        .github-link {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+        
+        .github-link:hover {
+            background: #764ba2;
+            border-bottom: none;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #999;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ANAWBPPS</h1>
+        <p class="subtitle">Automated Narrowband Astrophotography Workflow Based on PixInsight Processing Scripts</p>
+        
+        <p>
+            This repository provides automated updates for the ANAWBPPS PixInsight module, 
+            which streamlines narrowband astrophotography image processing workflows.
+        </p>
+        
+        <h2>Installation</h2>
+        <ol>
+            <li>Open <strong>PixInsight</strong></li>
+            <li>Navigate to <strong>Resources → Updates → Manage Repositories</strong></li>
+            <li>Click <strong>Add</strong></li>
+            <li>Enter the repository URL:</li>
+        </ol>
+        
+        <div class="url-box">
+            <code id="repoUrl">Loading...</code>
+        </div>
+        
+        <ol start="5">
+            <li>Click <strong>OK</strong></li>
+            <li>ANAWBPPS will now appear in your available updates</li>
+        </ol>
+        
+        <h2>Features</h2>
+        <ul style="margin-left: 20px;">
+            <li>Automated calibration frame processing</li>
+            <li>Master frame creation with full FITS header preservation</li>
+            <li>Image integration with advanced options</li>
+            <li>Drizzle integration support</li>
+            <li>Custom file naming and organization</li>
+            <li>Progress tracking and error handling</li>
+        </ul>
+        
+        <h2>Repository Index</h2>
+        <p>
+            View the raw repository index: <a href="updates.xri">updates.xri</a>
+        </p>
+        
+        <h2>Source Code</h2>
+        <p>
+            ANAWBPPS is open source and available on GitHub:
+        </p>
+        <a href="#" class="github-link" id="githubLink">View on GitHub</a>
+        
+        <div class="footer">
+            <p>Maintained by sl-he | Auto-updated via GitHub Actions</p>
+        </div>
+    </div>
+    
+    <script>
+        // Динамически определяем URL репозитория
+        const pathParts = window.location.pathname.split('/').filter(p => p);
+        const repoName = pathParts[0] || 'ANAWBPPS';
+        const username = window.location.hostname.split('.')[0];
+        
+        const repoUrl = `https://${username}.github.io/${repoName}/updates.xri`;
+        const githubUrl = `https://github.com/${username}/${repoName}`;
+        
+        document.getElementById('repoUrl').textContent = repoUrl;
+        document.getElementById('githubLink').href = githubUrl;
+    </script>
+</body>
+</html>
