@@ -20,7 +20,7 @@
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
 
-#feature-id    Batch Processing > ANAWBPPS
+#feature-id    sl-he > ANAWBPPS
 #feature-info  Automated Night Astrophotography Workflow Batch Pre-Processing Script. \
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
