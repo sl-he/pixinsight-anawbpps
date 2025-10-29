@@ -162,14 +162,7 @@ jobs:
       - name: Clean old packages
         run: |
           echo "Cleaning old packages..."
-          echo "=== DEBUG: Cleanup ==="
-echo "packages.txt exists: $(test -f /tmp/packages.txt && echo YES || echo NO)"
-if [ -f /tmp/packages.txt ]; then
-  echo "packages.txt content:"
-  cat /tmp/packages.txt
-fi
-echo "Files in docs/packages/:"
-ls -la docs/packages/
+
           # Get list of current packages
           if [ -f /tmp/packages.txt ]; then
             CURRENT_PACKAGES=$(cut -d'|' -f2 /tmp/packages.txt)
