@@ -498,6 +498,7 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     var scale = (options && options.subframeScale) || 0.7210; //ES150_F7
 
     var preferCC = (options && options.preferCC !== false);
+    var autoReference = (options && options.autoReference !== false);
 
     Console.noteln("[ss] Running SubframeSelector (Measure+Output) for all groups...");
     Console.noteln("[ss]   Scale: " + scale + " arcsec/px, Gain: " + cameraGain);
@@ -505,6 +506,7 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
         PLAN: PLAN,
         workFolders: workFolders,
         preferCC: preferCC,
+        autoReference: autoReference,
         cameraGain: cameraGain,
         subframeScale: scale,
         dlg: dlg
@@ -578,6 +580,7 @@ var HARDCODED_DEFAULTS = {
     doCal: true,
     doCC:  true,
     doSS: true,
+    doAutoRef: true,
     doSA:  true,
     doLN:  false,
     doII:  true,
@@ -780,6 +783,11 @@ function ANAWBPPSDialog(){
     this.cbCal = new CheckBox(this); this.cbCal.text = "ImageCalibration";     this.cbCal.checked = !!HARDCODED_DEFAULTS.doCal;
     this.cbCC  = new CheckBox(this); this.cbCC.text  = "CosmeticCorrection";   this.cbCC.checked  = !!HARDCODED_DEFAULTS.doCC;
     this.cbSS  = new CheckBox(this); this.cbSS.text  = "SubframeSelector";     this.cbSS.checked  = !!HARDCODED_DEFAULTS.doSS;
+    // Auto reference selection (nested under SS)
+    this.cbAutoRef = new CheckBox(this);
+    this.cbAutoRef.text = "Automatic reference selection (TOP-1 only)";
+    this.cbAutoRef.checked = !!HARDCODED_DEFAULTS.doAutoRef;
+    this.cbAutoRef.toolTip = "Automatically select best reference frame. If unchecked, TOP-5 files will be saved for manual selection.";
 
     // INFO: After SS, manually select reference for each group in TOP-5 folders
     this.lblRefInfo = new Label(this);
@@ -796,6 +804,7 @@ function ANAWBPPSDialog(){
     this.gbOptions.sizer.add(this.cbCC);
     this.gbOptions.sizer.add(this.cbSS);
     this.gbOptions.sizer.add(this.lblRefInfo);
+    this.gbOptions.sizer.add(this.cbAutoRef);
     this.gbOptions.sizer.add(this.cbSA);
     this.gbOptions.sizer.add(this.cbLN);
     this.gbOptions.sizer.add(this.cbII);
@@ -936,6 +945,7 @@ function ANAWBPPSDialog(){
             if (self.cbSS && self.cbSS.checked){
                 PP_runSubframeSelector_UI(ppDlg, PLAN, wf, {
                     preferCC: (self.cbCC && self.cbCC.checked),
+                    autoReference: (self.cbAutoRef && self.cbAutoRef.checked),
                     cameraGain: 0.3330,
                     subframeScale: 0.7210 //ES150_F7
                 });
