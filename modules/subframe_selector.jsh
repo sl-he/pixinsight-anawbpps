@@ -487,21 +487,23 @@ function SS_saveWeightsCSV(csvData, csvPath){
  * SS_processGroup - Process one group: compute weights, use SS Output
  */
 /**
- * SS_copyTop5 - Copy TOP-5 best files to separate folder with rank prefix
+ * SS_copyTop5 - Copy TOP-N best files to separate folder with rank prefix
  * @param gkey - group key (will be folder name)
  * @param approvedMeasurements - array of approved measurements (sorted by weight)
  * @param approvedDir - !Approved directory path
  * @param best5BaseDir - !Approved_Best5 directory path (base, without group subfolder)
+ * @param autoReference - if true, copy only TOP-1; if false, copy TOP-5
  */
-function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir){
+function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir, autoReference){
     if (!best5BaseDir || !approvedMeasurements || !approvedMeasurements.length) return;
 
     // Sort by weight DESC
     var sorted = approvedMeasurements.slice(0);
     sorted.sort(function(a, b){ return b[4] - a[4]; }); // [4] = weight
 
-    // Take TOP-5 (or less if < 5 approved)
-    var top5 = sorted.slice(0, Math.min(5, sorted.length));
+    // Take TOP-1 or TOP-5 depending on autoReference flag
+    var topN = autoReference ? sorted.slice(0, 1) : sorted.slice(0, Math.min(5, sorted.length));
+    var topCount = topN.length;
 
     // Create group subfolder (sanitize key for filesystem)
     var groupFolder = gkey.replace(/[|:\\/\s]+/g, "_");
@@ -514,11 +516,11 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir){
         return;
     }
 
-    Console.writeln("[ss]   Copying TOP-" + top5.length + " to: " + groupPath);
+    Console.writeln("[ss]   Copying TOP-" + topCount + " to: " + groupPath);
 
-    // Copy with prefix !1_, !2_, !3_, !4_, !5_
-    for (var i=0; i<top5.length; ++i){
-        var m = top5[i];
+    // Copy with prefix !1_ (and !2_, !3_, !4_, !5_ if autoReference=false)
+    for (var i=0; i<topN.length; ++i){
+        var m = topN[i];
         var srcPath = SS_norm(String(m[3]));
         var basename = SS_basename(srcPath);
         var stem = SS_noext(basename);
@@ -541,12 +543,12 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir){
 
             Console.writeln("[ss]     ✔ [" + rank + "] " + approvedName + " (weight=" + m[4].toFixed(2) + ")");
         }catch(eCopy){
-            Console.warningln("[ss]     ✖ Failed to copy TOP-" + rank + ": " + eCopy);
+            Console.warningln("[ss]     ✖ Failed to copy: " + eCopy);
         }
     }
 }
 
-function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, dlg, node){
+function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node){
     Console.writeln("[ss] Processing group: " + gkey);
     Console.writeln("[ss]   Files: " + groupFiles.length);
 
@@ -657,13 +659,13 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         }
 
         // ================================================================
-        // NEW: Determine TOP-5 and build complete CSV data
+        // Determine TOP-N (1 or 5) and build complete CSV data
         // ================================================================
 
-        // Sort by weight DESC to get TOP-5
+        // Sort by weight DESC to get TOP-N
         var sorted = approvedMeasurements.slice(0);
         sorted.sort(function(a, b){ return b[4] - a[4]; }); // [4] = weight
-        var top5 = sorted.slice(0, Math.min(5, sorted.length));
+        var topN = autoReference ? sorted.slice(0, 1) : sorted.slice(0, Math.min(5, sorted.length));
 
         // Build CSV data: ALL approved files + TOP-5 files
         var csvData = [];
@@ -680,9 +682,9 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
             });
         }
 
-        // Add TOP-5 files with !N_ prefix
-        for (var t=0; t<top5.length; ++t){
-            var m = top5[t];
+        // Add TOP-N files with !N_ prefix
+        for (var t=0; t<topN.length; ++t){
+            var m = topN[t];
             var srcPath = SS_norm(String(m[3]));
             var stem = SS_noext(SS_basename(srcPath));
             var rank = t + 1;
@@ -693,7 +695,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
             });
         }
 
-        // Save CSV with weights (includes both regular and TOP-5 files)
+        // Save CSV with weights (includes both regular and TOP-N files)
         if (csvData.length > 0){
             // Create CSV filename from group key (replace | and spaces with _)
             var csvName = "subframe_weights_" + gkey.replace(/\|/g, "_").replace(/\s+/g, "_") + ".csv";
@@ -705,9 +707,9 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
             }
         }
 
-        // Copy TOP-5 best files to separate folder
+        // Copy TOP-N best files to separate folder
         if (best5BaseDir){
-            SS_copyTop5(gkey, top5, approvedDir, best5BaseDir);
+            SS_copyTop5(gkey, topN, approvedDir, best5BaseDir, autoReference);
         }
     } else {
         Console.writeln("[ss]   No approved files, skipping copy");
@@ -829,9 +831,10 @@ function SS_collectGroupFiles(PLAN, wf, preferCC){
 
 /* Public API */
 function SS_runForAllGroups(params){
-    // params: { PLAN, workFolders, preferCC, cameraGain, subframeScale, dlg }
+    // params: { PLAN, workFolders, preferCC, autoReference, cameraGain, subframeScale, dlg }
     var PLAN = params.PLAN, wf = params.workFolders, LI = params.LI;
     var preferCC = !!params.preferCC;
+    var autoReference = (params.autoReference !== false); // default true
     var cameraGain = params.cameraGain || 0.333;
     var scale = params.subframeScale || 0.7210;
     var dlg = params.dlg || null;
@@ -839,6 +842,7 @@ function SS_runForAllGroups(params){
     Console.writeln("[ss] SubframeSelector: Manual weight computation");
     Console.writeln("[ss]   Scale: " + scale.toFixed(4) + " arcsec/px");
     Console.writeln("[ss]   Camera gain: " + cameraGain);
+    Console.writeln("[ss]   Auto reference: " + (autoReference ? "ON (TOP-1)" : "OFF (TOP-5)"));
 
     // Step 1: Collect and regroup files
     var groups = SS_collectGroupFiles(PLAN, wf, preferCC);
@@ -966,6 +970,7 @@ function SS_runForAllGroups(params){
             wf.approved,
             trashDir,
             best5BaseDir,
+            autoReference,
             dlg,
             outputNode
         );

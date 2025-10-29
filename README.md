@@ -11,13 +11,15 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 ## 🌟 Features
 
 - ✅ **Fully automated workflow** (8 processing stages)
+- ✅ **Automatic reference selection** (best subframe per group, manual mode available)
 - ✅ **Intelligent grouping** by camera, target, filter, binning, exposure
 - ✅ **Quality-based selection** via SubframeSelector with approval
 - ✅ **Smart calibration matching** (optimal master frame selection)
+- ✅ **Auto hot/cold pixel detection** (no master dark required for cosmetic correction)
 - ✅ **32-bit Float output** for maximum dynamic range
 - ✅ **Progress tracking** with detailed UI
 - ✅ **Flexible configuration** (enable/disable any stage)
-- ✅ **Batch processing multiple nights/objects/setups/filters at the same time**
+- ✅ **Batch processing** multiple nights/objects/setups/filters simultaneously
 
 ---
 
@@ -26,9 +28,9 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 | # | Stage | Description | Default |
 |---|-------|-------------|---------|
 | 1 | **ImageCalibration** | Apply master calibration frames | ✅ ON |
-| 2 | **CosmeticCorrection** | Remove hot/cold pixels using darks | ✅ ON |
-| 3 | **SubframeSelector** | Measure quality, approve best subframes | ✅ ON |
-| 4 | **⚠️ Manual Reference** | Manual reference selection from TOP-5 folder | ⚠️ MANUAL |
+| 2 | **CosmeticCorrection** | Auto-detect and remove hot/cold pixels | ✅ ON |
+| 3 | **SubframeSelector** | Measure quality, select best subframes | ✅ ON |
+| 4 | **Reference Selection** | Automatic (TOP-1) or Manual (TOP-5) | ✅ Auto |
 | 5 | **StarAlignment** | Register all frames to reference | ✅ ON |
 | 6 | **LocalNormalization** | Normalize gradients (optional) | ☐ OFF |
 | 7 | **ImageIntegration** | Stack approved frames | ✅ ON |
@@ -52,13 +54,24 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 
 ### Installation
 
-1. **Clone or download the repository:**
-```bash
-   git clone https://github.com/sl-he/pixinsight-anawbpps.git
-```
-or download here https://github.com/sl-he/pixinsight-anawbpps/releases
+**Method 1: PixInsight Repository (Recommended)**
 
-2. **Copy to PixInsight scripts folder:**
+1. Open **PixInsight**
+2. Go to **Resources** → **Updates** → **Manage Repositories**
+3. Click **Add** and enter repository URL:
+```
+https://sl-he.github.io/pixinsight-anawbpps/
+```
+4. Click **OK** and close the dialog
+5. Go to **Resources** → **Updates** → **Check for Updates**
+6. Select **ANAWBPPS** and click **Install/Update**
+7. Restart **PixInsight**
+
+**Method 2: Manual Installation**
+
+1. Download latest release from: https://github.com/sl-he/pixinsight-anawbpps/releases
+
+2. Extract and copy to PixInsight scripts folder:
 
    **Windows:**
 ```
@@ -75,7 +88,7 @@ or download here https://github.com/sl-he/pixinsight-anawbpps/releases
    ~/.local/share/PixInsight/src/scripts/pixinsight-anawbpps/
 ```
 
-3. **Restart PixInsight** (if it was open)
+3. Restart **PixInsight**
 
 ### Usage
 
@@ -142,8 +155,9 @@ scale = (pixel_size_µm / focal_length_mm) × 206.265
 
 #### **Enabled by default:**
 - ✅ ImageCalibration
-- ✅ CosmeticCorrection
+- ✅ CosmeticCorrection (auto-detect mode)
 - ✅ SubframeSelector
+- ✅ Automatic reference selection (can be switched to manual TOP-5 mode)
 - ✅ StarAlignment
 - ✅ ImageIntegration
 
@@ -193,7 +207,7 @@ Tested on 21 subframes (only last stage):
 ```
 Light Frames → ImageCalibration → CosmeticCorrection → SubframeSelector
     ↓                                                          ↓
-Master Frames                                        [Manual: Select Reference]
+Master Frames                                    [Select Reference: Auto or Manual]
                                                                ↓
                                                       StarAlignment
                                                                ↓
@@ -212,16 +226,24 @@ Master Frames                                        [Manual: Select Reference]
 
 ## ⚠️ Important Notes
 
-### Manual Reference Selection
+### Reference Selection (Automatic or Manual)
 
-After **SubframeSelector** completes, you must **manually** verify the reference:
+**Default mode: Automatic (recommended)**
 
-1. Navigate to: `WORK1/!!!WORK_LIGHTS/!Approved/!Approved_Best5/`
-2. Each group has a folder (e.g., `Setup_Object_Filter_bin1x1_120s`)
-3. Each folder must contain **exactly 1 file** (best subframe)
-4. This file will be automatically used as reference in StarAlignment
+By default, the script **automatically selects** the best reference frame for each group:
 
-⚠️ **If folder contains multiple files or is empty** - script will show error!
+1. **SubframeSelector** measures all subframes and ranks them by quality
+2. Best subframe (TOP-1) is saved to: `WORK1/!!!WORK_LIGHTS/!Approved/!Approved_Best5/<group>/`
+3. This file is automatically used as reference in **StarAlignment**
+
+**Manual mode (optional):**
+
+Uncheck "Automatic reference selection (TOP-1 only)" to enable manual selection:
+
+1. **SubframeSelector** saves TOP-5 best subframes to: `WORK1/!!!WORK_LIGHTS/!Approved/!Approved_Best5/<group>/`
+2. Files are named: `!1_***.xisf` (best), `!2_***.xisf`, ..., `!5_***.xisf`
+3. **You must manually select** one file (delete others) before running **StarAlignment**
+4. Useful for visual inspection or specific reference requirements
 
 ### Performance Recommendations
 
@@ -290,12 +312,15 @@ Contributions are welcome! Process:
 4. Push to branch (`git push origin feature/AmazingFeature`)
 5. Open Pull Request
 
-### Development Roadmap
+### Development Roadmap (v1.0)
 
+- [x] ✅ Automatic reference selection (TOP-1)
+- [x] ✅ CosmeticCorrection auto-detect mode
+- [ ] Auto-detect Scale from FITS keywords (XPIXSZ, FOCALLEN)
+- [ ] Camera Gain lookup table by camera model
 - [ ] UI for Camera Gain and Subframe Scale configuration
 - [ ] Presets for popular cameras/telescopes
-- [ ] Save/load configuration
-- [ ] Advanced settings for experts
+- [ ] Save/load configuration profiles
 
 ---
 
