@@ -172,7 +172,7 @@ jobs:
               BASENAME=$(basename "$file")
               if ! echo "$CURRENT_PACKAGES" | grep -q "$BASENAME"; then
                 echo "  Removing old package: $BASENAME"
-                rm "$file"
+                git rm "$file"
               fi
             done
           fi
