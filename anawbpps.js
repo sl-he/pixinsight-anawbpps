@@ -762,6 +762,48 @@ function ANAWBPPSDialog(){
     mastersRowSizer.spacing = 6;
     mastersRowSizer.add(this.rowMasters.sizer, 100);
 
+    // Raw Calibration Files row with Create Masters button
+    this.lblRaw = new Label(this);
+    this.lblRaw.text = "Raw Calibration Files:";
+    this.lblRaw.minWidth = 170;
+
+    this.editRaw = new Edit(this);
+    this.editRaw.minWidth = 420;
+    this.editRaw.toolTip = "Folder with raw bias/dark/flat frames for master creation";
+    this.editRaw.onEditCompleted = function(){
+        // Enable/disable Create button based on path
+        self.btnCreateMasters.enabled = (self.editRaw.text.trim().length > 0);
+    };
+
+    this.btnBrowseRaw = new ToolButton(this);
+    this.btnBrowseRaw.icon = this.scaledResource(":/browser/select-file.png");
+    this.btnBrowseRaw.setScaledFixedSize(20, 20);
+    this.btnBrowseRaw.toolTip = "Select folder";
+    this.btnBrowseRaw.onClick = function(){
+        var d = new GetDirectoryDialog;
+        d.caption = "Raw Calibration Files";
+        if (d.execute())
+            self.editRaw.text = d.directory;
+        // Enable/disable Create button based on path
+        self.btnCreateMasters.enabled = (self.editRaw.text.trim().length > 0);
+    };
+
+    this.btnCreateMasters = new PushButton(this);
+    this.btnCreateMasters.text = "🛠️ Create Masters";
+    this.btnCreateMasters.toolTip = "Create master calibration files from raw frames";
+    this.btnCreateMasters.enabled = false; // Disabled by default until path is set
+    this.btnCreateMasters.onClick = function(){
+        // TODO: implement master creation
+        Console.writeln("[masters] Create masters - not implemented yet");
+    };
+
+    var rawRowSizer = new HorizontalSizer;
+    rawRowSizer.spacing = 6;
+    rawRowSizer.add(this.lblRaw);
+    rawRowSizer.add(this.editRaw, 100);
+    rawRowSizer.add(this.btnBrowseRaw);
+    rawRowSizer.add(this.btnCreateMasters);
+
     this.rowWork1 = new PathRow(this, "Work1 Folder:", "Primary working folder");
     this.cbTwoWork  = new CheckBox(this);
     this.cbTwoWork.text = "Use two working folders (Work1 + Work2)";
@@ -810,27 +852,52 @@ function ANAWBPPSDialog(){
     this.gbOptions.sizer.add(this.cbII);
     this.gbOptions.sizer.add(this.cbDrz);
 
+    // Load/Save Settings buttons (icon only)
+    this.btnLoad = new ToolButton(this);
+    this.btnLoad.text = "📂";
+    this.btnLoad.toolTip = "Load settings from file";
+    this.btnLoad.onClick = function() {
+        // TODO: implement load settings
+        Console.writeln("[settings] Load settings - not implemented yet");
+    };
+
+    this.btnSave = new ToolButton(this);
+    this.btnSave.text = "💾";
+    this.btnSave.toolTip = "Save settings to file";
+    this.btnSave.onClick = function() {
+        // TODO: implement save settings
+        Console.writeln("[settings] Save settings - not implemented yet");
+    };
+
     this.btnRun = new PushButton(this);
     this.btnRun.text = "RUN";
+    this.btnRun.icon = this.scaledResource(":/icons/power.png");
     this.btnRun.toolTip = "Start preprocessing pipeline";
 
     this.ok_Button = new PushButton(this);
     this.ok_Button.text = "OK";
+    this.ok_Button.icon = this.scaledResource(":/icons/ok.png");
+    this.ok_Button.toolTip = "Close dialog and keep settings";
 
     this.cancel_Button = new PushButton(this);
     this.cancel_Button.text = "Cancel";
+    this.cancel_Button.icon = this.scaledResource(":/icons/cancel.png");
+    this.cancel_Button.toolTip = "Close dialog without saving";
 
     this.pipelineCompleted = false;
 
     this.setDone = function () {
         this.pipelineCompleted = true;
         this.cancel_Button.text = "Done";
+        this.cancel_Button.icon = this.scaledResource(":/icons/ok.png");
         this.cancel_Button.toolTip = "Close configuration window";
     };
 
     var buttons = new HorizontalSizer;
-    buttons.addStretch();
     buttons.spacing = 6;
+    buttons.add(this.btnLoad);
+    buttons.add(this.btnSave);
+    buttons.addStretch();
     buttons.add(this.btnRun);
     buttons.add(this.ok_Button);
     buttons.add(this.cancel_Button);
@@ -840,6 +907,7 @@ function ANAWBPPSDialog(){
     this.sizer.spacing = 6;
     this.sizer.add(lightsRowSizer);
     this.sizer.add(mastersRowSizer);
+    this.sizer.add(rawRowSizer);
     this.sizer.add(this.rowWork1.sizer);
     this.sizer.add(this.cbTwoWork);
     this.sizer.add(this.rowWork2.sizer);
@@ -854,6 +922,9 @@ function ANAWBPPSDialog(){
             if (self.rowMasters) self.rowMasters.destroy();
             if (self.rowWork1)   self.rowWork1.destroy();
             if (self.rowWork2)   self.rowWork2.destroy();
+            if (self.btnBrowseRaw && self.btnBrowseRaw.onClick) self.btnBrowseRaw.onClick = null;
+            if (self.btnCreateMasters && self.btnCreateMasters.onClick) self.btnCreateMasters.onClick = null;
+            if (self.editRaw && self.editRaw.onEditCompleted) self.editRaw.onEditCompleted = null;
         }catch(e){
             Console.warningln("[ui] Cleanup error: " + e);
         }
