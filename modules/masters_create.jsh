@@ -259,13 +259,19 @@ function MC_groupByParams(items){
     for (var i=0; i<items.length; ++i){
         var item = items[i];
         var type = item.imageType;
+и        var hasFilter = (item.filter !== null && item.filter !== "");
 
-        // TODO: Replace with actual IMAGETYP values when known
+        // Логика определения типа:
+        // - IMAGETYP = "DARK" + НЕТ FILTER → Dark
+        // - IMAGETYP = "DARK" + ЕСТЬ FILTER → DarkFlat
+        // - IMAGETYP = "FLAT" + ЕСТЬ FILTER → Flat
         if (type === "DARK"){
-            darks.push(item);
-        } else if (type === "DARKFLAT" || type === "DARK FLAT"){
-            darkFlats.push(item);
-        } else if (type === "FLAT" || type === "FLAT FIELD"){
+            if (hasFilter){
+                darkFlats.push(item);
+            } else {
+                darks.push(item);
+            }
+        } else if (type === "FLAT"){
             flats.push(item);
         }
     }
@@ -465,10 +471,25 @@ function MC_generateMasterFileName(group, type){
 
     parts.push("Bin" + (firstItem.binning || "UNKNOWN"));
 
-    // Exposure: 3 digits (000s, 005s, 120s)
+    // Exposure: зависит от типа
+    // - MasterDark: округлять к целому (30.0s → 030s)
+    // - MasterDarkFlat/Flat: НЕ округлять (2.5s → 2.5s)
     var exp = firstItem.expTime !== null ? firstItem.expTime : 0;
-    var expStr = String(Math.round(exp));
-    while (expStr.length < 3) expStr = "0" + expStr;
+    var expStr;
+
+    if (type === "Dark"){
+        // Округлить к целому, 3 цифры
+        expStr = String(Math.round(exp));
+        while (expStr.length < 3) expStr = "0" + expStr;
+    } else {
+        // DarkFlat и Flat: не округлять
+        // Если целое число - показать как целое, иначе с дробной частью
+        if (exp === Math.floor(exp)){
+            expStr = String(Math.floor(exp));
+        } else {
+            expStr = String(exp);
+        }
+    }
     parts.push(expStr + "s");
 
     var temp = firstItem.setTemp !== null ? Math.round(firstItem.setTemp) : 0;
