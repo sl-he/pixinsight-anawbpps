@@ -425,10 +425,12 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter, useHours){
         var currentSubgroup = [];
         var currentMinDate = null;
         var currentOldestDate = null; // Track oldest date in subgroup
+        var currentMinDateOnly = null; // Track date-only for filename
 
         for (var j=0; j<groupItems.length; ++j){
             var item = groupItems[j];
             var itemDate = useHours ? item.dateTimeObs : item.dateObs;
+            var itemDateOnly = item.dateObs; // Always use date-only for filename
 
             if (!itemDate){
                 // Skip items without date
@@ -439,6 +441,7 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter, useHours){
                 // Start new subgroup
                 currentMinDate = itemDate;
                 currentOldestDate = itemDate;
+                currentMinDateOnly = itemDateOnly;
                 currentSubgroup.push(item);
             } else {
                 // Check date difference
@@ -458,7 +461,7 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter, useHours){
                     if (currentSubgroup.length >= 30){
                         finalGroups.push({
                             key: gkey,
-                            minDate: currentMinDate,
+                            minDate: currentMinDateOnly, // Use date-only for filename
                             oldestDate: currentOldestDate,
                             items: currentSubgroup
                         });
@@ -468,6 +471,7 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter, useHours){
 
                     currentMinDate = itemDate;
                     currentOldestDate = itemDate;
+                    currentMinDateOnly = itemDateOnly;
                     currentSubgroup = [item];
                 }
             }
@@ -477,7 +481,7 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter, useHours){
         if (currentSubgroup.length >= 30){
             finalGroups.push({
                 key: gkey,
-                minDate: currentMinDate,
+                minDate: currentMinDateOnly, // Use date-only for filename
                 oldestDate: currentOldestDate,
                 items: currentSubgroup
             });
@@ -1003,10 +1007,30 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
         P.outputExtension = ".xisf";
         P.outputPrefix = "";
         P.outputPostfix = "_c";
-        P.outputSampleFormat = ImageCalibration.prototype.SameAsTarget;
+        // Safe set outputSampleFormat (API changed in newer versions)
+        try {
+            var cur = P.outputSampleFormat;
+            if (typeof cur == "string"){
+                P.outputSampleFormat = "SameAsTarget";
+            } else if (typeof cur == "number"){
+                P.outputSampleFormat = ImageCalibration.prototype.SameAsTarget;
+            }
+        } catch(e){
+            // Ignore if property doesn't exist
+        }
         P.outputPedestal = 0;
         P.overwriteExistingFiles = true;
-        P.onError = ImageCalibration.prototype.Continue;
+        // Safe set onError (API changed in newer versions)
+        try {
+            var cur2 = P.onError;
+            if (typeof cur2 == "string"){
+                P.onError = "Continue";
+            } else if (typeof cur2 == "number"){
+                P.onError = ImageCalibration.prototype.Continue;
+            }
+        } catch(e){
+            // Ignore if property doesn't exist
+        }
         P.noGUIMessages = true;
 
         // Execute ImageCalibration
