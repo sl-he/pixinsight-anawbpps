@@ -31,6 +31,7 @@
 #include <pjsr/Sizer.jsh>
 #include "anawbpps.constants.jsh"
 #include "modules/masters_parse.jsh"
+#include "modules/masters_create.jsh"
 #include "modules/lights_parse.jsh"
 #include "modules/masters_index.jsh"
 #include "modules/lights_index.jsh"
@@ -793,8 +794,38 @@ function ANAWBPPSDialog(){
     this.btnCreateMasters.toolTip = "Create master calibration files from raw frames";
     this.btnCreateMasters.enabled = false; // Disabled by default until path is set
     this.btnCreateMasters.onClick = function(){
-        // TODO: implement master creation
-        Console.writeln("[masters] Create masters - not implemented yet");
+        var rawPath = self.editRaw.text.trim();
+        if (!rawPath){
+            showDialogBox("ANAWBPPS", "Please select Raw Calibration Files folder.");
+            return;
+        }
+
+        var mastersPath = self.rowMasters.edit.text.trim();
+        var work1Path = self.rowWork1.edit.text.trim();
+        var work2Path = self.rowWork2.edit.text.trim();
+
+        if (!work1Path){
+            showDialogBox("ANAWBPPS", "Work1 folder is required for master creation.");
+            return;
+        }
+
+        Console.show();
+        Console.noteln("========================================");
+        Console.noteln("ANAWBPPS - Master Calibration Files Creation");
+        Console.noteln("========================================");
+
+        try {
+            MC_createMasters(rawPath, mastersPath, work1Path, work2Path);
+            Console.noteln("========================================");
+            Console.noteln("Master calibration files created successfully!");
+            Console.noteln("========================================");
+            showDialogBox("ANAWBPPS", "Master calibration files created successfully!\n\nCheck Console for details.");
+        } catch(e){
+            Console.criticalln("========================================");
+            Console.criticalln("ERROR: " + e);
+            Console.criticalln("========================================");
+            showDialogBox("ANAWBPPS", "Error creating master calibration files:\n\n" + e + "\n\nCheck Console for details.");
+        }
     };
 
     var rawRowSizer = new HorizontalSizer;

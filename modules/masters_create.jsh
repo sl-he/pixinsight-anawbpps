@@ -21,18 +21,18 @@ function _mc_basename(p){
 }
 
 function _mc_toInt(v){
-    if (v === undefined || v === null) return null;
+    if (v == undefined || v == null) return null;
     var s = String(v).trim();
-    if (s.length === 0) return null;
+    if (s.length == 0) return null;
     var n = Number(s);
     if (!isFinite(n)) return null;
     return Math.round(n);
 }
 
 function _mc_toFloat(v){
-    if (v === undefined || v === null) return null;
+    if (v == undefined || v == null) return null;
     var s = String(v).trim();
-    if (s.length === 0) return null;
+    if (s.length == 0) return null;
     var n = Number(s);
     if (!isFinite(n)) return null;
     return n;
@@ -41,26 +41,26 @@ function _mc_toFloat(v){
 function _mc_first(){
     for (var i=0; i<arguments.length; ++i){
         var v = arguments[i];
-        if (v !== undefined && v !== null) return v;
+        if (v != undefined && v != null) return v;
     }
     return null;
 }
 
 function _mc_upperOrNull(s){
-    if (!s && s!==0) return null;
+    if (!s && s!=0) return null;
     var t = String(s).trim();
     return t.length ? t.toUpperCase() : null;
 }
 
 function _mc_cleanReadout(s){
-    if (!s && s!==0) return null;
+    if (!s && s!=0) return null;
     var t = String(s).trim();
     // Compact multiple spaces
     var out = "";
     var prevSpace = false;
     for (var i=0;i<t.length;++i){
         var c = t.charAt(i);
-        var isSpace = (c===" " || c==="\t");
+        var isSpace = (c==" " || c=="\t");
         if (isSpace){
             if (!prevSpace){ out += " "; prevSpace = true; }
         } else {
@@ -73,7 +73,18 @@ function _mc_cleanReadout(s){
 function _mc_mkBinning(xb, yb){
     var xi = _mc_toInt(xb);
     var yi = _mc_toInt(yb);
-    if (xi!==null && yi!==null) return xi + "x" + yi;
+    if (xi!=null && yi!=null) return xi + "x" + yi;
+    return null;
+}
+
+/* Extract full DATE-OBS with time (ISO 8601 format) */
+function _mc_extractDateTimeISO(s){
+    if (!s) return null;
+    var str = String(s).trim();
+    // Return as-is if it looks like ISO format (YYYY-MM-DDTHH:MM:SS)
+    if (str.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)){
+        return str;
+    }
     return null;
 }
 
@@ -96,17 +107,17 @@ function _mc_extractDateOnly(s){
     }
     var L = str.length;
     for (var i=0;i<=L-10;++i){
-        var y = readNDigits(str, i, 4); if (y===null) continue;
+        var y = readNDigits(str, i, 4); if (y==null) continue;
         var s1Pos = i+4; if (s1Pos >= L) continue;
         var s1 = str.charAt(s1Pos);
-        if (!(s1==='-' || s1==='_' || s1==='/')) continue;
+        if (!(s1=='-' || s1=='_' || s1=='/')) continue;
 
-        var m = readNDigits(str, i+5, 2); if (m===null) continue;
+        var m = readNDigits(str, i+5, 2); if (m==null) continue;
         var s2Pos = i+7; if (s2Pos >= L) continue;
         var s2 = str.charAt(s2Pos);
-        if (!(s2==='-' || s2==='_' || s2==='/')) continue;
+        if (!(s2=='-' || s2=='_' || s2=='/')) continue;
 
-        var d = readNDigits(str, i+8, 2); if (d===null) continue;
+        var d = readNDigits(str, i+8, 2); if (d==null) continue;
 
         if (m<1 || m>12) continue;
         if (d<1 || d>31) continue;
@@ -126,7 +137,7 @@ function _mc_dateToFilename(dateStr){
     var result = "";
     for (var i=0; i<dateStr.length; ++i){
         var c = dateStr.charAt(i);
-        result += (c === "-") ? "_" : c;
+        result += (c == "-") ? "_" : c;
     }
     return result;
 }
@@ -134,32 +145,35 @@ function _mc_dateToFilename(dateStr){
 /* -------- FITS keyword reading -------- */
 
 function _mc_readFitsKeywords(filePath){
-    var F = new FileFormat;
-    if (!F.canRead(filePath)){
-        Console.warningln("[mc] Cannot read file: " + filePath);
+    var ext = File.extractExtension(filePath).toLowerCase();
+    var F = new FileFormat(ext, true, false);
+    if (F.isNull){
+        Console.warningln("[mc] Unsupported file format: " + filePath);
         return null;
     }
+
     var f = new FileFormatInstance(F);
-    var imgDesc = new ImageDescription;
-
-    if (!f.open(filePath, "raw cfa verbosity 0")){
-        Console.warningln("[mc] Failed to open: " + filePath);
+    if (f.isNull){
+        Console.warningln("[mc] Cannot create FileFormatInstance: " + filePath);
         return null;
     }
 
-    if (f.images.length === 0){
+    var info = f.open(filePath, "verbosity 0");
+    if (!info || (info && info.length <= 0)){
         f.close();
         return null;
     }
 
-    f.selectImage(0);
-    var K = f.keywords;
+    var kws = [];
+    if (F.canStoreKeywords)
+        kws = f.keywords;
+
     f.close();
 
     var kv = {};
-    for (var i=0; i<K.length; ++i){
-        var name = K[i].name;
-        var value = K[i].strippedValue;
+    for (var i=0; i<kws.length; ++i){
+        var name = kws[i].name;
+        var value = kws[i].strippedValue;
         kv[name] = value;
     }
     return kv;
@@ -176,15 +190,49 @@ function MC_indexRawFiles(rawPath){
 
     var files = [];
 
-    function scanDir(dir){
-        var fileList = File.findFileList(dir, "*.xisf,*.fits,*.fit");
-        for (var i=0; i<fileList.length; ++i){
-            files.push(dir + "/" + fileList[i]);
-        }
+    function isFitsLike(path){
+        var ext = path.substring(path.lastIndexOf('.') + 1).toLowerCase();
+        return ext == "fit" || ext == "fits" || ext == "xisf" || ext == "fts";
+    }
 
-        var subdirs = File.findDirectoryList(dir);
-        for (var j=0; j<subdirs.length; ++j){
-            scanDir(dir + "/" + subdirs[j]);
+    function listDir(dir){
+        // Use global _listNames from masters_index.jsh (uses FileFind - works cross-platform)
+        if (typeof _listNames == "function"){
+            try {
+                return _listNames(dir);
+            } catch(e){
+                Console.warningln("[mc] _listNames failed: " + e);
+            }
+        } else {
+            Console.warningln("[mc] _listNames function not found (masters_index.jsh not loaded?)");
+        }
+        return [];
+    }
+
+    function scanDir(dir){
+        var names = listDir(dir);
+        Console.writeln("[mc]   Scanning: " + dir + " (" + names.length + " entries)");
+
+        for (var i=0; i<names.length; ++i){
+            var name = names[i];
+            if (name == "." || name == "..") continue;
+
+            var fullPath = dir + "/" + name;
+
+            // Check if directory
+            if (File.directoryExists(fullPath)){
+                Console.writeln("[mc]     DIR: " + name);
+                scanDir(fullPath);
+            }
+            // Check if file
+            else if (File.exists(fullPath)){
+                if (isFitsLike(fullPath)){
+                    Console.writeln("[mc]     FILE: " + name);
+                    files.push(fullPath);
+                } else {
+                    Console.writeln("[mc]     SKIP (not FITS): " + name);
+                }
+            }
         }
     }
 
@@ -204,6 +252,7 @@ function MC_indexRawFiles(rawPath){
         if (!imageType) continue; // Skip files without IMAGETYP
 
         var dateObs = _mc_extractDateOnly(K["DATE-OBS"]);
+        var dateTimeObs = _mc_extractDateTimeISO(K["DATE-OBS"]); // Full date-time for precise grouping
         var filter = _mc_upperOrNull(K["FILTER"]);
         var gain = _mc_toInt(K["GAIN"]);
         var offset = _mc_toInt(K["OFFSET"]);
@@ -212,21 +261,24 @@ function MC_indexRawFiles(rawPath){
         var readout = _mc_cleanReadout(K["READOUTM"]);
         var setTemp = _mc_toFloat(K["SET-TEMP"]);
         var expTime = _mc_toFloat(K["EXPTIME"]);
+        var telescop = _mc_upperOrNull(_mc_first(K["TELESCOP"], K["TELESCOPE"]));
+        var instrume = _mc_upperOrNull(_mc_first(K["INSTRUME"], K["INSTRUMENT"]));
 
-        // Extract setup from filename (like in lights_parse)
-        var basename = _mc_basename(fpath);
+        // Setup: TELESCOP + "_" + INSTRUME
         var setup = null;
-        // Simple parsing: assume format like "L71_ES150_QHY600M_*.fits"
-        // Extract first 3 underscore-separated parts
-        var parts = basename.split("_");
-        if (parts.length >= 3){
-            setup = parts[0] + "_" + parts[1] + "_" + parts[2];
+        if (telescop && instrume){
+            setup = telescop + "_" + instrume;
+        } else if (telescop){
+            setup = telescop;
+        } else if (instrume){
+            setup = instrume;
         }
 
         items.push({
             path: fpath,
             imageType: imageType,
             dateObs: dateObs,
+            dateTimeObs: dateTimeObs, // Full date-time with hours:minutes:seconds
             filter: filter,
             gain: gain,
             offset: offset,
@@ -235,7 +287,9 @@ function MC_indexRawFiles(rawPath){
             readout: readout,
             setTemp: setTemp,
             expTime: expTime,
-            setup: setup
+            setup: setup,
+            telescop: telescop,
+            instrume: instrume
         });
     }
 
@@ -259,19 +313,19 @@ function MC_groupByParams(items){
     for (var i=0; i<items.length; ++i){
         var item = items[i];
         var type = item.imageType;
-и        var hasFilter = (item.filter !== null && item.filter !== "");
+        var hasFilter = (item.filter != null && item.filter != "");
 
         // Логика определения типа:
         // - IMAGETYP = "DARK" + НЕТ FILTER → Dark
         // - IMAGETYP = "DARK" + ЕСТЬ FILTER → DarkFlat
         // - IMAGETYP = "FLAT" + ЕСТЬ FILTER → Flat
-        if (type === "DARK"){
+        if (type == "DARK"){
             if (hasFilter){
                 darkFlats.push(item);
             } else {
                 darks.push(item);
             }
-        } else if (type === "FLAT"){
+        } else if (type == "FLAT"){
             flats.push(item);
         }
     }
@@ -280,16 +334,16 @@ function MC_groupByParams(items){
     Console.noteln("[mc]   DarkFlat files: " + darkFlats.length);
     Console.noteln("[mc]   Flat files: " + flats.length);
 
-    // Group Darks
+    // Group Darks (±7 days tolerance)
     var darkGroups = _mc_groupByParamsInternal(darks, 7, false);
     Console.noteln("[mc]   Dark groups: " + darkGroups.length);
 
-    // Group DarkFlats
-    var darkFlatGroups = _mc_groupByParamsInternal(darkFlats, 3, true);
+    // Group DarkFlats (±3 hours tolerance)
+    var darkFlatGroups = _mc_groupByParamsInternal(darkFlats, 3, true, true);
     Console.noteln("[mc]   DarkFlat groups: " + darkFlatGroups.length);
 
-    // Group Flats
-    var flatGroups = _mc_groupByParamsInternal(flats, 3, true);
+    // Group Flats (±3 hours tolerance)
+    var flatGroups = _mc_groupByParamsInternal(flats, 3, true, true);
     Console.noteln("[mc]   Flat groups: " + flatGroups.length);
 
     return {
@@ -301,10 +355,11 @@ function MC_groupByParams(items){
 
 /**
  * Internal grouping function
- * maxDateDiff - maximum date difference in days
+ * maxDateDiff - maximum date difference (in days or hours depending on useHours)
  * requireFilter - whether filter is required for grouping
+ * useHours - if true, maxDateDiff is in hours and uses dateTimeObs; if false, uses days and dateObs
  */
-function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter){
+function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter, useHours){
     var groups = {};
 
     for (var i=0; i<items.length; ++i){
@@ -319,17 +374,17 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter){
         }
 
         keyParts.push(item.readout || "UNKNOWN");
-        keyParts.push("G" + (item.gain !== null ? item.gain : "NULL"));
-        keyParts.push("OS" + (item.offset !== null ? item.offset : "NULL"));
-        keyParts.push("U" + (item.usb !== null ? item.usb : "NULL"));
+        keyParts.push("G" + (item.gain != null ? item.gain : "NULL"));
+        keyParts.push("OS" + (item.offset != null ? item.offset : "NULL"));
+        keyParts.push("U" + (item.usb != null ? item.usb : "NULL"));
         keyParts.push(item.binning || "UNKNOWN");
 
         // Temperature with tolerance ±0.1°C
-        var temp = item.setTemp !== null ? Math.round(item.setTemp * 10) / 10 : null;
-        keyParts.push("T" + (temp !== null ? temp : "NULL"));
+        var temp = item.setTemp != null ? Math.round(item.setTemp * 10) / 10 : null;
+        keyParts.push("T" + (temp != null ? temp : "NULL"));
 
         // Exposure time
-        keyParts.push("E" + (item.expTime !== null ? item.expTime : "NULL"));
+        keyParts.push("E" + (item.expTime != null ? item.expTime : "NULL"));
 
         var baseKey = keyParts.join("_");
 
@@ -347,45 +402,64 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter){
 
         var groupItems = groups[gkey];
 
-        // Sort by date
-        groupItems.sort(function(a, b){
-            var dateA = a.dateObs || "9999-99-99";
-            var dateB = b.dateObs || "9999-99-99";
-            if (dateA < dateB) return -1;
-            if (dateA > dateB) return 1;
-            return 0;
-        });
+        // Sort by date or date-time depending on useHours
+        if (useHours){
+            groupItems.sort(function(a, b){
+                var dateA = a.dateTimeObs || "9999-99-99T99:99:99";
+                var dateB = b.dateTimeObs || "9999-99-99T99:99:99";
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+                return 0;
+            });
+        } else {
+            groupItems.sort(function(a, b){
+                var dateA = a.dateObs || "9999-99-99";
+                var dateB = b.dateObs || "9999-99-99";
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+                return 0;
+            });
+        }
 
         // Split by date difference
         var currentSubgroup = [];
         var currentMinDate = null;
+        var currentOldestDate = null; // Track oldest date in subgroup
 
         for (var j=0; j<groupItems.length; ++j){
             var item = groupItems[j];
-            var itemDate = item.dateObs;
+            var itemDate = useHours ? item.dateTimeObs : item.dateObs;
 
             if (!itemDate){
                 // Skip items without date
                 continue;
             }
 
-            if (currentMinDate === null){
+            if (currentMinDate == null){
                 // Start new subgroup
                 currentMinDate = itemDate;
+                currentOldestDate = itemDate;
                 currentSubgroup.push(item);
             } else {
                 // Check date difference
-                var daysDiff = _mc_dateDiffDays(currentMinDate, itemDate);
+                var diff = useHours ?
+                    _mc_dateTimeDiffHours(currentMinDate, itemDate) :
+                    _mc_dateDiffDays(currentMinDate, itemDate);
 
-                if (daysDiff <= maxDateDiff){
+                if (diff <= maxDateDiff){
                     // Add to current subgroup
                     currentSubgroup.push(item);
+                    // Update oldest date if needed
+                    if (itemDate < currentOldestDate){
+                        currentOldestDate = itemDate;
+                    }
                 } else {
                     // Finish current subgroup and start new one
                     if (currentSubgroup.length >= 30){
                         finalGroups.push({
                             key: gkey,
                             minDate: currentMinDate,
+                            oldestDate: currentOldestDate,
                             items: currentSubgroup
                         });
                     } else {
@@ -393,6 +467,7 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter){
                     }
 
                     currentMinDate = itemDate;
+                    currentOldestDate = itemDate;
                     currentSubgroup = [item];
                 }
             }
@@ -403,6 +478,7 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter){
             finalGroups.push({
                 key: gkey,
                 minDate: currentMinDate,
+                oldestDate: currentOldestDate,
                 items: currentSubgroup
             });
         } else if (currentSubgroup.length > 0){
@@ -414,6 +490,29 @@ function _mc_groupByParamsInternal(items, maxDateDiff, requireFilter){
 }
 
 /**
+ * Calculate difference between two date-times in hours
+ * DateTime in ISO format YYYY-MM-DDTHH:MM:SS
+ */
+function _mc_dateTimeDiffHours(dateTime1, dateTime2){
+    if (!dateTime1 || !dateTime2) return 999999;
+
+    try {
+        // Parse ISO 8601 format: YYYY-MM-DDTHH:MM:SS
+        var d1 = new Date(dateTime1);
+        var d2 = new Date(dateTime2);
+
+        if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 999999;
+
+        var diffMs = Math.abs(d2.getTime() - d1.getTime());
+        var diffHours = diffMs / (1000 * 60 * 60);
+
+        return diffHours;
+    } catch(e){
+        return 999999;
+    }
+}
+
+/**
  * Calculate difference between two dates in days
  * Dates in format YYYY-MM-DD
  */
@@ -422,7 +521,7 @@ function _mc_dateDiffDays(date1, date2){
     function parseDate(dateStr){
         // dateStr is "YYYY-MM-DD"
         var parts = dateStr.split("-");
-        if (parts.length !== 3) return null;
+        if (parts.length != 3) return null;
         var y = parseInt(parts[0], 10);
         var m = parseInt(parts[1], 10);
         var d = parseInt(parts[2], 10);
@@ -444,28 +543,39 @@ function _mc_dateDiffDays(date1, date2){
 /**
  * Generate master file name from group
  * type: "Dark", "DarkFlat", "Flat"
+ * Format: TELESCOP_INSTRUME_Master{Type}_DATE_[FILTER_]READOUT_G*_OS*_[U*_]Bin*_*s_*C.xisf
  */
 function MC_generateMasterFileName(group, type){
     // Extract parameters from first item in group
     var firstItem = group.items[0];
 
     var parts = [];
-    parts.push(firstItem.setup || "UNKNOWN");
+
+    // TELESCOP and INSTRUME
+    if (firstItem.telescop){
+        parts.push(firstItem.telescop);
+    }
+    if (firstItem.instrume){
+        parts.push(firstItem.instrume);
+    }
+
     parts.push("Master" + type); // MasterDark, MasterDarkFlat, MasterFlat
 
     parts.push(_mc_dateToFilename(group.minDate)); // YYYY_MM_DD
 
-    if (type === "DarkFlat" || type === "Flat"){
+    if (type == "DarkFlat" || type == "Flat"){
         if (firstItem.filter){
             parts.push(firstItem.filter);
         }
     }
 
-    parts.push(firstItem.readout || "UNKNOWN");
-    parts.push("G" + (firstItem.gain !== null ? firstItem.gain : "NULL"));
-    parts.push("OS" + (firstItem.offset !== null ? firstItem.offset : "NULL"));
+    // Clean readout mode: replace spaces with underscores for filename
+    var readoutClean = (firstItem.readout || "UNKNOWN").replace(/\s+/g, "_");
+    parts.push(readoutClean);
+    parts.push("G" + (firstItem.gain != null ? firstItem.gain : "NULL"));
+    parts.push("OS" + (firstItem.offset != null ? firstItem.offset : "NULL"));
 
-    if (firstItem.usb !== null){
+    if (firstItem.usb != null){
         parts.push("U" + firstItem.usb);
     }
 
@@ -474,17 +584,17 @@ function MC_generateMasterFileName(group, type){
     // Exposure: зависит от типа
     // - MasterDark: округлять к целому (30.0s → 030s)
     // - MasterDarkFlat/Flat: НЕ округлять (2.5s → 2.5s)
-    var exp = firstItem.expTime !== null ? firstItem.expTime : 0;
+    var exp = firstItem.expTime != null ? firstItem.expTime : 0;
     var expStr;
 
-    if (type === "Dark"){
+    if (type == "Dark"){
         // Округлить к целому, 3 цифры
         expStr = String(Math.round(exp));
         while (expStr.length < 3) expStr = "0" + expStr;
     } else {
         // DarkFlat и Flat: не округлять
         // Если целое число - показать как целое, иначе с дробной частью
-        if (exp === Math.floor(exp)){
+        if (exp == Math.floor(exp)){
             expStr = String(Math.floor(exp));
         } else {
             expStr = String(exp);
@@ -492,7 +602,7 @@ function MC_generateMasterFileName(group, type){
     }
     parts.push(expStr + "s");
 
-    var temp = firstItem.setTemp !== null ? Math.round(firstItem.setTemp) : 0;
+    var temp = firstItem.setTemp != null ? Math.round(firstItem.setTemp) : 0;
     parts.push(temp + "C");
 
     return parts.join("_") + ".xisf";
@@ -504,11 +614,105 @@ function MC_generateMasterFileName(group, type){
 function MC_createMasterDarks(darkGroups, outputPath){
     Console.noteln("[mc] Creating MasterDark files... (" + darkGroups.length + " groups)");
 
-    // TODO: Implement ImageIntegration for each group
+    var results = [];
 
-    Console.noteln("[mc]   TODO: MasterDark creation not implemented yet");
+    for (var i = 0; i < darkGroups.length; i++){
+        var group = darkGroups[i];
+        var firstItem = group.items[0];
 
-    return [];
+        // Generate output filename
+        var fileName = MC_generateMasterFileName(group, "Dark");
+        var fullPath = outputPath + "/" + fileName;
+
+        Console.noteln("[mc]   Group " + (i+1) + "/" + darkGroups.length + ": " +
+                       group.items.length + " files -> " + fileName);
+
+        // Prepare images array for ImageIntegration
+        var images = [];
+        for (var j = 0; j < group.items.length; j++){
+            images.push([true, group.items[j].path, "", ""]);
+        }
+
+        // Configure ImageIntegration (Dark/DarkFlat settings)
+        var P = new ImageIntegration;
+        P.images = images;
+        P.combination = ImageIntegration.prototype.Average;
+        P.normalization = ImageIntegration.prototype.NoNormalization;
+        P.rejection = ImageIntegration.prototype.LinearFit;
+        P.rejectionNormalization = ImageIntegration.prototype.NoRejectionNormalization;
+        P.weightMode = ImageIntegration.prototype.DontCare;
+        P.generateDrizzleData = false;
+        P.generateRejectionMaps = false;
+        P.evaluateSNR = false;
+        P.useCache = false;
+        P.linearFitLow = 4.000;
+        P.linearFitHigh = 2.000;
+
+        // Execute ImageIntegration
+        try {
+            P.executeGlobal();
+        } catch(e){
+            Console.criticalln("[mc]   ERROR: ImageIntegration failed: " + e);
+            continue;
+        }
+
+        // Get integration result
+        var intView = View.viewById("integration");
+        if (!intView || intView.isNull){
+            Console.criticalln("[mc]   ERROR: Integration view not found");
+            continue;
+        }
+
+        var intWindow = intView.window;
+
+        // Rename view (sanitize for valid identifier: only letters, digits, underscore)
+        var baseName = fileName.replace(/\.xisf$/i, "");
+        var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
+        intView.id = viewId;
+
+        // Add FITS keywords (EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
+        // Get existing keywords and add new ones
+        var keywords = intWindow.keywords;
+        keywords.push(new FITSKeyword("EXPTIME", String(firstItem.expTime), "[s] Exposure duration"));
+        keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
+        keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
+        if (firstItem.usb != null){
+            keywords.push(new FITSKeyword("USBLIMIT", String(firstItem.usb), "Camera-specific USB setting"));
+        }
+        keywords.push(new FITSKeyword("READOUTM", "'" + firstItem.readout + "'", "Sensor readout mode"));
+        keywords.push(new FITSKeyword("SET-TEMP", String(firstItem.setTemp), "[degC] CCD temperature setpoint"));
+        keywords.push(new FITSKeyword("EXPOSURE", String(firstItem.expTime), "[s] Exposure duration"));
+        intWindow.keywords = keywords;
+
+        // Create output directory if it doesn't exist
+        if (!File.directoryExists(outputPath)){
+            Console.noteln("[mc]     Creating directory: " + outputPath);
+            File.createDirectory(outputPath, true);
+        }
+
+        // Save as XISF
+        if (!intWindow.saveAs(fullPath, false, false, true, false)){
+            Console.criticalln("[mc]   ERROR: Failed to save " + fullPath);
+            intWindow.forceClose();
+            continue;
+        }
+
+        // Close window
+        intWindow.forceClose();
+
+        Console.noteln("[mc]     Saved: " + fullPath);
+
+        // Add to results
+        results.push({
+            path: fullPath,
+            fileName: fileName,
+            group: group
+        });
+    }
+
+    Console.noteln("[mc]   MasterDark creation complete: " + results.length + "/" + darkGroups.length + " succeeded");
+
+    return results;
 }
 
 /**
@@ -517,85 +721,476 @@ function MC_createMasterDarks(darkGroups, outputPath){
 function MC_createMasterDarkFlats(dfGroups, outputPath){
     Console.noteln("[mc] Creating MasterDarkFlat files... (" + dfGroups.length + " groups)");
 
-    // TODO: Implement ImageIntegration for each group
+    var results = [];
 
-    Console.noteln("[mc]   TODO: MasterDarkFlat creation not implemented yet");
+    for (var i = 0; i < dfGroups.length; i++){
+        var group = dfGroups[i];
+        var firstItem = group.items[0];
 
-    return [];
+        // Generate output filename
+        var fileName = MC_generateMasterFileName(group, "DarkFlat");
+        var fullPath = outputPath + "/" + fileName;
+
+        Console.noteln("[mc]   Group " + (i+1) + "/" + dfGroups.length + ": " +
+                       group.items.length + " files -> " + fileName);
+
+        // Prepare images array for ImageIntegration
+        var images = [];
+        for (var j = 0; j < group.items.length; j++){
+            images.push([true, group.items[j].path, "", ""]);
+        }
+
+        // Configure ImageIntegration (Dark/DarkFlat settings)
+        var P = new ImageIntegration;
+        P.images = images;
+        P.combination = ImageIntegration.prototype.Average;
+        P.normalization = ImageIntegration.prototype.NoNormalization;
+        P.rejection = ImageIntegration.prototype.LinearFit;
+        P.rejectionNormalization = ImageIntegration.prototype.NoRejectionNormalization;
+        P.weightMode = ImageIntegration.prototype.DontCare;
+        P.generateDrizzleData = false;
+        P.generateRejectionMaps = false;
+        P.evaluateSNR = false;
+        P.useCache = false;
+        P.linearFitLow = 4.000;
+        P.linearFitHigh = 2.000;
+
+        // Execute ImageIntegration
+        try {
+            P.executeGlobal();
+        } catch(e){
+            Console.criticalln("[mc]   ERROR: ImageIntegration failed: " + e);
+            continue;
+        }
+
+        // Get integration result
+        var intView = View.viewById("integration");
+        if (!intView || intView.isNull){
+            Console.criticalln("[mc]   ERROR: Integration view not found");
+            continue;
+        }
+
+        var intWindow = intView.window;
+
+        // Rename view (sanitize for valid identifier: only letters, digits, underscore)
+        var baseName = fileName.replace(/\.xisf$/i, "");
+        var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
+        intView.id = viewId;
+
+        // Add FITS keywords (EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
+        // FILTER is copied automatically by ImageIntegration
+        // Get existing keywords and add new ones
+        var keywords = intWindow.keywords;
+        keywords.push(new FITSKeyword("EXPTIME", String(firstItem.expTime), "[s] Exposure duration"));
+        keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
+        keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
+        if (firstItem.usb != null){
+            keywords.push(new FITSKeyword("USBLIMIT", String(firstItem.usb), "Camera-specific USB setting"));
+        }
+        keywords.push(new FITSKeyword("READOUTM", "'" + firstItem.readout + "'", "Sensor readout mode"));
+        keywords.push(new FITSKeyword("SET-TEMP", String(firstItem.setTemp), "[degC] CCD temperature setpoint"));
+        keywords.push(new FITSKeyword("EXPOSURE", String(firstItem.expTime), "[s] Exposure duration"));
+        intWindow.keywords = keywords;
+
+        // Create output directory if it doesn't exist
+        if (!File.directoryExists(outputPath)){
+            Console.noteln("[mc]     Creating directory: " + outputPath);
+            File.createDirectory(outputPath, true);
+        }
+
+        // Save as XISF
+        if (!intWindow.saveAs(fullPath, false, false, true, false)){
+            Console.criticalln("[mc]   ERROR: Failed to save " + fullPath);
+            intWindow.forceClose();
+            continue;
+        }
+
+        // Close window
+        intWindow.forceClose();
+
+        Console.noteln("[mc]     Saved: " + fullPath);
+
+        // Add to results (include metadata for matching)
+        results.push({
+            path: fullPath,
+            fileName: fileName,
+            group: group,
+            // Metadata for matching
+            setup: firstItem.setup,
+            filter: firstItem.filter,
+            readoutMode: firstItem.readoutMode,
+            gain: firstItem.gain,
+            offset: firstItem.offset,
+            usb: firstItem.usb,
+            binning: firstItem.binning,
+            setTemp: firstItem.setTemp,
+            expTime: firstItem.expTime,
+            date: group.oldestDate  // Full timestamp for ±3 hours matching
+        });
+    }
+
+    Console.noteln("[mc]   MasterDarkFlat creation complete: " + results.length + "/" + dfGroups.length + " succeeded");
+
+    return results;
 }
 
 /**
  * Match MasterDarkFlat to Flat groups
+ * Returns: { flatGroupIndex: matchedDfMaster }
  */
 function MC_matchDarkFlatToFlat(dfMasters, flatGroups){
     Console.noteln("[mc] Matching MasterDarkFlat to Flat groups...");
 
-    // TODO: Implement matching logic (from calibration_match.jsh)
+    var matches = {};
+    var matchedCount = 0;
 
-    Console.noteln("[mc]   TODO: Matching not implemented yet");
+    for (var i = 0; i < flatGroups.length; i++){
+        var flatGroup = flatGroups[i];
+        var firstFlat = flatGroup.items[0];
 
-    return {};
+        // Must match parameters
+        var pool = [];
+        for (var j = 0; j < dfMasters.length; j++){
+            var df = dfMasters[j];
+
+            // Strict matching: setup, filter, readout, gain, offset, usb, binning, temp, expTime
+            if (df.setup != firstFlat.setup) continue;
+            if (df.filter != firstFlat.filter) continue;
+            if (df.readoutMode != firstFlat.readoutMode) continue;
+            if (df.gain != firstFlat.gain) continue;
+            if (df.offset != firstFlat.offset) continue;
+            if (df.usb != firstFlat.usb) continue;
+            if (df.binning != firstFlat.binning) continue;
+
+            // Temperature tolerance ±0.1°C
+            var tempDiff = Math.abs(df.setTemp - firstFlat.setTemp);
+            if (tempDiff > 0.1) continue;
+
+            // EXPTIME must match
+            if (df.expTime != firstFlat.expTime) continue;
+
+            // Time window: ±3 hours
+            var flatDate = new Date(flatGroup.oldestDate);
+            var dfDate = new Date(df.date);
+            var diffMs = dfDate.getTime() - flatDate.getTime();
+            var diffHours = diffMs / (1000.0 * 60.0 * 60.0);
+
+            if (Math.abs(diffHours) > 3.0) continue;
+
+            // Add to pool
+            pool.push({
+                df: df,
+                diffHours: diffHours,
+                absDiffHours: Math.abs(diffHours)
+            });
+        }
+
+        // No candidates found
+        if (pool.length == 0){
+            Console.warningln("[mc]   WARNING: No matching MasterDarkFlat found for Flat group " +
+                             "(filter=" + firstFlat.filter + ", expTime=" + firstFlat.expTime + "s) within \u00b13 hours");
+            continue;
+        }
+
+        // Sort pool: 1) Future first (diffHours < 0), 2) Closest by time
+        pool.sort(function(a, b){
+            var aFuture = (a.diffHours < 0);
+            var bFuture = (b.diffHours < 0);
+
+            // Priority: future first
+            if (aFuture != bFuture){
+                return aFuture ? -1 : 1;
+            }
+
+            // Among same direction: closest by time
+            return a.absDiffHours - b.absDiffHours;
+        });
+
+        var best = pool[0];
+        matches[i] = best.df;
+        matchedCount++;
+
+        var dirStr = (best.diffHours < 0) ? "future" : "past";
+        Console.noteln("[mc]   Flat group " + (i+1) + " (filter=" + firstFlat.filter + ") -> " +
+                       best.df.fileName + " (" + dirStr + ", " + best.absDiffHours.toFixed(2) + "h)");
+    }
+
+    Console.noteln("[mc]   Matching complete: " + matchedCount + "/" + flatGroups.length + " Flat groups matched");
+
+    return matches;
 }
 
 /**
  * Calibrate Flat files using MasterDarkFlat
+ * Returns: { flatGroupIndex: [array of calibrated file paths] }
  */
 function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
     Console.noteln("[mc] Calibrating Flat files...");
 
-    // TODO: Implement ImageCalibration
+    var calibratedGroups = {};
+    var totalFiles = 0;
 
-    Console.noteln("[mc]   TODO: Flat calibration not implemented yet");
+    // Count total files to calibrate
+    for (var key in dfMatches){
+        if (dfMatches.hasOwnProperty(key)){
+            var idx = parseInt(key, 10);
+            totalFiles += flatGroups[idx].items.length;
+        }
+    }
 
-    return {};
+    Console.noteln("[mc]   Total Flat files to calibrate: " + totalFiles);
+
+    // Create temp directory if it doesn't exist
+    if (!File.directoryExists(tempPath)){
+        Console.noteln("[mc]   Creating temp directory: " + tempPath);
+        File.createDirectory(tempPath, true);
+    }
+
+    // Process each matched Flat group
+    for (var key in dfMatches){
+        if (!dfMatches.hasOwnProperty(key)) continue;
+
+        var groupIdx = parseInt(key, 10);
+        var flatGroup = flatGroups[groupIdx];
+        var dfMaster = dfMatches[groupIdx];
+        var firstFlat = flatGroup.items[0];
+
+        Console.noteln("[mc]   Calibrating Flat group " + (groupIdx+1) + " (filter=" + firstFlat.filter +
+                       ", " + flatGroup.items.length + " files) with " + dfMaster.fileName);
+
+        // Prepare target frames array
+        var targetFrames = [];
+        for (var i = 0; i < flatGroup.items.length; i++){
+            targetFrames.push([true, flatGroup.items[i].path]);
+        }
+
+        // Configure ImageCalibration
+        var P = new ImageCalibration;
+        P.targetFrames = targetFrames;
+        P.enableCFA = false;
+        P.cfaPattern = ImageCalibration.prototype.Auto;
+        P.inputHints = "";
+        P.outputHints = "";
+        P.pedestal = 0;
+        P.pedestalMode = ImageCalibration.prototype.Keyword;
+        P.pedestalKeyword = "";
+        P.overscanEnabled = false;
+        P.masterBiasEnabled = false;  // NO Bias
+        P.masterDarkEnabled = true;   // Use MasterDarkFlat
+        P.masterDarkPath = dfMaster.path;
+        P.masterFlatEnabled = false;
+        P.calibrateBias = false;
+        P.calibrateDark = false;
+        P.calibrateFlat = false;
+        P.optimizeDarks = true;
+        P.darkOptimizationThreshold = 0.00000;
+        P.darkOptimizationLow = 3.0000;
+        P.darkOptimizationWindow = 1024;
+        P.darkCFADetectionMode = ImageCalibration.prototype.DetectCFA;
+        P.evaluateNoise = true;
+        // Safe set noiseEvaluationAlgorithm (API changed in newer versions)
+        try {
+            var cur = P.noiseEvaluationAlgorithm;
+            if (typeof cur == "string"){
+                P.noiseEvaluationAlgorithm = "NoiseEvaluation_MRS";
+            } else if (typeof cur == "number"){
+                P.noiseEvaluationAlgorithm = ImageCalibration.prototype.NoiseEvaluation_MRS;
+            }
+        } catch(e){
+            // Ignore if property doesn't exist
+        }
+        P.outputDirectory = tempPath;
+        P.outputExtension = ".xisf";
+        P.outputPrefix = "";
+        P.outputPostfix = "_c";
+        P.outputSampleFormat = ImageCalibration.prototype.SameAsTarget;
+        P.outputPedestal = 0;
+        P.overwriteExistingFiles = true;
+        P.onError = ImageCalibration.prototype.Continue;
+        P.noGUIMessages = true;
+
+        // Execute ImageCalibration
+        try {
+            P.executeGlobal();
+        } catch(e){
+            Console.criticalln("[mc]   ERROR: ImageCalibration failed: " + e);
+            continue;
+        }
+
+        // Collect calibrated file paths (outputDirectory + original filename + _c.xisf)
+        var calibratedPaths = [];
+        for (var j = 0; j < flatGroup.items.length; j++){
+            var originalPath = flatGroup.items[j].path;
+            var originalName = _mc_basename(originalPath);
+            var baseName = originalName.replace(/\.(fit|fits|fts|xisf)$/i, "");
+            var calibratedName = baseName + "_c.xisf";
+            var calibratedPath = tempPath + "/" + calibratedName;
+            calibratedPaths.push(calibratedPath);
+        }
+
+        calibratedGroups[groupIdx] = {
+            group: flatGroup,
+            calibratedPaths: calibratedPaths,
+            dfMaster: dfMaster
+        };
+
+        Console.noteln("[mc]     Calibrated " + calibratedPaths.length + " files -> " + tempPath);
+    }
+
+    Console.noteln("[mc]   Flat calibration complete: " + Object.keys(calibratedGroups).length + " groups");
+
+    return calibratedGroups;
 }
 
 /**
- * Create MasterFlat files
+ * Create MasterFlat files from calibrated Flat files
  */
 function MC_createMasterFlats(calibratedFlatGroups, outputPath){
-    Console.noteln("[mc] Creating MasterFlat files... (" + calibratedFlatGroups.length + " groups)");
+    var groupCount = Object.keys(calibratedFlatGroups).length;
+    Console.noteln("[mc] Creating MasterFlat files... (" + groupCount + " groups)");
 
-    // TODO: Implement ImageIntegration for calibrated flats
+    var results = [];
 
-    Console.noteln("[mc]   TODO: MasterFlat creation not implemented yet");
+    for (var key in calibratedFlatGroups){
+        if (!calibratedFlatGroups.hasOwnProperty(key)) continue;
 
-    return [];
+        var groupIdx = parseInt(key, 10);
+        var data = calibratedFlatGroups[groupIdx];
+        var flatGroup = data.group;
+        var calibratedPaths = data.calibratedPaths;
+        var firstItem = flatGroup.items[0];
+
+        // Generate output filename
+        var fileName = MC_generateMasterFileName(flatGroup, "Flat");
+        var fullPath = outputPath + "/" + fileName;
+
+        Console.noteln("[mc]   Group " + (groupIdx+1) + ": " +
+                       calibratedPaths.length + " files -> " + fileName);
+
+        // Prepare images array for ImageIntegration
+        var images = [];
+        for (var i = 0; i < calibratedPaths.length; i++){
+            images.push([true, calibratedPaths[i], "", ""]);
+        }
+
+        // Configure ImageIntegration (Flat settings - different from Dark/DarkFlat!)
+        var P = new ImageIntegration;
+        P.images = images;
+        P.combination = ImageIntegration.prototype.Average;
+        P.normalization = ImageIntegration.prototype.Multiplicative;  // Different!
+        P.rejection = ImageIntegration.prototype.LinearFit;
+        P.rejectionNormalization = ImageIntegration.prototype.EqualizeFluxes;  // Different!
+        P.weightMode = ImageIntegration.prototype.DontCare;
+        P.generateDrizzleData = false;
+        P.generateRejectionMaps = false;
+        P.evaluateSNR = false;
+        P.useCache = true;  // Different!
+        P.linearFitLow = 5.000;  // Different!
+        P.linearFitHigh = 2.500;  // Different!
+
+        // Execute ImageIntegration
+        try {
+            P.executeGlobal();
+        } catch(e){
+            Console.criticalln("[mc]   ERROR: ImageIntegration failed: " + e);
+            continue;
+        }
+
+        // Get integration result
+        var intView = View.viewById("integration");
+        if (!intView || intView.isNull){
+            Console.criticalln("[mc]   ERROR: Integration view not found");
+            continue;
+        }
+
+        var intWindow = intView.window;
+
+        // Rename view (sanitize for valid identifier: only letters, digits, underscore)
+        var baseName = fileName.replace(/\.xisf$/i, "");
+        var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
+        intView.id = viewId;
+
+        // NO FITS keywords needed for MasterFlat
+        // (IMAGETYP, FILTER, XBINNING, YBINNING, TELESCOP, DATE-OBS copied automatically)
+
+        // Create output directory if it doesn't exist
+        if (!File.directoryExists(outputPath)){
+            Console.noteln("[mc]     Creating directory: " + outputPath);
+            File.createDirectory(outputPath, true);
+        }
+
+        // Save as XISF
+        if (!intWindow.saveAs(fullPath, false, false, true, false)){
+            Console.criticalln("[mc]   ERROR: Failed to save " + fullPath);
+            intWindow.forceClose();
+            continue;
+        }
+
+        // Close window
+        intWindow.forceClose();
+
+        Console.noteln("[mc]     Saved: " + fullPath);
+
+        // Add to results
+        results.push({
+            path: fullPath,
+            fileName: fileName,
+            group: flatGroup
+        });
+    }
+
+    Console.noteln("[mc]   MasterFlat creation complete: " + results.length + "/" + groupCount + " succeeded");
+
+    return results;
 }
 
 /**
  * Main function: Create all master calibration files
  */
-function MC_createMasters(rawPath, mastersPath, work2Path){
+function MC_createMasters(rawPath, mastersPath, work1Path, work2Path){
     Console.noteln("[mc] Creating master calibration files...");
     Console.noteln("[mc]   Raw path: " + rawPath);
     Console.noteln("[mc]   Masters path: " + mastersPath);
+    Console.noteln("[mc]   Work1 path: " + work1Path);
     Console.noteln("[mc]   Work2 path: " + work2Path);
 
     // 1. Index raw files
     var rawIndex = MC_indexRawFiles(rawPath);
-    if (!rawIndex || rawIndex.length === 0){
+    if (!rawIndex || rawIndex.length == 0){
         throw new Error("No valid calibration files found");
     }
 
     // 2. Group by parameters
     var groups = MC_groupByParams(rawIndex);
 
-    // 3. Create MasterDarks
-    var outputPath = mastersPath || (work2Path + "/!Integrated");
+    // 3. Determine output paths
+    // For now: save to work2Path/!Integrated/ (mastersPath logic will be added later)
+    // Remove trailing slashes to avoid double slashes
+    var w2 = work2Path.replace(/\/+$/, "");
+    var w1 = work1Path.replace(/\/+$/, "");
+    var outputPath = w2 + "/!Integrated";
+
+    // Temp path fallback: work2Path if available, otherwise work1Path
+    var tempPath = (work2Path && work2Path.trim()) ?
+                   (w2 + "/Masters_Temp") :
+                   (w1 + "/Masters_Temp");
+
+    Console.noteln("[mc]   Output path: " + outputPath);
+    Console.noteln("[mc]   Temp path: " + tempPath);
+
+    // 4. Create MasterDarks
     var masterDarks = MC_createMasterDarks(groups.darks, outputPath);
 
-    // 4. Create MasterDarkFlats
+    // 5. Create MasterDarkFlats
     var masterDarkFlats = MC_createMasterDarkFlats(groups.darkFlats, outputPath);
 
-    // 5. Match DarkFlats to Flats
+    // 6. Match DarkFlats to Flats
     var dfMatches = MC_matchDarkFlatToFlat(masterDarkFlats, groups.flats);
 
-    // 6. Calibrate Flats
-    var tempPath = work2Path + "/Masters_Temp";
+    // 7. Calibrate Flats
     var calibratedFlats = MC_calibrateFlats(groups.flats, dfMatches, tempPath);
 
-    // 7. Create MasterFlats
+    // 8. Create MasterFlats
     var masterFlats = MC_createMasterFlats(calibratedFlats, outputPath);
 
     Console.noteln("[mc] Complete!");
