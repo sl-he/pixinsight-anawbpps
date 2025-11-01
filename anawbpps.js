@@ -82,6 +82,15 @@ function PP_setElapsed(dlg, node, elapsedText){
     }catch(_){}
 }
 
+// Format elapsed time in seconds to HH:MM:SS.hh format (same as SubframeSelector)
+function PP_fmtHMS(sec){
+    var t = Math.max(0, Math.floor(sec));
+    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
+    var hs = Math.floor((sec - t) * 100); // hundredths
+    var pad=function(n){ return (n<10?"0":"")+n; };
+    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
+}
+
 /* Utilities */
 function formatElapsedMS(ms) {
     if (ms < 0) ms = 0;
@@ -671,7 +680,6 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
 
     // Map to store progress rows for each master file
     if (!dlg.masterRows) dlg.masterRows = {};
-    var rowTimes = {}; // Track start time for each row
 
     var ok = true, err = "";
 
@@ -735,6 +743,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
             var type = data.type;
             var index = data.index;
             var groupInfo = data.groupInfo;
+            var itemPhase = groupInfo.phase; // 'start' or 'complete'
 
             var key = type + "_" + index;
             var row = dlg.masterRows[key];
@@ -744,53 +753,60 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 return;
             }
 
-            // Determine operation type for note
-            var operationType = "";
-            if (type === "dark" || type === "darkflat" || type === "flat"){
-                operationType = "integrating";
-            } else if (type === "calibflat"){
-                operationType = "calibrating";
-            }
+            if (itemPhase === 'start'){
+                // Determine operation type for note
+                var operationType = "";
+                if (type === "dark" || type === "darkflat" || type === "flat"){
+                    operationType = "integrating";
+                } else if (type === "calibflat"){
+                    operationType = "calibrating";
+                }
 
-            // Mark as running and record start time
-            PP_setStatus(dlg, row, PP_iconRunning());
-            PP_setNote(dlg, row, operationType + " " + (groupInfo.fileCount || 0) + " files");
-            rowTimes[key] = Date.now();
-            try { processEvents(); } catch(_){}
+                // Mark as running
+                PP_setStatus(dlg, row, PP_iconRunning());
+                PP_setNote(dlg, row, operationType + " " + (groupInfo.fileCount || 0) + " files");
+                try { processEvents(); } catch(_){}
+
+            } else if (itemPhase === 'complete'){
+                // Mark as complete with elapsed time
+                var elapsed = groupInfo.elapsed || 0; // in seconds
+                PP_setElapsed(dlg, row, PP_fmtHMS(elapsed));
+                PP_setStatus(dlg, row, groupInfo.success ? PP_iconSuccess() : PP_iconError());
+
+                // Determine completion note
+                var noteText = "";
+                if (type === "dark" || type === "darkflat" || type === "flat"){
+                    noteText = "integrated";
+                } else if (type === "calibflat"){
+                    noteText = "calibrated";
+                }
+                PP_setNote(dlg, row, noteText);
+                try { processEvents(); } catch(_){}
+            }
         }
     }
 
     try {
         // Run master creation with progress callback
         MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCallback);
-
-        // Mark all rows as complete with elapsed time
-        for (var key in dlg.masterRows){
-            if (dlg.masterRows.hasOwnProperty(key)){
-                var row = dlg.masterRows[key];
-                var dt = rowTimes[key] ? (Date.now() - rowTimes[key]) : 0;
-                dlg.updateRow(row, { elapsed: formatElapsedMS(dt) });
-                PP_setStatus(dlg, row, PP_iconSuccess());
-                // Determine what was done based on key prefix
-                var noteText = "";
-                if (key.indexOf("dark_") === 0 || key.indexOf("darkflat_") === 0 || key.indexOf("flat_") === 0){
-                    noteText = "integrated";
-                } else if (key.indexOf("calibflat_") === 0){
-                    noteText = "calibrated";
-                }
-                PP_setNote(dlg, row, noteText);
-            }
-        }
+        // Statuses and elapsed times are updated via callbacks
     } catch(e){
         ok = false;
         err = e.toString();
 
-        // Mark all rows as error if any failed
+        // Mark running rows as error if any failed
         for (var key in dlg.masterRows){
             if (dlg.masterRows.hasOwnProperty(key)){
                 var row = dlg.masterRows[key];
-                PP_setStatus(dlg, row, PP_iconError());
-                PP_setNote(dlg, row, "Error");
+                // Only mark as error if it's still running or queued
+                var currentStatus = "";
+                try {
+                    if (row && row.text) currentStatus = row.text(3);
+                } catch(_){}
+                if (currentStatus.indexOf("Running") >= 0 || currentStatus.indexOf("Queued") >= 0){
+                    PP_setStatus(dlg, row, PP_iconError());
+                    PP_setNote(dlg, row, "Error");
+                }
             }
         }
     }

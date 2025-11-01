@@ -634,13 +634,15 @@ function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
         Console.noteln("[mc]   Group " + (i+1) + "/" + darkGroups.length + ": " +
                        group.items.length + " files -> " + fileName);
 
-        // Notify progress callback
+        // Notify progress callback - start
+        var t0 = Date.now();
         if (progressCallback){
             try {
                 progressCallback(i+1, darkGroups.length, {
                     fileName: fileName,
                     fileCount: group.items.length,
-                    group: group
+                    group: group,
+                    phase: 'start'
                 });
             } catch(e){}
         }
@@ -728,6 +730,21 @@ function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
         Console.noteln("[mc]     Saved: " + fullPath);
         try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
+        // Notify progress callback - complete
+        var elapsed = (Date.now() - t0) / 1000; // in seconds
+        if (progressCallback){
+            try {
+                progressCallback(i+1, darkGroups.length, {
+                    fileName: fileName,
+                    fileCount: group.items.length,
+                    group: group,
+                    phase: 'complete',
+                    elapsed: elapsed,
+                    success: true
+                });
+            } catch(e){}
+        }
+
         // Add to results
         results.push({
             path: fullPath,
@@ -763,13 +780,15 @@ function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
         Console.noteln("[mc]   Group " + (i+1) + "/" + dfGroups.length + ": " +
                        group.items.length + " files -> " + fileName);
 
-        // Notify progress callback
+        // Notify progress callback - start
+        var t0 = Date.now();
         if (progressCallback){
             try {
                 progressCallback(i+1, dfGroups.length, {
                     fileName: fileName,
                     fileCount: group.items.length,
-                    group: group
+                    group: group,
+                    phase: 'start'
                 });
             } catch(e){}
         }
@@ -856,6 +875,22 @@ function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
         intWindow.forceClose();
 
         Console.noteln("[mc]     Saved: " + fullPath);
+        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
+        // Notify progress callback - complete
+        var elapsed = (Date.now() - t0) / 1000; // in seconds
+        if (progressCallback){
+            try {
+                progressCallback(i+1, dfGroups.length, {
+                    fileName: fileName,
+                    fileCount: group.items.length,
+                    group: group,
+                    phase: 'complete',
+                    elapsed: elapsed,
+                    success: true
+                });
+            } catch(e){}
+        }
 
         // Add to results (include metadata for matching)
         results.push({
@@ -1019,14 +1054,16 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         Console.noteln("[mc]   Calibrating Flat group " + (groupIdx+1) + " (filter=" + firstFlat.filter +
                        ", " + flatGroup.items.length + " files) with " + dfMaster.fileName);
 
-        // Notify progress callback
+        // Notify progress callback - start
+        var t0 = Date.now();
         if (progressCallback){
             try {
                 progressCallback(processedGroupCount, matchedGroupCount, {
                     fileName: "CalibFlat_" + firstFlat.filter,
                     fileCount: flatGroup.items.length,
                     filter: firstFlat.filter,
-                    group: flatGroup
+                    group: flatGroup,
+                    phase: 'start'
                 });
             } catch(e){}
         }
@@ -1129,6 +1166,22 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
 
         Console.noteln("[mc]     Calibrated " + calibratedPaths.length + " files -> " + tempPath);
         try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
+        // Notify progress callback - complete
+        var elapsed = (Date.now() - t0) / 1000; // in seconds
+        if (progressCallback){
+            try {
+                progressCallback(processedGroupCount, matchedGroupCount, {
+                    fileName: "CalibFlat_" + firstFlat.filter,
+                    fileCount: flatGroup.items.length,
+                    filter: firstFlat.filter,
+                    group: flatGroup,
+                    phase: 'complete',
+                    elapsed: elapsed,
+                    success: true
+                });
+            } catch(e){}
+        }
     }
 
     Console.noteln("[mc]   Flat calibration complete: " + Object.keys(calibratedGroups).length + " groups");
@@ -1167,13 +1220,15 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback
         Console.noteln("[mc]   Group " + (groupIdx+1) + ": " +
                        calibratedPaths.length + " files -> " + fileName);
 
-        // Notify progress callback
+        // Notify progress callback - start
+        var t0 = Date.now();
         if (progressCallback){
             try {
                 progressCallback(processedCount, groupCount, {
                     fileName: fileName,
                     fileCount: calibratedPaths.length,
-                    group: flatGroup
+                    group: flatGroup,
+                    phase: 'start'
                 });
             } catch(e){}
         }
@@ -1249,6 +1304,21 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback
 
         Console.noteln("[mc]     Saved: " + fullPath);
         try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
+        // Notify progress callback - complete
+        var elapsed = (Date.now() - t0) / 1000; // in seconds
+        if (progressCallback){
+            try {
+                progressCallback(processedCount, groupCount, {
+                    fileName: fileName,
+                    fileCount: calibratedPaths.length,
+                    group: flatGroup,
+                    phase: 'complete',
+                    elapsed: elapsed,
+                    success: true
+                });
+            } catch(e){}
+        }
 
         // Add to results
         results.push({
