@@ -664,6 +664,144 @@ function makeWorkFolders(work1Root, work2Root, useTwo){
 }
 
 // ============================================================================
+// Master Calibration Files Creation with Progress UI
+// ============================================================================
+function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path){
+    if (!dlg) throw new Error("Progress dialog is not provided.");
+
+    // Map to store progress rows for each master file
+    if (!dlg.masterRows) dlg.masterRows = {};
+    var rowTimes = {}; // Track start time for each row
+
+    var ok = true, err = "";
+
+    // Progress callback to handle both initialization and progress updates
+    function progressCallback(phase, data){
+        if (phase === 'init'){
+            // Create all rows when groups are known
+            var groups = data.groups;
+
+            // MasterDark Integration rows
+            for (var i = 0; i < groups.darks.length; i++){
+                var darkGroup = groups.darks[i];
+                var fileName = MC_generateMasterFileName(darkGroup, "Dark");
+                var key = "dark_" + (i+1);
+                var row = dlg.addRow("MasterDark Integration", fileName);
+                dlg.masterRows[key] = row;
+                PP_setStatus(dlg, row, PP_iconQueued());
+                PP_setNote(dlg, row, darkGroup.items.length + " files");
+            }
+
+            // MasterDarkFlat Integration rows
+            for (var i = 0; i < groups.darkFlats.length; i++){
+                var dfGroup = groups.darkFlats[i];
+                var fileName = MC_generateMasterFileName(dfGroup, "DarkFlat");
+                var key = "darkflat_" + (i+1);
+                var row = dlg.addRow("MasterDarkFlat Integration", fileName);
+                dlg.masterRows[key] = row;
+                PP_setStatus(dlg, row, PP_iconQueued());
+                PP_setNote(dlg, row, dfGroup.items.length + " files");
+            }
+
+            // Flat Calibration rows - use same naming as MasterFlat
+            var calibFlatIndex = 0;
+            for (var i = 0; i < groups.flats.length; i++){
+                var flatGroup = groups.flats[i];
+                calibFlatIndex++;
+                var key = "calibflat_" + calibFlatIndex;
+                // Generate filename same as MasterFlat to keep consistency
+                var fileName = MC_generateMasterFileName(flatGroup, "Flat");
+                var row = dlg.addRow("Flat Calibration", fileName);
+                dlg.masterRows[key] = row;
+                PP_setStatus(dlg, row, PP_iconQueued());
+                PP_setNote(dlg, row, flatGroup.items.length + " files");
+            }
+
+            // MasterFlat Integration rows
+            for (var i = 0; i < groups.flats.length; i++){
+                var flatGroup = groups.flats[i];
+                var fileName = MC_generateMasterFileName(flatGroup, "Flat");
+                var key = "flat_" + (i+1);
+                var row = dlg.addRow("MasterFlat Integration", fileName);
+                dlg.masterRows[key] = row;
+                PP_setStatus(dlg, row, PP_iconQueued());
+                PP_setNote(dlg, row, flatGroup.items.length + " files");
+            }
+
+            try { processEvents(); } catch(_){}
+
+        } else if (phase === 'progress'){
+            // Update row status during processing
+            var type = data.type;
+            var index = data.index;
+            var groupInfo = data.groupInfo;
+
+            var key = type + "_" + index;
+            var row = dlg.masterRows[key];
+
+            if (!row){
+                Console.warningln("[mc] Progress callback: row not found for " + key);
+                return;
+            }
+
+            // Determine operation type for note
+            var operationType = "";
+            if (type === "dark" || type === "darkflat" || type === "flat"){
+                operationType = "integrating";
+            } else if (type === "calibflat"){
+                operationType = "calibrating";
+            }
+
+            // Mark as running and record start time
+            PP_setStatus(dlg, row, PP_iconRunning());
+            PP_setNote(dlg, row, operationType + " " + (groupInfo.fileCount || 0) + " files");
+            rowTimes[key] = Date.now();
+            try { processEvents(); } catch(_){}
+        }
+    }
+
+    try {
+        // Run master creation with progress callback
+        MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCallback);
+
+        // Mark all rows as complete with elapsed time
+        for (var key in dlg.masterRows){
+            if (dlg.masterRows.hasOwnProperty(key)){
+                var row = dlg.masterRows[key];
+                var dt = rowTimes[key] ? (Date.now() - rowTimes[key]) : 0;
+                dlg.updateRow(row, { elapsed: formatElapsedMS(dt) });
+                PP_setStatus(dlg, row, PP_iconSuccess());
+                // Determine what was done based on key prefix
+                var noteText = "";
+                if (key.indexOf("dark_") === 0 || key.indexOf("darkflat_") === 0 || key.indexOf("flat_") === 0){
+                    noteText = "integrated";
+                } else if (key.indexOf("calibflat_") === 0){
+                    noteText = "calibrated";
+                }
+                PP_setNote(dlg, row, noteText);
+            }
+        }
+    } catch(e){
+        ok = false;
+        err = e.toString();
+
+        // Mark all rows as error if any failed
+        for (var key in dlg.masterRows){
+            if (dlg.masterRows.hasOwnProperty(key)){
+                var row = dlg.masterRows[key];
+                PP_setStatus(dlg, row, PP_iconError());
+                PP_setNote(dlg, row, "Error");
+            }
+        }
+    }
+
+    try { processEvents(); } catch(_){}
+
+    if (!ok) throw new Error(err);
+    return { ok: true };
+}
+
+// ============================================================================
 // UI helpers
 // ============================================================================
 function PathRow(parent, labelText, tooltip){
@@ -814,16 +952,22 @@ function ANAWBPPSDialog(){
         Console.noteln("ANAWBPPS - Master Calibration Files Creation");
         Console.noteln("========================================");
 
+        var ppDlg = new ProgressDialog();
+        ppDlg.startTotal();
+        try { ppDlg.show(); } catch(_){}
+
         try {
-            MC_createMasters(rawPath, mastersPath, work1Path, work2Path);
+            PP_runCreateMasters_UI(ppDlg, rawPath, mastersPath, work1Path, work2Path);
             Console.noteln("========================================");
             Console.noteln("Master calibration files created successfully!");
             Console.noteln("========================================");
+            ppDlg.setDone();
             showDialogBox("ANAWBPPS", "Master calibration files created successfully!\n\nCheck Console for details.");
         } catch(e){
             Console.criticalln("========================================");
             Console.criticalln("ERROR: " + e);
             Console.criticalln("========================================");
+            ppDlg.setDone();
             showDialogBox("ANAWBPPS", "Error creating master calibration files:\n\n" + e + "\n\nCheck Console for details.");
         }
     };

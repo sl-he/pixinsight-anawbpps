@@ -614,8 +614,11 @@ function MC_generateMasterFileName(group, type){
 
 /**
  * Create MasterDark files
+ * @param {Array} darkGroups - Array of grouped dark frames
+ * @param {string} outputPath - Output directory path
+ * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_createMasterDarks(darkGroups, outputPath){
+function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
     Console.noteln("[mc] Creating MasterDark files... (" + darkGroups.length + " groups)");
 
     var results = [];
@@ -630,6 +633,17 @@ function MC_createMasterDarks(darkGroups, outputPath){
 
         Console.noteln("[mc]   Group " + (i+1) + "/" + darkGroups.length + ": " +
                        group.items.length + " files -> " + fileName);
+
+        // Notify progress callback
+        if (progressCallback){
+            try {
+                progressCallback(i+1, darkGroups.length, {
+                    fileName: fileName,
+                    fileCount: group.items.length,
+                    group: group
+                });
+            } catch(e){}
+        }
 
         // Prepare images array for ImageIntegration
         var images = [];
@@ -657,6 +671,13 @@ function MC_createMasterDarks(darkGroups, outputPath){
             P.executeGlobal();
         } catch(e){
             Console.criticalln("[mc]   ERROR: ImageIntegration failed: " + e);
+            // Try to close integration window if it exists
+            try {
+                var errView = View.viewById("integration");
+                if (errView && !errView.isNull){
+                    errView.window.forceClose();
+                }
+            } catch(e2){}
             continue;
         }
 
@@ -705,6 +726,7 @@ function MC_createMasterDarks(darkGroups, outputPath){
         intWindow.forceClose();
 
         Console.noteln("[mc]     Saved: " + fullPath);
+        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
         // Add to results
         results.push({
@@ -721,8 +743,11 @@ function MC_createMasterDarks(darkGroups, outputPath){
 
 /**
  * Create MasterDarkFlat files
+ * @param {Array} dfGroups - Array of grouped dark flat frames
+ * @param {string} outputPath - Output directory path
+ * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_createMasterDarkFlats(dfGroups, outputPath){
+function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
     Console.noteln("[mc] Creating MasterDarkFlat files... (" + dfGroups.length + " groups)");
 
     var results = [];
@@ -737,6 +762,17 @@ function MC_createMasterDarkFlats(dfGroups, outputPath){
 
         Console.noteln("[mc]   Group " + (i+1) + "/" + dfGroups.length + ": " +
                        group.items.length + " files -> " + fileName);
+
+        // Notify progress callback
+        if (progressCallback){
+            try {
+                progressCallback(i+1, dfGroups.length, {
+                    fileName: fileName,
+                    fileCount: group.items.length,
+                    group: group
+                });
+            } catch(e){}
+        }
 
         // Prepare images array for ImageIntegration
         var images = [];
@@ -764,6 +800,13 @@ function MC_createMasterDarkFlats(dfGroups, outputPath){
             P.executeGlobal();
         } catch(e){
             Console.criticalln("[mc]   ERROR: ImageIntegration failed: " + e);
+            // Try to close integration window if it exists
+            try {
+                var errView = View.viewById("integration");
+                if (errView && !errView.isNull){
+                    errView.window.forceClose();
+                }
+            } catch(e2){}
             continue;
         }
 
@@ -927,8 +970,12 @@ function MC_matchDarkFlatToFlat(dfMasters, flatGroups){
 /**
  * Calibrate Flat files using MasterDarkFlat
  * Returns: { flatGroupIndex: [array of calibrated file paths] }
+ * @param {Array} flatGroups - Array of grouped flat frames
+ * @param {Object} dfMatches - Matching MasterDarkFlat for each flat group
+ * @param {string} tempPath - Temporary directory path
+ * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
+function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
     Console.noteln("[mc] Calibrating Flat files...");
 
     var calibratedGroups = {};
@@ -950,6 +997,14 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
         File.createDirectory(tempPath, true);
     }
 
+    // Count matched groups for progress
+    var matchedGroupCount = 0;
+    for (var k in dfMatches){
+        if (dfMatches.hasOwnProperty(k)) matchedGroupCount++;
+    }
+
+    var processedGroupCount = 0;
+
     // Process each matched Flat group
     for (var key in dfMatches){
         if (!dfMatches.hasOwnProperty(key)) continue;
@@ -959,8 +1014,22 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
         var dfMaster = dfMatches[groupIdx];
         var firstFlat = flatGroup.items[0];
 
+        processedGroupCount++;
+
         Console.noteln("[mc]   Calibrating Flat group " + (groupIdx+1) + " (filter=" + firstFlat.filter +
                        ", " + flatGroup.items.length + " files) with " + dfMaster.fileName);
+
+        // Notify progress callback
+        if (progressCallback){
+            try {
+                progressCallback(processedGroupCount, matchedGroupCount, {
+                    fileName: "CalibFlat_" + firstFlat.filter,
+                    fileCount: flatGroup.items.length,
+                    filter: firstFlat.filter,
+                    group: flatGroup
+                });
+            } catch(e){}
+        }
 
         // Prepare target frames array
         var targetFrames = [];
@@ -1059,6 +1128,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
         };
 
         Console.noteln("[mc]     Calibrated " + calibratedPaths.length + " files -> " + tempPath);
+        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
     }
 
     Console.noteln("[mc]   Flat calibration complete: " + Object.keys(calibratedGroups).length + " groups");
@@ -1068,12 +1138,16 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath){
 
 /**
  * Create MasterFlat files from calibrated Flat files
+ * @param {Object} calibratedFlatGroups - Calibrated flat groups with paths
+ * @param {string} outputPath - Output directory path
+ * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_createMasterFlats(calibratedFlatGroups, outputPath){
+function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback){
     var groupCount = Object.keys(calibratedFlatGroups).length;
     Console.noteln("[mc] Creating MasterFlat files... (" + groupCount + " groups)");
 
     var results = [];
+    var processedCount = 0;
 
     for (var key in calibratedFlatGroups){
         if (!calibratedFlatGroups.hasOwnProperty(key)) continue;
@@ -1084,12 +1158,25 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath){
         var calibratedPaths = data.calibratedPaths;
         var firstItem = flatGroup.items[0];
 
+        processedCount++;
+
         // Generate output filename
         var fileName = MC_generateMasterFileName(flatGroup, "Flat");
         var fullPath = outputPath + "/" + fileName;
 
         Console.noteln("[mc]   Group " + (groupIdx+1) + ": " +
                        calibratedPaths.length + " files -> " + fileName);
+
+        // Notify progress callback
+        if (progressCallback){
+            try {
+                progressCallback(processedCount, groupCount, {
+                    fileName: fileName,
+                    fileCount: calibratedPaths.length,
+                    group: flatGroup
+                });
+            } catch(e){}
+        }
 
         // Prepare images array for ImageIntegration
         var images = [];
@@ -1117,6 +1204,13 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath){
             P.executeGlobal();
         } catch(e){
             Console.criticalln("[mc]   ERROR: ImageIntegration failed: " + e);
+            // Try to close integration window if it exists
+            try {
+                var errView = View.viewById("integration");
+                if (errView && !errView.isNull){
+                    errView.window.forceClose();
+                }
+            } catch(e2){}
             continue;
         }
 
@@ -1154,6 +1248,7 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath){
         intWindow.forceClose();
 
         Console.noteln("[mc]     Saved: " + fullPath);
+        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
         // Add to results
         results.push({
@@ -1170,22 +1265,43 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath){
 
 /**
  * Main function: Create all master calibration files
+ * @param {string} rawPath - Path to raw calibration files
+ * @param {string} mastersPath - Path for master files output
+ * @param {string} work1Path - Work directory 1
+ * @param {string} work2Path - Work directory 2
+ * @param {function} progressCallback - Optional callback(phase, data)
+ *                                      phase: 'init' | 'progress' | 'complete'
+ *                                      For 'init': data = { groups: {...} }
+ *                                      For 'progress': data = { type, index, total, groupInfo }
  */
-function MC_createMasters(rawPath, mastersPath, work1Path, work2Path){
+function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCallback){
     Console.noteln("[mc] Creating master calibration files...");
     Console.noteln("[mc]   Raw path: " + rawPath);
     Console.noteln("[mc]   Masters path: " + mastersPath);
     Console.noteln("[mc]   Work1 path: " + work1Path);
     Console.noteln("[mc]   Work2 path: " + work2Path);
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 1. Index raw files
     var rawIndex = MC_indexRawFiles(rawPath);
     if (!rawIndex || rawIndex.length == 0){
         throw new Error("No valid calibration files found");
     }
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 2. Group by parameters
     var groups = MC_groupByParams(rawIndex);
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
+    // Notify UI about groups (for pre-creating rows)
+    if (progressCallback){
+        try {
+            progressCallback('init', { groups: groups });
+        } catch(e){
+            Console.warningln("[mc] Progress callback (init) error: " + e);
+        }
+    }
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 3. Determine output paths
     // For now: save to work2Path/!Integrated/ (mastersPath logic will be added later)
@@ -1202,23 +1318,47 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path){
     Console.noteln("[mc]   Output path: " + outputPath);
     Console.noteln("[mc]   Temp path: " + tempPath);
 
+    // Create progress callback wrapper for individual operations
+    function makeCallback(masterType){
+        return function(index, total, groupInfo){
+            if (progressCallback){
+                try {
+                    progressCallback('progress', {
+                        type: masterType,
+                        index: index,
+                        total: total,
+                        groupInfo: groupInfo
+                    });
+                } catch(e){
+                    Console.warningln("[mc] Progress callback error: " + e);
+                }
+            }
+        };
+    }
+
     // 4. Create MasterDarks
-    var masterDarks = MC_createMasterDarks(groups.darks, outputPath);
+    var masterDarks = MC_createMasterDarks(groups.darks, outputPath, makeCallback('dark'));
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 5. Create MasterDarkFlats
-    var masterDarkFlats = MC_createMasterDarkFlats(groups.darkFlats, outputPath);
+    var masterDarkFlats = MC_createMasterDarkFlats(groups.darkFlats, outputPath, makeCallback('darkflat'));
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 6. Match DarkFlats to Flats
     var dfMatches = MC_matchDarkFlatToFlat(masterDarkFlats, groups.flats);
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 7. Calibrate Flats
-    var calibratedFlats = MC_calibrateFlats(groups.flats, dfMatches, tempPath);
+    var calibratedFlats = MC_calibrateFlats(groups.flats, dfMatches, tempPath, makeCallback('calibflat'));
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 8. Create MasterFlats
-    var masterFlats = MC_createMasterFlats(calibratedFlats, outputPath);
+    var masterFlats = MC_createMasterFlats(calibratedFlats, outputPath, makeCallback('flat'));
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     Console.noteln("[mc] Complete!");
     Console.noteln("[mc]   MasterDark: " + masterDarks.length);
     Console.noteln("[mc]   MasterDarkFlat: " + masterDarkFlats.length);
     Console.noteln("[mc]   MasterFlat: " + masterFlats.length);
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 }
