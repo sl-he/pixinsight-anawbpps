@@ -931,6 +931,16 @@ function _fi_parseMaster(fullPath, rootPath){
             var exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
             var filter = _fi_normFilter(_fi_getKey(K, "FILTER"));
 
+            // Check OBJECT for FlatWizard (special case for flats created via wizard)
+            var object = null;
+            if (type == "FLAT" || type == "DARKFLAT"){
+                var objRaw = _fi_getKey(K, "OBJECT");
+                if (objRaw && String(objRaw).trim() == "FlatWizard"){
+                    // Valid master flat, but clear object (not a real sky target)
+                    object = null;
+                }
+            }
+
             parsed = {
                 path: _fi_norm(fullPath),
                 filename: fileName,
@@ -1091,14 +1101,15 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
     // Read FITS keywords once
     var K = _fi_readFitsKeywords(fullPath);
-    if (!K){
-        throw new Error("Failed to read FITS keywords: " + fileName);
-    }
+    var headersAvailable = (K != null);
 
-    // Extract common identity keywords
-    var telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
-    var camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
-    var imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
+    // Extract common identity keywords (if headers available)
+    var telescope = null, camera = null, imagetyp = null;
+    if (headersAvailable){
+        telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
+        camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
+        imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
+    }
 
     // Auto-detect type if not specified
     var detectedType = expectedType;
@@ -1128,34 +1139,123 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
         else detectedType = "LIGHT";
     }
 
-    if (!telescope || !camera){
+    // Check if we need filename fallback (only for MASTER type)
+    var useFilenameFallback = false;
+    if (detectedType == "MASTER" && (!headersAvailable || !telescope || !camera || !imagetyp)){
+        useFilenameFallback = true;
+    }
+
+    // For non-MASTER types, require telescope/camera from headers
+    if (!useFilenameFallback && (!telescope || !camera)){
         throw new Error("TELESCOP or INSTRUME missing: " + fileName);
     }
 
-    var setup = telescope + "_" + camera;
+    var setup = null, filter = null, readout = null, gain = null, offset = null, usb = null;
+    var binning = null, exp = null, tempSetC = null;
+    var date = null, dateTime = null, dateTimeLoc = null;
+    var parseMethod = "headers";
 
-    // Common acquisition params
-    var filterRaw = _fi_getKey(K, "FILTER");
-    var filter = _fi_normFilterUnified(filterRaw);
-    var readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
-    var gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
-    var offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
-    var usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+    if (useFilenameFallback){
+        // === FILENAME FALLBACK for old masters without headers ===
+        parseMethod = "filename";
 
-    var xbin = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
-    var ybin = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
-    var binning = _fi_mkBinning(xbin, ybin);
+        var name = fileName.replace(/\.\w+$/, ''); // remove extension
+        var clean = name.replace(/!+/g, "");
+        var up = clean.toUpperCase();
 
-    var exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
+        // Setup: everything before "_Master"
+        var setupIdx = clean.indexOf("_Master");
+        if (setupIdx > 0){
+            setup = clean.substring(0, setupIdx);
+        }
 
-    var tempSetC = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
-    if (tempSetC != null) tempSetC = Math.round(tempSetC);
+        // Split into tokens
+        var parts = clean.split("_");
 
-    var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
-    var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
-    var date = _fi_extractDateOnly(dateObsRaw);
-    var dateTime = _fi_extractDateTime(dateObsRaw);
-    var dateTimeLoc = _fi_extractDateTime(dateLocRaw);
+        // Telescope: from setup
+        telescope = setup;
+
+        // Camera: look for QHY*, ASI*, etc.
+        for (var i = 0; i < parts.length; ++i){
+            if (/^(QHY|ASI|ZWO|FLI|SBIG|ATIK)/i.test(parts[i])){
+                camera = parts[i];
+                break;
+            }
+        }
+
+        // Readout: "High Gain Mode 16BIT"
+        var mRead = clean.match(/(High Gain Mode\s*\d*BIT|Low Gain Mode\s*\d*BIT)/i);
+        if (mRead) readout = mRead[1];
+
+        // Binning: 1x1 or Bin1x1
+        var mBin = clean.match(/(?:BIN)?(\d+)x(\d+)/i);
+        if (mBin) binning = (mBin[1] + "x" + mBin[2]);
+
+        // Gain / Offset / USB
+        var mG = clean.match(/_G(\d+)/i);
+        if (mG) gain = _fi_toInt(mG[1]);
+
+        var mO = clean.match(/_OS(\d+)/i);
+        if (mO) offset = _fi_toInt(mO[1]);
+
+        var mU = clean.match(/_U(\d+)/i);
+        if (mU) usb = _fi_toInt(mU[1]);
+
+        // Temperature: _0C or _-20C
+        var mT = clean.match(/_(-?\d+)C/i);
+        if (mT) tempSetC = _fi_toInt(mT[1]);
+
+        // Exposure: _015s (3 digits seconds) - for DARKs only
+        var mExp = clean.match(/_([\d.]+)s/i);
+        if (mExp){
+            var v = parseFloat(mExp[1]);
+            if (!isNaN(v)) exp = v;
+        }
+
+        // Filter (only for flats): _L_, _R_, _G_, _B_, _HA_, _OIII_, _SII_
+        var mF = clean.match(/_(L|R|G|B|HA|H\-ALPHA|OIII|O3|SII|S2)_/i);
+        if (mF) filter = _fi_normFilterUnified(mF[1]);
+
+        // Date: YYYY_MM_DD or YYYY-MM-DD
+        var mD = clean.match(/(\d{4}[-_]\d{2}[-_]\d{2})/);
+        if (mD) date = mD[1].replace(/_/g, "-"); // normalize to YYYY-MM-DD
+
+        // If setup not extracted, try from path
+        if (!setup && rootPath){
+            setup = _fi_setupFromPath(rootPath, fullPath);
+        }
+
+        // If setup still not available, try parent dir name
+        if (!setup){
+            setup = _fi_parentDirName(fullPath);
+        }
+
+    } else {
+        // === PARSE FROM HEADERS ===
+        setup = telescope + "_" + camera;
+
+        var filterRaw = _fi_getKey(K, "FILTER");
+        filter = _fi_normFilterUnified(filterRaw);
+        readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+        gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+        offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+        usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+
+        var xbin = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
+        var ybin = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
+        binning = _fi_mkBinning(xbin, ybin);
+
+        exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
+
+        tempSetC = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
+        if (tempSetC != null) tempSetC = Math.round(tempSetC);
+
+        var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
+        var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
+        date = _fi_extractDateOnly(dateObsRaw);
+        dateTime = _fi_extractDateTime(dateObsRaw);
+        dateTimeLoc = _fi_extractDateTime(dateLocRaw);
+    }
 
     // Type-specific fields
     var type = "UNKNOWN";
@@ -1165,20 +1265,22 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
     if (detectedType == "LIGHT"){
         type = "LIGHT";
 
-        // Object name
-        object = (function(v){
-            var t = (v == null) ? "" : String(v).trim();
-            return t.length ? t : null;
-        })(_fi_getKey(K, "OBJECT"));
+        // Object name (only from headers)
+        if (headersAvailable){
+            object = (function(v){
+                var t = (v == null) ? "" : String(v).trim();
+                return t.length ? t : null;
+            })(_fi_getKey(K, "OBJECT"));
 
-        // Optical params (for scale calculation)
-        focalLen = _fi_toFloat(_fi_firstKey(K, "FOCALLEN", "FOCAL", "FOCLEN"));
-        xPixSz = _fi_toFloat(_fi_firstKey(K, "XPIXSZ", "PIXSIZE", "PIXELSZ"));
-        yPixSz = _fi_toFloat(_fi_firstKey(K, "YPIXSZ", "PIXSIZE", "PIXELSZ"));
+            // Optical params (for scale calculation)
+            focalLen = _fi_toFloat(_fi_firstKey(K, "FOCALLEN", "FOCAL", "FOCLEN"));
+            xPixSz = _fi_toFloat(_fi_firstKey(K, "XPIXSZ", "PIXSIZE", "PIXELSZ"));
+            yPixSz = _fi_toFloat(_fi_firstKey(K, "YPIXSZ", "PIXSIZE", "PIXELSZ"));
 
-        // Calculate scale
-        if (focalLen != null && xPixSz != null){
-            scale = (xPixSz / focalLen) * 206.265;
+            // Calculate scale
+            if (focalLen != null && xPixSz != null){
+                scale = (xPixSz / focalLen) * 206.265;
+            }
         }
 
     } else if (detectedType == "CALIBRATION" || detectedType == "MASTER"){
@@ -1192,9 +1294,22 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         // Fallback to filename if type still unknown
         if (type == "UNKNOWN"){
-            if (/\bBIAS\b/i.test(fileName)) type = "BIAS";
+            var up = fileName.toUpperCase();
+            if (up.indexOf("MASTERBIAS") >= 0) type = "BIAS";
+            else if (up.indexOf("MASTERDARK") >= 0) type = "DARK";
+            else if (up.indexOf("MASTERF") >= 0 || up.indexOf("MASTERFLAT") >= 0) type = "FLAT";
+            else if (/\bBIAS\b/i.test(fileName)) type = "BIAS";
             else if (/\bDARK\b/i.test(fileName)) type = "DARK";
             else if (/\bFLAT\b/i.test(fileName)) type = "FLAT";
+        }
+
+        // Check OBJECT for FlatWizard (special case for flats created via wizard)
+        if (headersAvailable && type == "FLAT"){
+            var objRaw = _fi_getKey(K, "OBJECT");
+            if (objRaw && String(objRaw).trim() == "FlatWizard"){
+                // Valid master flat, but clear object (not a real sky target)
+                object = null;
+            }
         }
     }
 
@@ -1203,7 +1318,7 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
         path: _fi_norm(fullPath),
         filename: fileName,
         type: type,
-        parseMethod: "headers",
+        parseMethod: parseMethod,  // "headers" or "filename"
         detectedType: detectedType,
 
         setup: setup,
@@ -1370,6 +1485,14 @@ function FI_indexMasters(rootPath, savePath){
     // Walk directory and parse all FITS files
     _fi_walkDir(rootPath, function(fullPath){
         if (!_fi_isFitsLike(fullPath)) return;
+
+        // Master files MUST be in XISF format (required for calibration in PixInsight)
+        var ext = File.extractExtension(fullPath).toLowerCase();
+        if (ext != ".xisf"){
+            var fileName = _fi_basename(fullPath);
+            Console.warningln("[FI_indexMasters] Skipping non-XISF master: " + fileName + " (ext: " + ext + ")");
+            return;
+        }
 
         try {
             var parsed = _fi_parseFile(fullPath, rootPath);
