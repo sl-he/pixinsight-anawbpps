@@ -720,8 +720,280 @@ function _fi_parseCalibration(fullPath){
     };
 }
 
-/* TODO: _fi_parseMaster() */
-/* TODO: Filename fallback parser (_fi_parseByFilename) */
+// --- Filename fallback parser (for old masters) ---
+function _fi_parseByFilename(fullPath){
+    var fileName = _fi_basename(fullPath);
+    var name = fileName.replace(/\.\w+$/, ''); // remove extension
+    var clean = name.replace(/!+/g, "");
+    var up = clean.toUpperCase();
+
+    // Type: BIAS/DARK/FLAT
+    var type = up.indexOf("MASTERBIAS") >= 0 ? "BIAS" :
+               up.indexOf("MASTERDARK") >= 0 ? "DARK" :
+               (up.indexOf("MASTERF") >= 0 || up.indexOf("MASTERFLAT") >= 0) ? "FLAT" : null;
+
+    // Setup: everything before "_Master"
+    var setup = null;
+    var setupIdx = clean.indexOf("_Master");
+    if (setupIdx > 0){
+        setup = clean.substring(0, setupIdx);
+    }
+
+    // Split into tokens
+    var parts = clean.split("_");
+
+    // Telescope: from setup
+    var telescope = setup;
+
+    // Camera: look for QHY*, ASI*, etc.
+    var camera = null;
+    for (var i = 0; i < parts.length; ++i){
+        if (/^(QHY|ASI|ZWO|FLI|SBIG|ATIK)/i.test(parts[i])){
+            camera = parts[i];
+            break;
+        }
+    }
+
+    // Readout: "High Gain Mode 16BIT"
+    var readout = null;
+    var mRead = clean.match(/(High Gain Mode\s*\d*BIT|Low Gain Mode\s*\d*BIT)/i);
+    if (mRead) readout = mRead[1];
+
+    // Binning: 1x1 or Bin1x1
+    var binning = null;
+    var mBin = clean.match(/(?:BIN)?(\d+)x(\d+)/i);
+    if (mBin) binning = (mBin[1] + "x" + mBin[2]);
+
+    // Gain / Offset / USB
+    var gain = null;
+    var mG = clean.match(/_G(\d+)/i);
+    if (mG) gain = _fi_toInt(mG[1]);
+
+    var offset = null;
+    var mO = clean.match(/_OS(\d+)/i);
+    if (mO) offset = _fi_toInt(mO[1]);
+
+    var usb = null;
+    var mU = clean.match(/_U(\d+)/i);
+    if (mU) usb = _fi_toInt(mU[1]);
+
+    // Temperature: _0C or _-20C
+    var tempC = null;
+    var mT = clean.match(/_(-?\d+)C/i);
+    if (mT) tempC = _fi_toInt(mT[1]);
+
+    // Exposure: _015s (3 digits seconds) - for DARKs only
+    var exposureSec = null;
+    var mExp = clean.match(/_([\d.]+)s/i);
+    if (mExp){
+        var v = parseFloat(mExp[1]);
+        if (!isNaN(v)) exposureSec = v;
+    }
+
+    // Filter (only for flats): _L_, _R_, _G_, _B_, _HA_, _OIII_, _SII_
+    var filter = null;
+    var mF = clean.match(/_(L|R|G|B|HA|H\-ALPHA|OIII|O3|SII|S2)_/i);
+    if (mF) filter = _fi_normFilter(mF[1]);
+
+    // Date: YYYY_MM_DD or YYYY-MM-DD
+    var date = null;
+    var mD = clean.match(/(\d{4}[-_]\d{2}[-_]\d{2})/);
+    if (mD) date = mD[1].replace(/_/g, "-"); // normalize to YYYY-MM-DD
+
+    return {
+        path: _fi_norm(fullPath),
+        filename: fileName,
+        type: type,            // BIAS/DARK/FLAT or null
+        setup: setup,          // may be null (caller may fill from path)
+        telescope: telescope,  // from setup
+        camera: camera,        // from camera token
+        readout: readout || null,
+        binning: binning || null,
+        gain: gain,
+        offset: offset,
+        usb: usb,
+        tempSetC: tempC,       // from filename, assume set temp
+        tempC: null,           // not available from filename
+        date: date,
+        dateTime: null,        // not available from filename
+        dateTimeLoc: null,     // not available from filename
+        exposureSec: exposureSec, // for darks
+        filter: filter         // for flats
+    };
+}
+
+// --- Master frame parser (headers first, filename fallback) ---
+function _fi_parseMaster(fullPath, rootPath){
+    var fileName = _fi_basename(fullPath);
+
+    // Skip DarkFlats completely
+    if (/\b(DARKFLAT|FLATDARK)\b/i.test(fileName)){
+        throw new Error("DarkFlat/FlatDark skipped");
+    }
+
+    // Try reading FITS headers first
+    var parsed = null;
+    try {
+        var K = _fi_readFitsKeywords(fullPath);
+
+        // Check if we have sufficient headers
+        var telescope = _fi_upperOrNull(_fi_first(K["TELESCOP"], K["TELESCOPE"]));
+        var camera = _fi_upperOrNull(_fi_first(K["INSTRUME"], K["INSTRUMENT"]));
+        var imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
+
+        if (telescope && camera && imagetyp){
+            // Parse from headers (similar to _fi_parseCalibration)
+            var setup = telescope + "_" + camera;
+
+            // Type: normalize BIAS/DARK/FLAT
+            var type = "UNKNOWN";
+            if (imagetyp == "BIAS" || imagetyp == "MASTERBIAS") type = "BIAS";
+            else if (imagetyp == "DARK" || imagetyp == "MASTERDARK") type = "DARK";
+            else if (imagetyp == "FLAT" || imagetyp == "MASTERFLAT") type = "FLAT";
+
+            // Acquisition params
+            var xb = _fi_toInt(_fi_first(K["XBINNING"], K["BINNINGX"], K["XBIN"]));
+            var yb = _fi_toInt(_fi_first(K["YBINNING"], K["BINNINGY"], K["YBIN"]));
+            var binning = _fi_mkBinning(xb, yb);
+            var gain = _fi_toInt(_fi_first(K["GAIN"], K["EGAIN"]));
+            var offset = _fi_toInt(_fi_first(K["OFFSET"], K["QOFFSET"]));
+            var usb = _fi_toInt(_fi_first(K["USBLIMIT"], K["QUSBLIM"]));
+            var readout = _fi_cleanReadout(_fi_first(K["READOUTM"], K["QREADOUT"], K["READMODE"], K["CAMMODE"]));
+
+            // Temperature
+            var tempSetC = _fi_toInt(_fi_first(K["SET-TEMP"], K["SET_TEMP"], K["SETPOINT"], K["CCD-TSET"]));
+            var tempC = _fi_toInt(_fi_first(K["CCD-TEMP"], K["CCD_TEMP"], K["SENSOR_TEMP"], K["CCD-TEMP1"]));
+
+            // Date/Time
+            var dateObsRaw = _fi_first(K["DATE-OBS"], K["DATE_OBS"], K["DATEOBS"], K["DATE"]);
+            var dateLocRaw = _fi_first(K["DATE-LOC"], K["DATE_LOC"], K["DATELOC"]);
+            var date = _fi_extractDateOnly(dateObsRaw);
+            var dateTime = _fi_extractDateTime(dateObsRaw);
+            var dateTimeLoc = _fi_extractDateTime(dateLocRaw);
+
+            // Type-specific: exposure (for darks), filter (for flats)
+            var exp = _fi_toFloat(_fi_first(K["EXPOSURE"], K["EXPTIME"], K["DURATION"]));
+            var filter = _fi_normFilter(_fi_first(K["FILTER"]));
+
+            parsed = {
+                path: _fi_norm(fullPath),
+                filename: fileName,
+                type: type,
+
+                setup: setup,
+                telescope: telescope,
+                camera: camera,
+
+                filter: filter,
+                binning: binning,
+                gain: gain,
+                offset: offset,
+                usb: usb,
+                readout: readout,
+                exposureSec: exp,
+                tempSetC: tempSetC,
+                tempC: tempC,
+
+                date: date,
+                dateTime: dateTime,
+                dateTimeLoc: dateTimeLoc
+            };
+        }
+    } catch(e){
+        // Headers not available or insufficient, will fallback to filename
+    }
+
+    // Fallback to filename parsing if headers insufficient
+    if (!parsed){
+        parsed = _fi_parseByFilename(fullPath);
+    }
+
+    // If still no setup, try to derive from path
+    if (!parsed.setup && rootPath){
+        parsed.setup = _fi_setupFromPath(rootPath, fullPath);
+    }
+
+    // Validate: must have type and setup
+    if (!parsed.type){
+        throw new Error("Cannot determine master type: " + fileName);
+    }
+    if (!parsed.setup){
+        parsed.setup = "UNKNOWN_SETUP";
+    }
+
+    return parsed;
+}
+
+// --- Universal file parser (auto-detect type) ---
+function _fi_parseFile(fullPath, rootPath){
+    var fileName = _fi_basename(fullPath);
+    var fileNameUp = fileName.toUpperCase();
+
+    // Skip DarkFlats
+    if (/\b(DARKFLAT|FLATDARK)\b/i.test(fileName)){
+        throw new Error("DarkFlat/FlatDark skipped");
+    }
+
+    var detectedType = null; // "LIGHT", "CALIBRATION", "MASTER"
+    var imagetyp = null;
+
+    // Step 1: Try to detect type from FITS headers
+    try {
+        var K = _fi_readFitsKeywords(fullPath);
+        imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
+
+        if (imagetyp){
+            // Normalize and detect type
+            if (imagetyp == "LIGHT" || imagetyp == "LIGHTFRAME"){
+                detectedType = "LIGHT";
+            }
+            else if (imagetyp == "BIAS" || imagetyp == "DARK" || imagetyp == "FLAT"){
+                detectedType = "CALIBRATION";
+            }
+            else if (imagetyp == "MASTERBIAS" || imagetyp == "MASTERDARK" || imagetyp == "MASTERFLAT"){
+                detectedType = "MASTER";
+            }
+        }
+    } catch(e){
+        // Headers not available, will try filename detection
+    }
+
+    // Step 2: If type not detected from headers, try filename patterns
+    if (!detectedType){
+        if (fileNameUp.indexOf("_LIGHT_") >= 0 || fileNameUp.indexOf("_LIGHT.") >= 0){
+            detectedType = "LIGHT";
+        }
+        else if (fileNameUp.indexOf("MASTERBIAS") >= 0 || fileNameUp.indexOf("MASTERDARK") >= 0 ||
+                 fileNameUp.indexOf("MASTERFLAT") >= 0 || fileNameUp.indexOf("MASTERF") >= 0){
+            detectedType = "MASTER";
+        }
+        else if (fileNameUp.indexOf("_BIAS_") >= 0 || fileNameUp.indexOf("_DARK_") >= 0 ||
+                 fileNameUp.indexOf("_FLAT_") >= 0){
+            detectedType = "CALIBRATION";
+        }
+    }
+
+    // Step 3: Route to appropriate parser
+    var parsed = null;
+
+    if (detectedType == "LIGHT"){
+        parsed = _fi_parseLight(fullPath, rootPath);
+    }
+    else if (detectedType == "CALIBRATION"){
+        parsed = _fi_parseCalibration(fullPath, rootPath);
+    }
+    else if (detectedType == "MASTER"){
+        parsed = _fi_parseMaster(fullPath, rootPath);
+    }
+    else {
+        throw new Error("Cannot determine file type: " + fileName);
+    }
+
+    // Add detected type info
+    parsed.detectedType = detectedType;
+
+    return parsed;
+}
 
 /* ============================================================================
  * LEVEL 3: Public API (prefix FI_)
