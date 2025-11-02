@@ -176,6 +176,32 @@ function _fi_normFilter(f){
     return s;
 }
 
+/**
+ * Normalize filter name for unified parser
+ * L R G B Ha OIII SII - standard filters
+ * Custom filters - preserve original case
+ */
+function _fi_normFilterUnified(f){
+    if (!f) return null;
+    var s = String(f).trim();
+    if (!s.length) return null;
+    var u = s.toUpperCase();
+
+    // Broadband filters (uppercase short form)
+    if (u == "L" || u == "LUM" || u == "LUMEN" || u == "LUMINANCE") return "L";
+    if (u == "R" || u == "RED") return "R";
+    if (u == "G" || u == "GREEN") return "G";
+    if (u == "B" || u == "BLUE") return "B";
+
+    // Narrowband filters (Ha with lowercase 'a', others uppercase)
+    if (u == "HA" || u == "H-ALPHA" || u == "HALPHA") return "Ha";
+    if (u == "OIII" || u == "O-III" || u == "O3") return "OIII";
+    if (u == "SII" || u == "S-II" || u == "S2") return "SII";
+
+    // Custom filter - return original (preserve user's case)
+    return s;
+}
+
 /* -------- Date/time parsing -------- */
 
 /**
@@ -291,6 +317,32 @@ function _fi_first(){
     for (var i = 0; i < arguments.length; i++){
         var v = arguments[i];
         if (v != undefined && v != null) return v;
+    }
+    return null;
+}
+
+/**
+ * Safe keyword lookup - checks if key exists before accessing
+ * Returns value or null, avoids warnings about undefined properties
+ */
+function _fi_getKey(map, key){
+    if (!map) return null;
+    // Check if key exists in map to avoid ES3 warnings
+    for (var k in map){
+        if (k == key) return map[k];
+    }
+    return null;
+}
+
+/**
+ * Safe _fi_first() for keyword maps - avoids ES3 warnings
+ * Usage: _fi_firstKey(K, "KEY1", "KEY2", "KEY3")
+ */
+function _fi_firstKey(map){
+    if (!map) return null;
+    for (var i = 1; i < arguments.length; i++){
+        var val = _fi_getKey(map, arguments[i]);
+        if (val != undefined && val != null) return val;
     }
     return null;
 }
@@ -546,40 +598,40 @@ function _fi_parseLight(fullPath){
     var K = _fi_keywordsToMap(kws);
 
     // Core identity
-    var telescope = _fi_upperOrNull(_fi_first(K["TELESCOP"], K["TELESCOPE"]));
-    var camera = _fi_upperOrNull(_fi_first(K["INSTRUME"], K["INSTRUMENT"]));
+    var telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
+    var camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
     var object = (function(v){
         var t = (v == null) ? "" : String(v).trim();
         return t.length ? t : null;
-    })(K["OBJECT"]);
-    var imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
+    })(_fi_getKey(K, "OBJECT"));
+    var imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
 
     // Enforce LIGHT type (we index only lights)
     var type = "LIGHT";
 
     // Photometric / acquisition params
-    var filter = _fi_upperOrNull(K["FILTER"]);
-    var readout = _fi_cleanReadout(_fi_first(K["READOUTM"], K["QREADOUT"], K["READMODE"], K["CAMMODE"]));
-    var gain = _fi_toInt(_fi_first(K["GAIN"], K["EGAIN"]));
-    var offset = _fi_toInt(_fi_first(K["OFFSET"], K["QOFFSET"]));
-    var usb = _fi_toInt(_fi_first(K["USBLIMIT"], K["QUSBLIM"]));
+    var filter = _fi_upperOrNull(_fi_getKey(K, "FILTER"));
+    var readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+    var gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+    var offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+    var usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
 
-    var xbin = _fi_first(K["XBINNING"], K["BINNINGX"], K["XBIN"], K["XBINNING_BIN"]);
-    var ybin = _fi_first(K["YBINNING"], K["BINNINGY"], K["YBIN"], K["YBINNING_BIN"]);
+    var xbin = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
+    var ybin = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
     var binning = _fi_mkBinning(xbin, ybin);
 
-    var exp = _fi_toFloat(_fi_first(K["EXPOSURE"], K["EXPTIME"], K["DURATION"]));
+    var exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
 
-    var tSet = _fi_toFloat(_fi_first(K["SET-TEMP"], K["SET_TEMP"], K["SETPOINT"], K["CCD-TSET"]));
-    var tCcd = _fi_toFloat(_fi_first(K["CCD-TEMP"], K["CCD_TEMP"], K["SENSOR_TEMP"], K["CCD-TEMP1"]));
+    var tSet = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SET_TEMP", "SETPOINT", "CCD-TSET"));
+    var tCcd = _fi_toFloat(_fi_firstKey(K, "CCD-TEMP", "CCD_TEMP", "SENSOR_TEMP", "CCD-TEMP1"));
     var tempSetC = (tSet == null) ? null : Math.round(tSet);
     var tempC = (tCcd == null) ? null : Math.round(tCcd);
 
-    var focalLen = _fi_toFloat(_fi_first(K["FOCALLEN"], K["FOCAL"], K["FOCLEN"]));
+    var focalLen = _fi_toFloat(_fi_firstKey(K, "FOCALLEN", "FOCAL", "FOCLEN"));
 
     // Pixel size in microns
-    var xPixSz = _fi_toFloat(_fi_first(K["XPIXSZ"], K["PIXSIZE"], K["PIXELSZ"]));
-    var yPixSz = _fi_toFloat(_fi_first(K["YPIXSZ"], K["PIXSIZE"], K["PIXELSZ"]));
+    var xPixSz = _fi_toFloat(_fi_firstKey(K, "XPIXSZ", "PIXSIZE", "PIXELSZ"));
+    var yPixSz = _fi_toFloat(_fi_firstKey(K, "YPIXSZ", "PIXSIZE", "PIXELSZ"));
 
     // Calculate scale (arcsec/pixel) if we have both focalLen and pixelSize
     var scale = null;
@@ -589,8 +641,8 @@ function _fi_parseLight(fullPath){
     }
 
     // Date/Time: extract both UTC (DATE-OBS) and Local (DATE-LOC)
-    var dateObsRaw = _fi_first(K["DATE-OBS"], K["DATE_OBS"], K["DATEOBS"], K["DATE"]);
-    var dateLocRaw = _fi_first(K["DATE-LOC"], K["DATE_LOC"], K["DATELOC"]);
+    var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
+    var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
 
     var date = _fi_extractDateOnly(dateObsRaw);
     var dateTime = _fi_extractDateTime(dateObsRaw);
@@ -653,9 +705,9 @@ function _fi_parseCalibration(fullPath){
     }
 
     // Core identity
-    var telescope = _fi_upperOrNull(_fi_first(K["TELESCOP"], K["TELESCOPE"]));
-    var camera = _fi_upperOrNull(_fi_first(K["INSTRUME"], K["INSTRUMENT"]));
-    var imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
+    var telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
+    var camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
+    var imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
 
     // Type is required for calibration files
     if (!imagetyp){
@@ -665,26 +717,26 @@ function _fi_parseCalibration(fullPath){
     var type = imagetyp; // DARK, FLAT, BIAS, DARKFLAT
 
     // Acquisition params
-    var filter = _fi_upperOrNull(K["FILTER"]);
-    var readout = _fi_cleanReadout(_fi_first(K["READOUTM"], K["QREADOUT"], K["READMODE"], K["CAMMODE"]));
-    var gain = _fi_toInt(_fi_first(K["GAIN"], K["EGAIN"]));
-    var offset = _fi_toInt(_fi_first(K["OFFSET"], K["QOFFSET"]));
-    var usb = _fi_toInt(_fi_first(K["USBLIMIT"], K["QUSBLIM"]));
+    var filter = _fi_upperOrNull(_fi_getKey(K, "FILTER"));
+    var readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+    var gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+    var offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+    var usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
 
-    var xbin = _fi_first(K["XBINNING"], K["BINNINGX"], K["XBIN"], K["XBINNING_BIN"]);
-    var ybin = _fi_first(K["YBINNING"], K["BINNINGY"], K["YBIN"], K["YBINNING_BIN"]);
+    var xbin = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
+    var ybin = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
     var binning = _fi_mkBinning(xbin, ybin);
 
-    var exp = _fi_toFloat(_fi_first(K["EXPOSURE"], K["EXPTIME"], K["DURATION"]));
+    var exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
 
-    var tSet = _fi_toFloat(_fi_first(K["SET-TEMP"], K["SET_TEMP"], K["SETPOINT"], K["CCD-TSET"]));
-    var tCcd = _fi_toFloat(_fi_first(K["CCD-TEMP"], K["CCD_TEMP"], K["SENSOR_TEMP"], K["CCD-TEMP1"]));
+    var tSet = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SET_TEMP", "SETPOINT", "CCD-TSET"));
+    var tCcd = _fi_toFloat(_fi_firstKey(K, "CCD-TEMP", "CCD_TEMP", "SENSOR_TEMP", "CCD-TEMP1"));
     var tempSetC = (tSet == null) ? null : Math.round(tSet);
     var tempC = (tCcd == null) ? null : Math.round(tCcd);
 
     // Date/Time: extract both UTC (DATE-OBS) and Local (DATE-LOC)
-    var dateObsRaw = _fi_first(K["DATE-OBS"], K["DATE_OBS"], K["DATEOBS"], K["DATE"]);
-    var dateLocRaw = _fi_first(K["DATE-LOC"], K["DATE_LOC"], K["DATELOC"]);
+    var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
+    var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
 
     var date = _fi_extractDateOnly(dateObsRaw);
     var dateTime = _fi_extractDateTime(dateObsRaw);
@@ -840,9 +892,9 @@ function _fi_parseMaster(fullPath, rootPath){
         var K = _fi_readFitsKeywords(fullPath);
 
         // Check if we have sufficient headers
-        var telescope = _fi_upperOrNull(_fi_first(K["TELESCOP"], K["TELESCOPE"]));
-        var camera = _fi_upperOrNull(_fi_first(K["INSTRUME"], K["INSTRUMENT"]));
-        var imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
+        var telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
+        var camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
+        var imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
 
         if (telescope && camera && imagetyp){
             // Parse from headers (similar to _fi_parseCalibration)
@@ -856,28 +908,28 @@ function _fi_parseMaster(fullPath, rootPath){
             else if (imagetyp == "DARKFLAT" || imagetyp == "MASTERDARKFLAT") type = "DARKFLAT";
 
             // Acquisition params
-            var xb = _fi_toInt(_fi_first(K["XBINNING"], K["BINNINGX"], K["XBIN"]));
-            var yb = _fi_toInt(_fi_first(K["YBINNING"], K["BINNINGY"], K["YBIN"]));
+            var xb = _fi_toInt(_fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN"));
+            var yb = _fi_toInt(_fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN"));
             var binning = _fi_mkBinning(xb, yb);
-            var gain = _fi_toInt(_fi_first(K["GAIN"], K["EGAIN"]));
-            var offset = _fi_toInt(_fi_first(K["OFFSET"], K["QOFFSET"]));
-            var usb = _fi_toInt(_fi_first(K["USBLIMIT"], K["QUSBLIM"]));
-            var readout = _fi_cleanReadout(_fi_first(K["READOUTM"], K["QREADOUT"], K["READMODE"], K["CAMMODE"]));
+            var gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+            var offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+            var usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+            var readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
 
             // Temperature
-            var tempSetC = _fi_toInt(_fi_first(K["SET-TEMP"], K["SET_TEMP"], K["SETPOINT"], K["CCD-TSET"]));
-            var tempC = _fi_toInt(_fi_first(K["CCD-TEMP"], K["CCD_TEMP"], K["SENSOR_TEMP"], K["CCD-TEMP1"]));
+            var tempSetC = _fi_toInt(_fi_firstKey(K, "SET-TEMP", "SET_TEMP", "SETPOINT", "CCD-TSET"));
+            var tempC = _fi_toInt(_fi_firstKey(K, "CCD-TEMP", "CCD_TEMP", "SENSOR_TEMP", "CCD-TEMP1"));
 
             // Date/Time
-            var dateObsRaw = _fi_first(K["DATE-OBS"], K["DATE_OBS"], K["DATEOBS"], K["DATE"]);
-            var dateLocRaw = _fi_first(K["DATE-LOC"], K["DATE_LOC"], K["DATELOC"]);
+            var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
+            var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
             var date = _fi_extractDateOnly(dateObsRaw);
             var dateTime = _fi_extractDateTime(dateObsRaw);
             var dateTimeLoc = _fi_extractDateTime(dateLocRaw);
 
             // Type-specific: exposure (for darks), filter (for flats)
-            var exp = _fi_toFloat(_fi_first(K["EXPOSURE"], K["EXPTIME"], K["DURATION"]));
-            var filter = _fi_normFilter(_fi_first(K["FILTER"]));
+            var exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
+            var filter = _fi_normFilter(_fi_getKey(K, "FILTER"));
 
             parsed = {
                 path: _fi_norm(fullPath),
@@ -953,7 +1005,7 @@ function _fi_parseFile(fullPath, rootPath){
     // Step 1: Try to detect type from FITS headers (priority!)
     try {
         var K = _fi_readFitsKeywords(fullPath);
-        imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
+        imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
 
         if (imagetyp){
             // Normalize and detect type
@@ -1015,6 +1067,171 @@ function _fi_parseFile(fullPath, rootPath){
     parsed.detectedType = detectedType;
 
     return parsed;
+}
+
+/* -------- Unified parser (experimental) -------- */
+
+/**
+ * Universal unified parser for all file types (LIGHT/CALIBRATION/MASTER)
+ * Combines logic from _fi_parseLight, _fi_parseCalibration, _fi_parseMaster
+ *
+ * @param fullPath - full path to file
+ * @param rootPath - root directory (optional, for setup extraction from path)
+ * @param expectedType - "LIGHT"|"CALIBRATION"|"MASTER"|null (auto-detect if null)
+ * @returns parsed object with all fields
+ */
+function _fi_parseUnified(fullPath, rootPath, expectedType){
+    var fileName = _fi_basename(fullPath);
+    var fileNameUp = fileName.toUpperCase();
+
+    // Skip DarkFlats
+    if (/\b(DARKFLAT|FLATDARK)\b/i.test(fileName)){
+        throw new Error("DarkFlat/FlatDark skipped");
+    }
+
+    // Read FITS keywords once
+    var K = _fi_readFitsKeywords(fullPath);
+    if (!K){
+        throw new Error("Failed to read FITS keywords: " + fileName);
+    }
+
+    // Extract common identity keywords
+    var telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
+    var camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
+    var imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
+
+    // Auto-detect type if not specified
+    var detectedType = expectedType;
+    if (!detectedType && imagetyp){
+        if (imagetyp == "LIGHT" || imagetyp == "LIGHTFRAME"){
+            detectedType = "LIGHT";
+        }
+        else if (imagetyp == "MASTERBIAS" || imagetyp == "MASTERDARK" || imagetyp == "MASTERFLAT" || imagetyp == "MASTERDARKFLAT"){
+            detectedType = "MASTER";
+        }
+        else if (imagetyp == "BIAS" || imagetyp == "DARK" || imagetyp == "FLAT"){
+            // Check filename to disambiguate calibration vs master
+            if (fileNameUp.indexOf("MASTER") >= 0){
+                detectedType = "MASTER";
+            } else {
+                detectedType = "CALIBRATION";
+            }
+        }
+    }
+
+    // Fallback to filename patterns if headers insufficient
+    if (!detectedType){
+        if (/\bBIAS\b/i.test(fileName)) detectedType = "CALIBRATION";
+        else if (/\bDARK\b/i.test(fileName)) detectedType = "CALIBRATION";
+        else if (/\bFLAT\b/i.test(fileName)) detectedType = "CALIBRATION";
+        else if (/\bMASTER/i.test(fileName)) detectedType = "MASTER";
+        else detectedType = "LIGHT";
+    }
+
+    if (!telescope || !camera){
+        throw new Error("TELESCOP or INSTRUME missing: " + fileName);
+    }
+
+    var setup = telescope + "_" + camera;
+
+    // Common acquisition params
+    var filterRaw = _fi_getKey(K, "FILTER");
+    var filter = _fi_normFilterUnified(filterRaw);
+    var readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+    var gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+    var offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+    var usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+
+    var xbin = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
+    var ybin = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
+    var binning = _fi_mkBinning(xbin, ybin);
+
+    var exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
+
+    var tempSetC = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
+    if (tempSetC != null) tempSetC = Math.round(tempSetC);
+
+    var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
+    var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
+    var date = _fi_extractDateOnly(dateObsRaw);
+    var dateTime = _fi_extractDateTime(dateObsRaw);
+    var dateTimeLoc = _fi_extractDateTime(dateLocRaw);
+
+    // Type-specific fields
+    var type = "UNKNOWN";
+    var object = null;
+    var focalLen = null, xPixSz = null, yPixSz = null, scale = null;
+
+    if (detectedType == "LIGHT"){
+        type = "LIGHT";
+
+        // Object name
+        object = (function(v){
+            var t = (v == null) ? "" : String(v).trim();
+            return t.length ? t : null;
+        })(_fi_getKey(K, "OBJECT"));
+
+        // Optical params (for scale calculation)
+        focalLen = _fi_toFloat(_fi_firstKey(K, "FOCALLEN", "FOCAL", "FOCLEN"));
+        xPixSz = _fi_toFloat(_fi_firstKey(K, "XPIXSZ", "PIXSIZE", "PIXELSZ"));
+        yPixSz = _fi_toFloat(_fi_firstKey(K, "YPIXSZ", "PIXSIZE", "PIXELSZ"));
+
+        // Calculate scale
+        if (focalLen != null && xPixSz != null){
+            scale = (xPixSz / focalLen) * 206.265;
+        }
+
+    } else if (detectedType == "CALIBRATION" || detectedType == "MASTER"){
+        // Determine specific type
+        if (imagetyp){
+            if (imagetyp == "BIAS" || imagetyp == "MASTERBIAS") type = "BIAS";
+            else if (imagetyp == "DARK" || imagetyp == "MASTERDARK") type = "DARK";
+            else if (imagetyp == "FLAT" || imagetyp == "MASTERFLAT") type = "FLAT";
+            else if (imagetyp == "DARKFLAT" || imagetyp == "MASTERDARKFLAT") type = "DARKFLAT";
+        }
+
+        // Fallback to filename if type still unknown
+        if (type == "UNKNOWN"){
+            if (/\bBIAS\b/i.test(fileName)) type = "BIAS";
+            else if (/\bDARK\b/i.test(fileName)) type = "DARK";
+            else if (/\bFLAT\b/i.test(fileName)) type = "FLAT";
+        }
+    }
+
+    // Build result
+    var result = {
+        path: _fi_norm(fullPath),
+        filename: fileName,
+        type: type,
+        parseMethod: "headers",
+        detectedType: detectedType,
+
+        setup: setup,
+        telescope: telescope,
+        camera: camera
+    };
+
+    // Add optional fields only if non-null (matching old parsers)
+    if (object != null) result.object = object;
+    if (filter != null) result.filter = filter;
+    if (binning != null) result.binning = binning;
+    if (gain != null) result.gain = gain;
+    if (offset != null) result.offset = offset;
+    if (usb != null) result.usb = usb;
+    if (readout != null) result.readout = readout;
+    if (exp != null) result.exposureSec = exp;
+    if (tempSetC != null) result.tempSetC = tempSetC;
+    if (date != null) result.date = date;
+    if (dateTime != null) result.dateTime = dateTime;
+    if (dateTimeLoc != null) result.dateTimeLoc = dateTimeLoc;
+
+    // Lights-specific optical params
+    if (focalLen != null) result.focalLen = focalLen;
+    if (xPixSz != null) result.xPixelSize = xPixSz;
+    if (yPixSz != null) result.yPixelSize = yPixSz;
+    if (scale != null) result.scale = scale;
+
+    return result;
 }
 
 /* ============================================================================
