@@ -603,6 +603,7 @@ function _fi_parseLight(fullPath){
         path: filePath,
         filename: fileName,
         type: type,
+        parseMethod: "headers",  // parsed from FITS headers
 
         // setup
         setup: setup,
@@ -696,6 +697,7 @@ function _fi_parseCalibration(fullPath){
         path: filePath,
         filename: fileName,
         type: type, // DARK/FLAT/BIAS/DARKFLAT
+        parseMethod: "headers",  // parsed from FITS headers
 
         // setup
         setup: setup,
@@ -804,6 +806,7 @@ function _fi_parseByFilename(fullPath){
         path: _fi_norm(fullPath),
         filename: fileName,
         type: type,            // BIAS/DARK/FLAT or null
+        parseMethod: "filename",  // parsed from filename (fallback)
         setup: setup,          // may be null (caller may fill from path)
         telescope: telescope,  // from setup
         camera: camera,        // from camera token
@@ -845,11 +848,12 @@ function _fi_parseMaster(fullPath, rootPath){
             // Parse from headers (similar to _fi_parseCalibration)
             var setup = telescope + "_" + camera;
 
-            // Type: normalize BIAS/DARK/FLAT
+            // Type: normalize BIAS/DARK/FLAT/DARKFLAT
             var type = "UNKNOWN";
             if (imagetyp == "BIAS" || imagetyp == "MASTERBIAS") type = "BIAS";
             else if (imagetyp == "DARK" || imagetyp == "MASTERDARK") type = "DARK";
             else if (imagetyp == "FLAT" || imagetyp == "MASTERFLAT") type = "FLAT";
+            else if (imagetyp == "DARKFLAT" || imagetyp == "MASTERDARKFLAT") type = "DARKFLAT";
 
             // Acquisition params
             var xb = _fi_toInt(_fi_first(K["XBINNING"], K["BINNINGX"], K["XBIN"]));
@@ -879,6 +883,7 @@ function _fi_parseMaster(fullPath, rootPath){
                 path: _fi_norm(fullPath),
                 filename: fileName,
                 type: type,
+                parseMethod: "headers",  // parsed from FITS headers
 
                 setup: setup,
                 telescope: telescope,
@@ -911,6 +916,14 @@ function _fi_parseMaster(fullPath, rootPath){
     // If still no setup, try to derive from path
     if (!parsed.setup && rootPath){
         parsed.setup = _fi_setupFromPath(rootPath, fullPath);
+        // Update parseMethod if setup was derived from path
+        if (parsed.setup && parsed.parseMethod){
+            if (parsed.parseMethod == "headers"){
+                parsed.parseMethod = "mixed";  // headers + path
+            } else if (parsed.parseMethod == "filename"){
+                parsed.parseMethod = "mixed";  // filename + path
+            }
+        }
     }
 
     // Validate: must have type and setup
@@ -937,7 +950,7 @@ function _fi_parseFile(fullPath, rootPath){
     var detectedType = null; // "LIGHT", "CALIBRATION", "MASTER"
     var imagetyp = null;
 
-    // Step 1: Try to detect type from FITS headers
+    // Step 1: Try to detect type from FITS headers (priority!)
     try {
         var K = _fi_readFitsKeywords(fullPath);
         imagetyp = _fi_upperOrNull(_fi_first(K["IMAGETYP"], K["IMAGETYPE"], K["FRAME"]));
@@ -947,11 +960,19 @@ function _fi_parseFile(fullPath, rootPath){
             if (imagetyp == "LIGHT" || imagetyp == "LIGHTFRAME"){
                 detectedType = "LIGHT";
             }
-            else if (imagetyp == "BIAS" || imagetyp == "DARK" || imagetyp == "FLAT"){
-                detectedType = "CALIBRATION";
-            }
-            else if (imagetyp == "MASTERBIAS" || imagetyp == "MASTERDARK" || imagetyp == "MASTERFLAT"){
+            else if (imagetyp == "MASTERBIAS" || imagetyp == "MASTERDARK" || imagetyp == "MASTERFLAT" || imagetyp == "MASTERDARKFLAT"){
                 detectedType = "MASTER";
+            }
+            else if (imagetyp == "BIAS" || imagetyp == "DARK" || imagetyp == "FLAT"){
+                // Could be raw calibration OR master (our masters have IMAGETYP='Dark'/'Flat'/'Bias')
+                // Check filename to disambiguate
+                if (fileNameUp.indexOf("MASTERDARKFLAT") >= 0 || fileNameUp.indexOf("MASTERFLATDARK") >= 0 ||
+                    fileNameUp.indexOf("MASTERBIAS") >= 0 || fileNameUp.indexOf("MASTERDARK") >= 0 ||
+                    fileNameUp.indexOf("MASTERFLAT") >= 0 || fileNameUp.indexOf("MASTERF") >= 0){
+                    detectedType = "MASTER";  // Filename indicates master
+                } else {
+                    detectedType = "CALIBRATION";  // Raw calibration file
+                }
             }
         }
     } catch(e){
@@ -963,7 +984,8 @@ function _fi_parseFile(fullPath, rootPath){
         if (fileNameUp.indexOf("_LIGHT_") >= 0 || fileNameUp.indexOf("_LIGHT.") >= 0){
             detectedType = "LIGHT";
         }
-        else if (fileNameUp.indexOf("MASTERBIAS") >= 0 || fileNameUp.indexOf("MASTERDARK") >= 0 ||
+        else if (fileNameUp.indexOf("MASTERDARKFLAT") >= 0 || fileNameUp.indexOf("MASTERFLATDARK") >= 0 ||
+                 fileNameUp.indexOf("MASTERBIAS") >= 0 || fileNameUp.indexOf("MASTERDARK") >= 0 ||
                  fileNameUp.indexOf("MASTERFLAT") >= 0 || fileNameUp.indexOf("MASTERF") >= 0){
             detectedType = "MASTER";
         }
@@ -999,17 +1021,193 @@ function _fi_parseFile(fullPath, rootPath){
  * LEVEL 3: Public API (prefix FI_)
  * ============================================================================ */
 
-/* TODO: FI_indexLights(rootPath, savePath) */
-/* TODO: FI_indexCalibration(rootPath, savePath) */
-/* TODO: FI_indexMasters(rootPath, savePath) */
-/* TODO: FI_parseFile(path, type) */
-/* TODO: FI_saveJSON(path, obj) */
+/**
+ * Save object to JSON file
+ * @param path - output file path
+ * @param obj - object to serialize (array or object)
+ * @returns true on success, false on error
+ */
+function FI_saveJSON(path, obj){
+    try {
+        // Serialize to JSON with indentation
+        var json = JSON.stringify(obj, null, 2);
+
+        // Write to file
+        var f = new File;
+        f.createForWriting(path);
+        f.outTextLn(json);
+        f.close();
+
+        return true;
+    } catch(e){
+        Console.warningln("Failed to save JSON to " + path + ": " + e);
+        return false;
+    }
+}
+
+/**
+ * Index light frames in directory and save to JSON
+ * @param rootPath - directory to scan
+ * @param savePath - output JSON file path
+ * @returns {count, errors, time} statistics
+ */
+function FI_indexLights(rootPath, savePath){
+    var t0 = Date.now();
+    var results = [];
+    var errors = [];
+
+    // Walk directory and parse all FITS files
+    _fi_walkDir(rootPath, function(fullPath){
+        if (!_fi_isFitsLike(fullPath)) return;
+
+        try {
+            var parsed = _fi_parseFile(fullPath, rootPath);
+
+            // Only include LIGHT frames
+            if (parsed.detectedType == "LIGHT"){
+                results.push(parsed);
+            }
+        } catch(e){
+            errors.push({
+                path: fullPath,
+                error: String(e)
+            });
+        }
+    });
+
+    // Save to JSON
+    var saveSuccess = false;
+    if (savePath){
+        saveSuccess = FI_saveJSON(savePath, results);
+    }
+
+    var elapsed = (Date.now() - t0) / 1000;
+
+    return {
+        count: results.length,
+        errors: errors.length,
+        errorList: errors,
+        time: elapsed,
+        saved: saveSuccess
+    };
+}
+
+/**
+ * Index raw calibration frames in directory and save to JSON
+ * @param rootPath - directory to scan
+ * @param savePath - output JSON file path
+ * @returns {count, errors, time} statistics
+ */
+function FI_indexCalibration(rootPath, savePath){
+    var t0 = Date.now();
+    var results = [];
+    var errors = [];
+
+    // Walk directory and parse all FITS files
+    _fi_walkDir(rootPath, function(fullPath){
+        if (!_fi_isFitsLike(fullPath)) return;
+
+        try {
+            var parsed = _fi_parseFile(fullPath, rootPath);
+
+            // Only include raw CALIBRATION frames (BIAS/DARK/FLAT)
+            if (parsed.detectedType == "CALIBRATION"){
+                results.push(parsed);
+            }
+        } catch(e){
+            errors.push({
+                path: fullPath,
+                error: String(e)
+            });
+        }
+    });
+
+    // Save to JSON
+    var saveSuccess = false;
+    if (savePath){
+        saveSuccess = FI_saveJSON(savePath, results);
+    }
+
+    var elapsed = (Date.now() - t0) / 1000;
+
+    return {
+        count: results.length,
+        errors: errors.length,
+        errorList: errors,
+        time: elapsed,
+        saved: saveSuccess
+    };
+}
+
+/**
+ * Index master calibration frames in directory and save to JSON
+ * @param rootPath - directory to scan
+ * @param savePath - output JSON file path
+ * @returns {count, errors, time} statistics
+ */
+function FI_indexMasters(rootPath, savePath){
+    var t0 = Date.now();
+    var results = [];
+    var errors = [];
+
+    // Walk directory and parse all FITS files
+    _fi_walkDir(rootPath, function(fullPath){
+        if (!_fi_isFitsLike(fullPath)) return;
+
+        try {
+            var parsed = _fi_parseFile(fullPath, rootPath);
+
+            // Only include MASTER frames
+            if (parsed.detectedType == "MASTER"){
+                results.push(parsed);
+            }
+        } catch(e){
+            errors.push({
+                path: fullPath,
+                error: String(e)
+            });
+        }
+    });
+
+    // Save to JSON
+    var saveSuccess = false;
+    if (savePath){
+        saveSuccess = FI_saveJSON(savePath, results);
+    }
+
+    var elapsed = (Date.now() - t0) / 1000;
+
+    return {
+        count: results.length,
+        errors: errors.length,
+        errorList: errors,
+        time: elapsed,
+        saved: saveSuccess
+    };
+}
 
 /* ============================================================================
  * Compatibility Wrappers
  * ============================================================================ */
 
-/* TODO: LI_reindexLights(rootPath, savePath) */
-/* TODO: MI_reindexMasters(rootPath, savePath) */
+/**
+ * Compatibility wrapper for lights_index.jsh::LI_reindexLights()
+ * @param rootPath - directory to scan
+ * @param savePath - output JSON file path
+ * @returns {count, errors, time} statistics
+ */
+function LI_reindexLights(rootPath, savePath){
+    return FI_indexLights(rootPath, savePath);
+}
+
+/**
+ * Compatibility wrapper for masters_index.jsh::MI_reindexMasters()
+ * @param rootPath - directory to scan
+ * @param savePath - output JSON file path
+ * @returns {count, errors, time} statistics
+ */
+function MI_reindexMasters(rootPath, savePath){
+    return FI_indexMasters(rootPath, savePath);
+}
 
 #endif // __ANAWBPPS_FITS_INDEXING_JSH

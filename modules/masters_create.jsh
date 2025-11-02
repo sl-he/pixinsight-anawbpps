@@ -697,9 +697,17 @@ function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
         var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
         intView.id = viewId;
 
-        // Add FITS keywords (EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
-        // Get existing keywords and add new ones
+        // Add FITS keywords (IMAGETYP, EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
+        // Get existing keywords, filter out old IMAGETYP, add new ones
         var keywords = intWindow.keywords;
+        var filteredKeywords = [];
+        for (var k = 0; k < keywords.length; ++k){
+            if (keywords[k].name != "IMAGETYP"){
+                filteredKeywords.push(keywords[k]);
+            }
+        }
+        keywords = filteredKeywords;
+        keywords.push(new FITSKeyword("IMAGETYP", "'MasterDark'", "Type of integrated image"));
         keywords.push(new FITSKeyword("EXPTIME", String(firstItem.expTime), "[s] Exposure duration"));
         keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
         keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
@@ -843,10 +851,18 @@ function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
         var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
         intView.id = viewId;
 
-        // Add FITS keywords (EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
+        // Add FITS keywords (IMAGETYP, EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
         // FILTER is copied automatically by ImageIntegration
-        // Get existing keywords and add new ones
+        // Get existing keywords, filter out old IMAGETYP, add new ones
         var keywords = intWindow.keywords;
+        var filteredKeywords = [];
+        for (var k = 0; k < keywords.length; ++k){
+            if (keywords[k].name != "IMAGETYP"){
+                filteredKeywords.push(keywords[k]);
+            }
+        }
+        keywords = filteredKeywords;
+        keywords.push(new FITSKeyword("IMAGETYP", "'MasterDarkFlat'", "Type of integrated image"));
         keywords.push(new FITSKeyword("EXPTIME", String(firstItem.expTime), "[s] Exposure duration"));
         keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
         keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
@@ -1283,8 +1299,19 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback
         var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
         intView.id = viewId;
 
-        // NO FITS keywords needed for MasterFlat
-        // (IMAGETYP, FILTER, XBINNING, YBINNING, TELESCOP, DATE-OBS copied automatically)
+        // Add IMAGETYP keyword for MasterFlat
+        // (FILTER, XBINNING, YBINNING, TELESCOP, DATE-OBS copied automatically)
+        // Get existing keywords, filter out old IMAGETYP, add new one
+        var keywords = intWindow.keywords;
+        var filteredKeywords = [];
+        for (var k = 0; k < keywords.length; ++k){
+            if (keywords[k].name != "IMAGETYP"){
+                filteredKeywords.push(keywords[k]);
+            }
+        }
+        keywords = filteredKeywords;
+        keywords.push(new FITSKeyword("IMAGETYP", "'MasterFlat'", "Type of integrated image"));
+        intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
         if (!File.directoryExists(outputPath)){
