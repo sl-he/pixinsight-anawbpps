@@ -786,18 +786,15 @@ function _fi_parseByFilename(fullPath){
                up.indexOf("MASTERDARK") >= 0 ? "DARK" :
                (up.indexOf("MASTERF") >= 0 || up.indexOf("MASTERFLAT") >= 0) ? "FLAT" : null;
 
-    // Setup: everything before "_Master"
-    var setup = null;
+    // Telescope: everything before "_Master"
+    var telescope = null;
     var setupIdx = clean.indexOf("_Master");
     if (setupIdx > 0){
-        setup = clean.substring(0, setupIdx);
+        telescope = clean.substring(0, setupIdx);
     }
 
     // Split into tokens
     var parts = clean.split("_");
-
-    // Telescope: from setup
-    var telescope = setup;
 
     // Camera: look for QHY*, ASI*, etc.
     var camera = null;
@@ -806,6 +803,14 @@ function _fi_parseByFilename(fullPath){
             camera = parts[i];
             break;
         }
+    }
+
+    // Setup: telescope + "_" + camera
+    var setup = null;
+    if (telescope && camera){
+        setup = telescope + "_" + camera;
+    } else if (telescope){
+        setup = telescope;  // fallback if no camera found
     }
 
     // Readout: "High Gain Mode 16BIT"
@@ -941,30 +946,101 @@ function _fi_parseMaster(fullPath, rootPath){
                 }
             }
 
-            parsed = {
-                path: _fi_norm(fullPath),
-                filename: fileName,
-                type: type,
-                parseMethod: "headers",  // parsed from FITS headers
+            // Check if critical MASTER parameters are missing from headers
+            // Critical for MASTER (10 params): type, setup, binning, gain, offset, usb, readout, exposureSec (DARK), filter (FLAT), tempSetC
+            var missingCritical = !type || !setup || !binning ||
+                                  (gain === null || gain === undefined) ||
+                                  (offset === null || offset === undefined) ||
+                                  (usb === null || usb === undefined) ||
+                                  !readout ||
+                                  (type == "DARK" && (exp === null || exp === undefined)) ||
+                                  (type == "FLAT" && !filter) ||
+                                  (tempSetC === null || tempSetC === undefined);
 
-                setup: setup,
-                telescope: telescope,
-                camera: camera,
+            if (missingCritical){
+                // Critical parameters missing - reparse completely from filename
+                try {
+                    var fnParsed = _fi_parseByFilename(fullPath);
 
-                filter: filter,
-                binning: binning,
-                gain: gain,
-                offset: offset,
-                usb: usb,
-                readout: readout,
-                exposureSec: exp,
-                tempSetC: tempSetC,
-                tempC: tempC,
+                    // Replace ALL parameters with filename-parsed values
+                    parsed = {
+                        path: _fi_norm(fullPath),
+                        filename: fileName,
+                        type: fnParsed.type,
+                        parseMethod: "filename",  // replaced with filename parsing
 
-                date: date,
-                dateTime: dateTime,
-                dateTimeLoc: dateTimeLoc
-            };
+                        setup: fnParsed.setup,
+                        telescope: fnParsed.telescope,
+                        camera: fnParsed.camera,
+
+                        filter: fnParsed.filter,
+                        binning: fnParsed.binning,
+                        gain: fnParsed.gain,
+                        offset: fnParsed.offset,
+                        usb: fnParsed.usb,
+                        readout: fnParsed.readout,
+                        exposureSec: fnParsed.exposureSec,
+                        tempSetC: fnParsed.tempSetC,
+                        tempC: fnParsed.tempC,
+
+                        date: fnParsed.date,
+                        dateTime: fnParsed.dateTime,
+                        dateTimeLoc: fnParsed.dateTimeLoc
+                    };
+                } catch(fnErr){
+                    // Filename parsing failed, keep headers-only data (incomplete)
+                    parsed = {
+                        path: _fi_norm(fullPath),
+                        filename: fileName,
+                        type: type,
+                        parseMethod: "headers",
+
+                        setup: setup,
+                        telescope: telescope,
+                        camera: camera,
+
+                        filter: filter,
+                        binning: binning,
+                        gain: gain,
+                        offset: offset,
+                        usb: usb,
+                        readout: readout,
+                        exposureSec: exp,
+                        tempSetC: tempSetC,
+                        tempC: tempC,
+
+                        date: date,
+                        dateTime: dateTime,
+                        dateTimeLoc: dateTimeLoc
+                    };
+                }
+            } else {
+                // All critical parameters present in headers - use headers
+                parsed = {
+                    path: _fi_norm(fullPath),
+                    filename: fileName,
+                    type: type,
+                    parseMethod: "headers",
+
+                    setup: setup,
+                    telescope: telescope,
+                    camera: camera,
+
+                    filter: filter,
+                    binning: binning,
+                    gain: gain,
+                    offset: offset,
+                    usb: usb,
+                    readout: readout,
+                    exposureSec: exp,
+                    tempSetC: tempSetC,
+                    tempC: tempC,
+
+                    date: date,
+                    dateTime: dateTime,
+                    dateTimeLoc: dateTimeLoc
+                };
+            }
         }
     } catch(e){
         // Headers not available or insufficient, will fallback to filename
@@ -1145,6 +1221,28 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
         useFilenameFallback = true;
     }
 
+    // For MASTER: check critical parameters from headers before deciding fallback
+    if (detectedType == "MASTER" && !useFilenameFallback && headersAvailable && telescope && camera && imagetyp){
+        // Pre-check critical parameters (gain, offset, usb, readout, binning, tempSetC)
+        var gain_pre = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+        var offset_pre = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+        var usb_pre = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+        var readout_pre = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+        var xbin_pre = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
+        var ybin_pre = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
+        var binning_pre = _fi_mkBinning(xbin_pre, ybin_pre);
+        var tempSetC_pre = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
+
+        // If any critical parameters missing, use filename fallback
+        if ((gain_pre === null || gain_pre === undefined) ||
+            (offset_pre === null || offset_pre === undefined) ||
+            (usb_pre === null || usb_pre === undefined) ||
+            !readout_pre || !binning_pre ||
+            (tempSetC_pre === null || tempSetC_pre === undefined)){
+            useFilenameFallback = true;
+        }
+    }
+
     // For non-MASTER types, require telescope/camera from headers
     if (!useFilenameFallback && (!telescope || !camera)){
         throw new Error("TELESCOP or INSTRUME missing: " + fileName);
@@ -1163,17 +1261,14 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
         var clean = name.replace(/!+/g, "");
         var up = clean.toUpperCase();
 
-        // Setup: everything before "_Master"
+        // Telescope: everything before "_Master"
         var setupIdx = clean.indexOf("_Master");
         if (setupIdx > 0){
-            setup = clean.substring(0, setupIdx);
+            telescope = clean.substring(0, setupIdx);
         }
 
         // Split into tokens
         var parts = clean.split("_");
-
-        // Telescope: from setup
-        telescope = setup;
 
         // Camera: look for QHY*, ASI*, etc.
         for (var i = 0; i < parts.length; ++i){
@@ -1181,6 +1276,13 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
                 camera = parts[i];
                 break;
             }
+        }
+
+        // Setup: telescope + "_" + camera
+        if (telescope && camera){
+            setup = telescope + "_" + camera;
+        } else if (telescope){
+            setup = telescope;  // fallback if no camera found
         }
 
         // Readout: "High Gain Mode 16BIT"
@@ -1393,12 +1495,8 @@ function FI_indexLights(rootPath, savePath){
         if (!_fi_isFitsLike(fullPath)) return;
 
         try {
-            var parsed = _fi_parseFile(fullPath, rootPath);
-
-            // Only include LIGHT frames
-            if (parsed.detectedType == "LIGHT"){
-                results.push(parsed);
-            }
+            var parsed = _fi_parseUnified(fullPath, rootPath, "LIGHT");
+            results.push(parsed);
         } catch(e){
             errors.push({
                 path: fullPath,
@@ -1440,12 +1538,8 @@ function FI_indexCalibration(rootPath, savePath){
         if (!_fi_isFitsLike(fullPath)) return;
 
         try {
-            var parsed = _fi_parseFile(fullPath, rootPath);
-
-            // Only include raw CALIBRATION frames (BIAS/DARK/FLAT)
-            if (parsed.detectedType == "CALIBRATION"){
-                results.push(parsed);
-            }
+            var parsed = _fi_parseUnified(fullPath, rootPath, "CALIBRATION");
+            results.push(parsed);
         } catch(e){
             errors.push({
                 path: fullPath,
@@ -1495,12 +1589,8 @@ function FI_indexMasters(rootPath, savePath){
         }
 
         try {
-            var parsed = _fi_parseFile(fullPath, rootPath);
-
-            // Only include MASTER frames
-            if (parsed.detectedType == "MASTER"){
-                results.push(parsed);
-            }
+            var parsed = _fi_parseUnified(fullPath, rootPath, "MASTER");
+            results.push(parsed);
         } catch(e){
             errors.push({
                 path: fullPath,
