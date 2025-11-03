@@ -30,11 +30,8 @@
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
 #include "anawbpps.constants.jsh"
-#include "modules/masters_parse.jsh"
+#include "modules/fits_indexing.jsh"
 #include "modules/masters_create.jsh"
-#include "modules/lights_parse.jsh"
-#include "modules/masters_index.jsh"
-#include "modules/lights_index.jsh"
 #include "modules/calibration_match.jsh"
 #include "modules/calibration_run.jsh"
 #include "modules/cosmetic_correction.jsh"
@@ -309,11 +306,11 @@ ProgressDialog.prototype.execute = function() {
 };
 /* Entry points (direct delegation to modules) */
 function ReindexLights(lightsRoot, lightsJsonPath) {
-    return LI_reindexLights(lightsRoot, lightsJsonPath);
+    return FI_indexLights(lightsRoot, lightsJsonPath);
 }
 
 function ReindexCalibrationFiles(mastersRoot, mastersJsonPath) {
-    return MI_reindexMasters(mastersRoot, mastersJsonPath);
+    return FI_indexMasters(mastersRoot, mastersJsonPath);
 }
 
 function RunImageCalibration(plan, options){
@@ -381,13 +378,21 @@ function PP_runStep_UI(dlg, opText, groupText, stepFn, successNoteFn){
 
 /* UI orchestrators */
 function PP_runReindexLights_UI(dlg, lightsRoot, lightsJsonPath){
+    var __LI = null;
     return PP_runStep_UI(
         dlg,
         "Index Lights",
         String(lightsRoot||""),
-        function(){ ReindexLights(lightsRoot, lightsJsonPath); },
         function(){
-            var LI = PP_getLastLightsIndex();
+            try {
+                __LI = ReindexLights(lightsRoot, lightsJsonPath);
+                // Store globally for later access
+                LI_LAST_INDEX = __LI;
+            }
+            catch(e){ __LI = null; throw e; }
+        },
+        function(){
+            var LI = __LI || PP_getLastLightsIndex();
             var nItems  = (LI && LI.items ) ? LI.items.length  : 0;
             return nItems + " subs";
         }
@@ -401,7 +406,11 @@ function PP_runIndexCalibrationFiles_UI(dlg, mastersRoot, mastersJsonPath){
         "Index Calibration Files",
         String(mastersRoot||""),
         function(){
-            try { __MI = ReindexCalibrationFiles(mastersRoot, mastersJsonPath); }
+            try {
+                __MI = ReindexCalibrationFiles(mastersRoot, mastersJsonPath);
+                // Store globally for later access
+                MI_LAST_INDEX = __MI;
+            }
             catch(e){ __MI = null; throw e; }
         },
         function(){

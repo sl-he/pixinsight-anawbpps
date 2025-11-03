@@ -1548,13 +1548,23 @@ function FI_indexLights(rootPath, savePath){
 
     var elapsed = (Date.now() - t0) / 1000;
 
-    return {
+    // Create return object compatible with old LI_reindexLights format
+    var returnObj = {
+        lightsRoot: rootPath,
+        items: results,
         count: results.length,
         errors: errors.length,
         errorList: errors,
         time: elapsed,
         saved: saveSuccess
     };
+
+    // Store globally for PP_getLastLightsIndex compatibility
+    try {
+        this.LI_LAST_INDEX = returnObj;
+    } catch(_){}
+
+    return returnObj;
 }
 
 /**
@@ -1642,13 +1652,23 @@ function FI_indexMasters(rootPath, savePath){
 
     var elapsed = (Date.now() - t0) / 1000;
 
-    return {
+    // Create return object compatible with old MI_reindexMasters format
+    var returnObj = {
+        mastersRoot: rootPath,
+        items: results,
         count: results.length,
         errors: errors.length,
         errorList: errors,
         time: elapsed,
         saved: saveSuccess
     };
+
+    // Store globally for PP_getLastMastersIndex compatibility
+    try {
+        this.MI_LAST_INDEX = returnObj;
+    } catch(_){}
+
+    return returnObj;
 }
 
 /* ============================================================================
