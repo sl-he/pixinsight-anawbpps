@@ -18,6 +18,25 @@
 #define __ANAWBPPS_FITS_INDEXING_JSH
 
 /* ============================================================================
+ * Performance Monitoring (optional, for testing)
+ * ============================================================================ */
+var _FI_HEADER_READ_COUNT = 0;
+var _FI_BYTES_READ = 0;
+
+function FI_resetHeaderReadCount(){
+    _FI_HEADER_READ_COUNT = 0;
+    _FI_BYTES_READ = 0;
+}
+
+function FI_getHeaderReadCount(){
+    return _FI_HEADER_READ_COUNT;
+}
+
+function FI_getBytesRead(){
+    return _FI_BYTES_READ;
+}
+
+/* ============================================================================
  * LEVEL 1: Low-level Helpers (private, prefix _fi_)
  * ============================================================================ */
 
@@ -523,6 +542,9 @@ function _fi_keywordsToMap(karray){
  * Returns {KEYWORD: value} map or null on error
  */
 function _fi_readFitsKeywords(filePath){
+    // Increment performance counter (optional, for testing)
+    _FI_HEADER_READ_COUNT++;
+
     var ext = File.extractExtension(filePath).toLowerCase();
     var F = new FileFormat(ext, true, false);
     if (F.isNull){
@@ -548,6 +570,12 @@ function _fi_readFitsKeywords(filePath){
     }
 
     f.close();
+
+    // Count bytes: sum of keyword name + value string lengths
+    for (var i = 0; i < kws.length; i++){
+        _FI_BYTES_READ += kws[i].name.length;
+        _FI_BYTES_READ += String(kws[i].value).length;
+    }
 
     return _fi_keywordsToMap(kws);
 }
@@ -1249,7 +1277,7 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
     }
 
     var setup = null, filter = null, readout = null, gain = null, offset = null, usb = null;
-    var binning = null, exp = null, tempSetC = null;
+    var binning = null, exp = null, tempSetC = null, tempC = null;
     var date = null, dateTime = null, dateTimeLoc = null;
     var parseMethod = "headers";
 
@@ -1307,6 +1335,9 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
         var mT = clean.match(/_(-?\d+)C/i);
         if (mT) tempSetC = _fi_toInt(mT[1]);
 
+        // tempC = tempSetC (matching uses tempC)
+        tempC = tempSetC;
+
         // Exposure: _015s (3 digits seconds) - for DARKs only
         var mExp = clean.match(/_([\d.]+)s/i);
         if (mExp){
@@ -1351,6 +1382,9 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         tempSetC = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
         if (tempSetC != null) tempSetC = Math.round(tempSetC);
+
+        // tempC = tempSetC (matching uses tempC)
+        tempC = tempSetC;
 
         var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
         var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
@@ -1438,6 +1472,7 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
     if (readout != null) result.readout = readout;
     if (exp != null) result.exposureSec = exp;
     if (tempSetC != null) result.tempSetC = tempSetC;
+    if (tempC != null) result.tempC = tempC;
     if (date != null) result.date = date;
     if (dateTime != null) result.dateTime = dateTime;
     if (dateTimeLoc != null) result.dateTimeLoc = dateTimeLoc;
