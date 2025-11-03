@@ -25,7 +25,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "0.8.1"
+#define VERSION "0.9.1"
 
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
@@ -179,7 +179,7 @@ function ProgressDialog() {
     this.__base__();
     var self = this;
 
-    this.windowTitle = "ANAWBPPS — Progress";
+    this.windowTitle = "ANAWBPPS v" + VERSION + " — Progress";
     this.scaledMinWidth = 1400;
     this.scaledMinHeight = 1000;
     this.tree = new TreeBox(this);
@@ -913,7 +913,7 @@ function ANAWBPPSDialog(){
 
     var self = this;
 
-    this.windowTitle = "ANAWBPPS — Configuration";
+    this.windowTitle = "ANAWBPPS v" + VERSION + " — Configuration";
 
     this.rowLights  = new PathRow(this, "Lights Folder:",  "Folder with light frames (.xisf/.fits)");
     this.rowMasters = new PathRow(this, "Masters Folder:", "Folder with master frames");

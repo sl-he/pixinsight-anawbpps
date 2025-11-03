@@ -196,15 +196,15 @@ function MC_indexRawFiles(rawPath){
     }
 
     function listDir(dir){
-        // Use global _listNames from masters_index.jsh (uses FileFind - works cross-platform)
-        if (typeof _listNames == "function"){
+        // Use _fi_listNames from fits_indexing.jsh (uses FileFind - works cross-platform)
+        if (typeof _fi_listNames == "function"){
             try {
-                return _listNames(dir);
+                return _fi_listNames(dir);
             } catch(e){
-                Console.warningln("[mc] _listNames failed: " + e);
+                Console.warningln("[mc] _fi_listNames failed: " + e);
             }
         } else {
-            Console.warningln("[mc] _listNames function not found (masters_index.jsh not loaded?)");
+            Console.warningln("[mc] _fi_listNames function not found (fits_indexing.jsh not loaded?)");
         }
         return [];
     }
