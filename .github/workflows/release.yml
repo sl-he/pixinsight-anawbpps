@@ -41,6 +41,7 @@ jobs:
           # Copy files
           cp anawbpps.js /tmp/build/src/scripts/ANAWBPPS/
           cp anawbpps.constants.jsh /tmp/build/src/scripts/ANAWBPPS/
+          cp dark_bias_rebuilder.js /tmp/build/src/scripts/ANAWBPPS/
           cp -r modules /tmp/build/src/scripts/ANAWBPPS/
           
           # Create ZIP
