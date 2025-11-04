@@ -32,8 +32,7 @@
 #include "anawbpps.constants.jsh"
 #include "modules/fits_indexing.jsh"
 #include "modules/masters_create.jsh"
-#include "modules/calibration_match.jsh"
-#include "modules/calibration_run.jsh"
+#include "modules/image_calibration.jsh"
 #include "modules/cosmetic_correction.jsh"
 #include "modules/subframe_selector.jsh"
 #include "modules/star_alignment.jsh"
@@ -314,10 +313,11 @@ function ReindexCalibrationFiles(mastersRoot, mastersJsonPath) {
 }
 
 function RunImageCalibration(plan, options){
-    if (typeof CAL_runCalibration !== "function")
-        throw new Error("CAL_runCalibration not found");
+    if (typeof IC_runCalibration !== "function")
+        throw new Error("IC_runCalibration not found");
     var workFolders = (options && options.workFolders) ? options.workFolders : undefined;
-    return CAL_runCalibration(plan, workFolders);
+    var useBias = (options && options.useBias !== undefined) ? options.useBias : true;
+    return IC_runCalibration(plan, workFolders, useBias);
 }
 
 /* Getters for last indices */
@@ -596,6 +596,7 @@ var HARDCODED_DEFAULTS = {
     work1:   "V:/!!!WORK/ASTROFOTO/",
     work2:   "W:/!!!WORK/ASTROFOTO/",
     useTwo:  true,
+    useBias: false,
     doCal: true,
     doCC:  true,
     doSS: true,
@@ -1023,6 +1024,12 @@ function ANAWBPPSDialog(){
     this.gbOptions.sizer.spacing = 4;
 
     this.cbCal = new CheckBox(this); this.cbCal.text = "ImageCalibration";     this.cbCal.checked = !!HARDCODED_DEFAULTS.doCal;
+    this.cbUseBias = new CheckBox(this); this.cbUseBias.text = "Use Bias"; this.cbUseBias.checked = !!HARDCODED_DEFAULTS.useBias;
+    this.calRowSizer = new HorizontalSizer;
+    this.calRowSizer.spacing = 6;
+    this.calRowSizer.add(this.cbCal);
+    this.calRowSizer.add(this.cbUseBias);
+    this.calRowSizer.addStretch();
     this.cbCC  = new CheckBox(this); this.cbCC.text  = "CosmeticCorrection";   this.cbCC.checked  = !!HARDCODED_DEFAULTS.doCC;
     this.cbSS  = new CheckBox(this); this.cbSS.text  = "SubframeSelector";     this.cbSS.checked  = !!HARDCODED_DEFAULTS.doSS;
     // Auto reference selection (nested under SS)
@@ -1042,7 +1049,7 @@ function ANAWBPPSDialog(){
     this.cbII  = new CheckBox(this); this.cbII.text  = "ImageIntegration";     this.cbII.checked  = !!HARDCODED_DEFAULTS.doII;
     this.cbDrz = new CheckBox(this); this.cbDrz.text = "DrizzleIntegration";   this.cbDrz.checked = !!HARDCODED_DEFAULTS.doDrizzle;
 
-    this.gbOptions.sizer.add(this.cbCal);
+    this.gbOptions.sizer.add(this.calRowSizer);
     this.gbOptions.sizer.add(this.cbCC);
     this.gbOptions.sizer.add(this.cbSS);
     this.gbOptions.sizer.add(this.lblRefInfo);
@@ -1185,7 +1192,8 @@ function ANAWBPPSDialog(){
                 throw new Error("Masters index is empty");
             }
 
-            var PLAN = CM_buildPlanInMemory(LI, MI, planPath);
+            var useBias = self.cbUseBias ? self.cbUseBias.checked : false;
+            var PLAN = IC_buildCalibrationPlan(LI, MI, planPath, useBias);
             if (!PLAN || !PLAN.groups){
                 throw new Error("Plan build failed - no groups");
             }
@@ -1196,7 +1204,7 @@ function ANAWBPPSDialog(){
             var wf = makeWorkFolders(work1Root, work2Root, useTwo);
 
             if (self.cbCal && self.cbCal.checked){
-                PP_runImageCalibration_UI(ppDlg, PLAN, { workFolders: wf });
+                PP_runImageCalibration_UI(ppDlg, PLAN, { workFolders: wf, useBias: useBias });
             }
 
 //            if (self.cbCC && self.cbCC.checked){
