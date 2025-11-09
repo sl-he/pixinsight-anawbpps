@@ -83,26 +83,14 @@ function SS_preAddRowsFromPlan(dlg, PLAN){
     try{ if (typeof processEvents==="function") processEvents(); }catch(_){}
     return map;
 }
-function SS_norm(p){
-    var s = String(p||"");
-    while (s.indexOf("\\") >= 0){
-        var i = s.indexOf("\\");
-        s = s.substring(0,i) + "/" + s.substring(i+1);
-    }
-    return s;
-}
-function SS_basename(p){
-    var s = SS_norm(p);
-    var i = s.lastIndexOf("/");
-    return (i>=0) ? s.substring(i+1) : s;
-}
-function SS_noext(p){
-    var b = SS_basename(p);
-    var i = b.lastIndexOf(".");
-    return (i>0) ? b.substring(0,i) : b;
-}
+// Utility functions replaced with common_utils.jsh equivalents:
+// CU_norm → CU_norm
+// CU_basename → CU_basename
+// CU_noext → CU_noext
+// SS_dirname → kept (low usage, specific logic)
+
 function SS_dirname(p){
-    var s = SS_norm(p);
+    var s = CU_norm(p);
     var i = s.lastIndexOf("/");
     return (i>=0) ? s.substring(0,i) : "";
 }
@@ -143,11 +131,7 @@ function SS_readKeywordMap(path){
     }
 }
 
-function SS_toFloat(s){
-    if (s===null || typeof s==="undefined") return null;
-    var n = Number(s);
-    return isFinite(n) ? n : null;
-}
+// CU_toFloat → CU_toFloat (with null default)
 
 function SS_guessPixelSizeUm(hdr){
     if (!hdr) return null;
@@ -155,7 +139,7 @@ function SS_guessPixelSizeUm(hdr){
     for (var i=0;i<cands.length;++i){
         var k = cands[i];
         if (typeof hdr[k] !== "undefined"){
-            var v = SS_toFloat(hdr[k]);
+            var v = CU_toFloat(hdr[k], null);
             if (v!==null){
                 // If header has PI XSCALE (arcsec/px), skip: we'll compute from pixel size only
                 if (k==="PIXSCALE" && v>0 && v<100) continue;
@@ -172,7 +156,7 @@ function SS_guessFocalLenMm(hdr){
     for (var i=0;i<cands.length;++i){
         var k = cands[i];
         if (typeof hdr[k] !== "undefined"){
-            var v = SS_toFloat(hdr[k]);
+            var v = CU_toFloat(hdr[k], null);
             if (v!==null) return v;
         }
     }
@@ -263,14 +247,7 @@ function SS_makeGroupLabel(PLAN, gkey, total){
     }catch(_){}
     return String(gkey||"") + " (" + total + " subs)";
 }
-// Format elapsed time consistently with other operations
-function SS_fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var hs = Math.floor((sec - t) * 100); // hundredths
-    var pad=function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
-}
+// CU_fmtHMS → CU_fmtHMS
 /* ========================================
    NEW IMPLEMENTATION: Manual weight computation
    ======================================== */
@@ -291,7 +268,7 @@ function SS_measureAllFiles(allFiles, scale, cameraGain){
     // Build subframes array
     var subs = [];
     for (var i=0; i<allFiles.length; ++i){
-        subs.push([true, SS_norm(allFiles[i]), "", ""]);
+        subs.push([true, CU_norm(allFiles[i]), "", ""]);
     }
 
     // Create SS process
@@ -309,7 +286,7 @@ function SS_measureAllFiles(allFiles, scale, cameraGain){
     var ok = P.executeGlobal();
     var elapsed = (Date.now() - t0) / 1000;
 
-    Console.writeln("[ss] Measure completed in " + SS_fmtHMS(elapsed));
+    Console.writeln("[ss] Measure completed in " + CU_fmtHMS(elapsed));
 
     if (!ok){
         Console.criticalln("[ss] Measure failed");
@@ -507,7 +484,7 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir, auto
 
     // Create group subfolder (sanitize key for filesystem)
     var groupFolder = gkey.replace(/[|:\\/\s]+/g, "_");
-    var groupPath = SS_norm(best5BaseDir + "/" + groupFolder);
+    var groupPath = CU_norm(best5BaseDir + "/" + groupFolder);
     try{
         if (!File.directoryExists(groupPath))
             File.createDirectory(groupPath, true);
@@ -521,18 +498,18 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir, auto
     // Copy with prefix !1_ (and !2_, !3_, !4_, !5_ if autoReference=false)
     for (var i=0; i<topN.length; ++i){
         var m = topN[i];
-        var srcPath = SS_norm(String(m[3]));
-        var basename = SS_basename(srcPath);
-        var stem = SS_noext(basename);
+        var srcPath = CU_norm(String(m[3]));
+        var basename = CU_basename(srcPath);
+        var stem = CU_noext(basename);
 
         // Approved file name (with _a.xisf suffix)
         var approvedName = stem + "_a.xisf";
-        var approvedPath = SS_norm(approvedDir + "/" + approvedName);
+        var approvedPath = CU_norm(approvedDir + "/" + approvedName);
 
         // TOP-5 file name (with !N_ prefix)
         var rank = i + 1;
         var top5Name = "!" + rank + "_" + approvedName;
-        var top5Path = SS_norm(groupPath + "/" + top5Name);
+        var top5Path = CU_norm(groupPath + "/" + top5Name);
 
         try{
             // Remove if exists
@@ -559,13 +536,13 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
     for (var i=0; i<allMeasurements.length; ++i){
         var m = allMeasurements[i];
         if (m && m.length >= 4){
-            var path = SS_norm(String(m[3]));
+            var path = CU_norm(String(m[3]));
             measurementMap[path] = m;
         }
     }
 
     for (var j=0; j<groupFiles.length; ++j){
-        var gf = SS_norm(groupFiles[j]);
+        var gf = CU_norm(groupFiles[j]);
         if (measurementMap[gf]){
             // Make a COPY to avoid modifying original
             groupMeasurements.push(measurementMap[gf].slice(0));
@@ -589,8 +566,8 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
 
     for (var k=0; k<groupMeasurements.length; ++k){
         var m = groupMeasurements[k];
-        var srcPath = SS_norm(String(m[3]));
-        var basename = SS_basename(srcPath);
+        var srcPath = CU_norm(String(m[3]));
+        var basename = CU_basename(srcPath);
 
         // Compute weight
         var result = SS_computeWeight(m, minMax, scale);
@@ -632,10 +609,10 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         // Copy files to approved directory
         for (var j=0; j<approvedMeasurements.length; ++j){
             var m = approvedMeasurements[j];
-            var srcPath = SS_norm(String(m[3]));
-            var basename = SS_basename(srcPath);
-            var stem = SS_noext(basename);
-            var dstPath = SS_norm(approvedDir + "/" + stem + "_a.xisf");
+            var srcPath = CU_norm(String(m[3]));
+            var basename = CU_basename(srcPath);
+            var stem = CU_noext(basename);
+            var dstPath = CU_norm(approvedDir + "/" + stem + "_a.xisf");
 
             // Copy file
             try{
@@ -673,8 +650,8 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         // Add all approved files
         for (var j=0; j<approvedMeasurements.length; ++j){
             var m = approvedMeasurements[j];
-            var srcPath = SS_norm(String(m[3]));
-            var stem = SS_noext(SS_basename(srcPath));
+            var srcPath = CU_norm(String(m[3]));
+            var stem = CU_noext(CU_basename(srcPath));
 
             csvData.push({
                 filename: stem + "_a.xisf",
@@ -685,8 +662,8 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         // Add TOP-N files with !N_ prefix
         for (var t=0; t<topN.length; ++t){
             var m = topN[t];
-            var srcPath = SS_norm(String(m[3]));
-            var stem = SS_noext(SS_basename(srcPath));
+            var srcPath = CU_norm(String(m[3]));
+            var stem = CU_noext(CU_basename(srcPath));
             var rank = t + 1;
 
             csvData.push({
@@ -699,7 +676,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         if (csvData.length > 0){
             // Create CSV filename from group key (replace | and spaces with _)
             var csvName = "subframe_weights_" + gkey.replace(/\|/g, "_").replace(/\s+/g, "_") + ".csv";
-            var csvPath = SS_norm(approvedDir + "/" + csvName);
+            var csvPath = CU_norm(approvedDir + "/" + csvName);
             if (SS_saveWeightsCSV(csvData, csvPath)){
                 Console.writeln("[ss]   Saved weights CSV: " + csvPath + " (" + csvData.length + " entries)");
             } else {
@@ -721,10 +698,10 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         for (var r=0; r<groupMeasurements.length; ++r){
             var m = groupMeasurements[r];
             if (!m[1]){ // disabled = rejected
-                var srcPath = SS_norm(String(m[3]));
-                var basename = SS_basename(srcPath);
-                var stem = SS_noext(basename);
-                var trashPath = SS_norm(trashDir + "/" + stem + "_cc.xisf");
+                var srcPath = CU_norm(String(m[3]));
+                var basename = CU_basename(srcPath);
+                var stem = CU_noext(basename);
+                var trashPath = CU_norm(trashDir + "/" + stem + "_cc.xisf");
                 SS_copyRejectedFile(srcPath, trashPath);
             }
         }
@@ -780,7 +757,7 @@ function SS_collectGroupFiles(PLAN, wf, preferCC){
         // Построить ожидаемые CC-файлы на диске
         for (var i=0; i<bases.length; ++i){
             var b = String(bases[i]||"");
-            var stem = SS_noext(b);
+            var stem = CU_noext(CU_basename(b));
             var p1, p2;
             if (fromCalibrated){
                 p1 = root + "/" + stem + "_cc.xisf";
@@ -908,7 +885,7 @@ function SS_runForAllGroups(params){
 // Create !Approved_Best5 base folder (once, before processing groups)
     var best5BaseDir = null;
     if (wf.approved){
-        best5BaseDir = SS_norm(wf.approved + "/!Approved_Best5");
+        best5BaseDir = CU_norm(wf.approved + "/!Approved_Best5");
         try{ if (!File.directoryExists(best5BaseDir)) File.createDirectory(best5BaseDir, true); }catch(e){
             Console.warningln("[ss] Failed to create !Approved_Best5: " + e);
             best5BaseDir = null;
@@ -938,7 +915,7 @@ function SS_runForAllGroups(params){
         var elapsedM = (Date.now() - t0M) / 1000;
 
         try{
-            if (measureNode) measureNode.setText(2, SS_fmtHMS(elapsedM));
+            if (measureNode) measureNode.setText(2, CU_fmtHMS(elapsedM));
             if (measureNode) measureNode.setText(3, "✔ Success");
             if (measureNode) measureNode.setText(4, measurements.length + "/" + g.files.length + " measured");
             if (typeof processEvents === "function") processEvents();
@@ -977,7 +954,7 @@ function SS_runForAllGroups(params){
         var elapsedO = (Date.now() - t0O) / 1000;
 
         try{
-            if (outputNode) outputNode.setText(2, SS_fmtHMS(elapsedO));
+            if (outputNode) outputNode.setText(2, CU_fmtHMS(elapsedO));
             if (outputNode) outputNode.setText(3, "✔ Success");
             if (outputNode) outputNode.setText(4, result.approved + "/" + g.files.length + " approved, " + result.rejected + " rejected");
             if (typeof processEvents === "function") processEvents();
