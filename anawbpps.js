@@ -30,6 +30,7 @@
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
 #include "anawbpps.constants.jsh"
+#include "modules/common_utils.jsh"
 #include "modules/fits_indexing.jsh"
 #include "modules/masters_create.jsh"
 #include "modules/image_calibration.jsh"
