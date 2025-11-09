@@ -5,12 +5,16 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PixInsight](https://img.shields.io/badge/PixInsight-1.8.9+-green.svg)](https://pixinsight.com/)
+[![Version](https://img.shields.io/badge/version-0.9.5-blue.svg)](https://github.com/sl-he/pixinsight-anawbpps/releases)
+[![GitHub stars](https://img.shields.io/github/stars/sl-he/pixinsight-anawbpps.svg)](https://github.com/sl-he/pixinsight-anawbpps/stargazers)
 
 ---
 
 ## 🌟 Features
 
-- ✅ **Fully automated workflow** (8 processing stages)
+- ✅ **Fully automated workflow** (7 processing stages)
+- ✅ **Master calibration creation** (Bias, Dark, DarkFlat, Flat)
+- ✅ **Flexible Bias usage** (optional, can be disabled for Dark Library workflow)
 - ✅ **Automatic reference selection** (best subframe per group, manual mode available)
 - ✅ **Intelligent grouping** by camera, target, filter, binning, exposure
 - ✅ **Quality-based selection** via SubframeSelector with approval
@@ -27,18 +31,51 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 
 | # | Stage | Description | Default |
 |---|-------|-------------|---------|
-| 1 | **ImageCalibration** | Apply master calibration frames | ✅ ON |
+| 1 | **ImageCalibration** | Apply master calibration frames (Bias optional) | ✅ ON |
 | 2 | **CosmeticCorrection** | Auto-detect and remove hot/cold pixels | ✅ ON |
 | 3 | **SubframeSelector** | Measure quality, select best subframes | ✅ ON |
-| 4 | **Reference Selection** | Automatic (TOP-1) or Manual (TOP-5) | ✅ Auto |
-| 5 | **StarAlignment** | Register all frames to reference | ✅ ON |
-| 6 | **LocalNormalization** | Normalize gradients (optional) | ☐ OFF |
-| 7 | **ImageIntegration** | Stack approved frames | ✅ ON |
-| 8 | **DrizzleIntegration** | Increase resolution (optional) | ☐ OFF |
+| 4 | **StarAlignment** | Register all frames to reference (Auto TOP-1 or Manual TOP-5) | ✅ ON |
+| 5 | **LocalNormalization** | Normalize gradients (optional) | ☐ OFF |
+| 6 | **ImageIntegration** | Stack approved frames | ✅ ON |
+| 7 | **DrizzleIntegration** | Increase resolution (optional) | ☐ OFF |
 
 **Processing time (standard workflow):** ~0.65-0.7 hours for 300 subframes **(AMD Ryzen 7950X/192GB RAM/4x4TB NVMe Seagate Firecuda 530)**
 
 **Processing time (full workflow):** ~1.4-1.5 hours for 300 subframes **(AMD Ryzen 7950X/192GB RAM/4x4TB NVMe Seagate Firecuda 530)**
+
+---
+
+## 📦 Master Calibration Creation
+
+Before processing your light frames, you need master calibration files (Bias, Dark, DarkFlat, Flat).
+
+**ANAWBPPS includes a built-in tool to create them:**
+
+1. Open **ANAWBPPS** script
+2. Click **"Create Masters"** button
+3. Select folder with calibration frames
+4. Script automatically:
+   - Groups frames by camera, temperature, exposure, gain, offset, binning
+   - Creates master files with proper naming
+   - Saves to hierarchical structure: `Masters_Path/!!!{TYPE}_LIB/SETUP/{TYPE}_YYYY_MM_DD/`
+
+**Supported master types:**
+- **Bias** - Zero-exposure frames (remove readout noise)
+- **Dark** - Dark current frames (remove thermal noise)
+- **DarkFlat** - Darks matching flat exposure (for flat calibration)
+- **Flat** - Flat field frames (remove vignetting and dust)
+
+**File naming format:**
+```
+TELESCOP_INSTRUME_Master{Type}_EXPTIME_GAIN_OFFSET_BINNING_TEMP.xisf
+```
+
+**Example:**
+```
+Edge_HD_8__QHY600M_MasterDark_300s_Gain56_Offset10_1x1_-10C.xisf
+```
+
+See [Master Calibration Guide](docs/MASTER_CALIBRATION.md) for detailed instructions.
 
 ---
 
@@ -205,21 +242,27 @@ Tested on 21 subframes (only last stage):
 
 ## 🎯 Workflow Diagram
 ```
-Light Frames → ImageCalibration → CosmeticCorrection → SubframeSelector
-    ↓                                                          ↓
-Master Frames                                    [Select Reference: Auto or Manual]
-                                                               ↓
-                                                      StarAlignment
-                                                               ↓
-                                           ┌───────────────────┴───────────────────┐
-                                           ↓                                       ↓
-                                  LocalNormalization (optional)          ImageIntegration
-                                           ↓                                       ↓
-                                  ImageIntegration                        MAIN RESULT ✓
-                                           ↓
-                                  DrizzleIntegration (optional)
-                                           ↓
-                                  High-res result
+Calibration Frames → [Create Masters] → Master Calibration Files
+                                                ↓
+Light Frames ────────────────────────→ ImageCalibration (Bias optional)
+                                                ↓
+                                       CosmeticCorrection
+                                                ↓
+                                       SubframeSelector
+                                                ↓
+                                [Select Reference: Auto TOP-1 or Manual TOP-5]
+                                                ↓
+                                         StarAlignment
+                                                ↓
+                              ┌─────────────────┴─────────────────┐
+                              ↓                                   ↓
+                    LocalNormalization (optional)        ImageIntegration
+                              ↓                                   ↓
+                    ImageIntegration                      MAIN RESULT ✓
+                              ↓
+                    DrizzleIntegration (optional)
+                              ↓
+                      High-resolution result
 ```
 
 ---
@@ -314,8 +357,14 @@ Contributions are welcome! Process:
 
 ### Development Roadmap (v1.0)
 
+**Completed:**
 - [x] ✅ Automatic reference selection (TOP-1)
 - [x] ✅ CosmeticCorrection auto-detect mode
+- [x] ✅ Optional Bias usage (Dark Library workflow support)
+- [x] ✅ Master calibration creation tool
+- [x] ✅ Code quality improvements (centralized utilities, ~500 lines refactored)
+
+**Planned:**
 - [ ] Auto-detect Scale from FITS keywords (XPIXSZ, FOCALLEN)
 - [ ] Camera Gain lookup table by camera model
 - [ ] UI for Camera Gain and Subframe Scale configuration
