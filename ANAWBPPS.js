@@ -579,26 +579,6 @@ function PP_finalizeProgress(dlg){
 }
 
 // ============================================================================
-// Hardcoded defaults
-// ============================================================================
-var HARDCODED_DEFAULTS = {
-    lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS",
-    masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS",
-    work1:   "V:/!!!WORK/ASTROFOTO/",
-    work2:   "W:/!!!WORK/ASTROFOTO/",
-    useTwo:  true,
-    useBias: false,
-    doCal: true,
-    doCC:  true,
-    doSS: true,
-    doAutoRef: true,
-    doSA:  true,
-    doLN:  false,
-    doII:  true,
-    doDrizzle: false
-};
-
-// ============================================================================
 // File-system helpers
 // ============================================================================
 function joinPath(){

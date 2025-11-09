@@ -12,63 +12,11 @@
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
 
-// Path normalization helper
-function CC_normPath(p){
-    var s = String(p||"");
-    while (true){
-        var i=-1,k; 
-        for(k=0;k<s.length;k++){ 
-            if (s.charAt(k) === "\\"){ i=k; break; } 
-        }
-        if (i<0) break; 
-        s = s.substring(0,i) + "/" + s.substring(i+1);
-    }
-    while (true){
-        var j=-1,t; 
-        for(t=0; t<s.length-1; t++){ 
-            if (s.charAt(t)==="/" && s.charAt(t+1)==="/"){ j=t; break; } 
-        }
-        if (j<0) break; 
-        s = s.substring(0,j) + "/" + s.substring(j+2);
-    }
-    if (s.length>2 && s.charAt(1)===":" && s.charAt(2)==="/"){
-        var c=s.charAt(0); 
-        if (c>="a" && c<="z") s=c.toUpperCase()+s.substring(1);
-    }
-    return s;
-}
-
-// Time formatting
-function CC_fmtTime(ms){
-    // Use the same format as other modules
-    if (ms < 0) ms = 0;
-    var totalSeconds = Math.floor(ms / 1000);
-    var hh = Math.floor(totalSeconds / 3600);
-    var mm = Math.floor((totalSeconds % 3600) / 60);
-    var ss = totalSeconds % 60;
-    var hundredths = Math.floor((ms % 1000) / 10);
-    function pad2(n) { return (n < 10 ? "0" : "") + n; }
-    return pad2(hh) + ":" + pad2(mm) + ":" + pad2(ss) + "." + pad2(hundredths);
-}
-
-// Basename helper
-function CC_basename(p){
-    var s = CC_normPath(p);
-    var k=-1;
-    for (var i=0; i<s.length; i++){ 
-        if (s.charAt(i)==="/") k=i; 
-    }
-    return (k>=0) ? s.substring(k+1) : s;
-}
-
-// Strip extension
-function CC_stripExt(name){
-    var k=-1;
-    for(var i=0; i<name.length; i++){ 
-        if(name.charAt(i)===".") k=i; 
-    }
-    return (k>=0) ? name.substring(0,k) : name;
-}
+// All utility functions replaced with common_utils.jsh equivalents:
+// CU_norm → CU_norm
+// CU_fmtElapsedMS → CU_fmtElapsedMS
+// CU_basename → CU_basename
+// CU_noext → CU_noext
 // Configure CosmeticCorrection instance with auto-detect mode
 function CC_configureInstance(P){
     Console.writeln("[cc] Configuring CosmeticCorrection instance");
@@ -149,8 +97,8 @@ function CC_runForGroup(groupKey, group, workFolders, dlg){
     var missing = 0;
     
     for (var i=0; i<lights.length; i++){
-        var lightPath = CC_normPath(lights[i]);
-        var base = CC_stripExt(CC_basename(lightPath));
+        var lightPath = CU_norm(lights[i]);
+        var base = CU_noext(CU_basename(lightPath));
         var calibratedName = base + "_c.xisf";
         var calibratedPath = inputDir + "/" + calibratedName;
         
@@ -205,10 +153,10 @@ function CC_runForGroup(groupKey, group, workFolders, dlg){
     var elapsed = Date.now() - t0;  // миллисекунды!
 
     if (ok){
-        Console.noteln("[cc]   ✔ Success in " + CC_fmtTime(elapsed));
+        Console.noteln("[cc]   ✔ Success in " + CU_fmtElapsedMS(elapsed));
         return { ok: true, processed: targetFrames.length, skipped: missing };
     } else {
-        Console.criticalln("[cc]   ✖ Error in " + CC_fmtTime(elapsed));
+        Console.criticalln("[cc]   ✖ Error in " + CU_fmtElapsedMS(elapsed));
         return { ok: false, processed: 0, skipped: targetFrames.length + missing };
     }
 }
@@ -293,7 +241,7 @@ function CC_runForAllGroups(params){
             try {
                 node.setText(3, "▶ Running");
                 node.setText(4, "processing...");
-                node.setText(2, "00:00:00");
+                node.setText(2, "00:00:00.00");
             } catch(_){}
             try { processEvents(); } catch(_){}
         }
@@ -309,7 +257,7 @@ function CC_runForAllGroups(params){
         // Update progress UI
         if (node){
             try {
-                node.setText(2, CC_fmtTime(elapsed));
+                node.setText(2, CU_fmtElapsedMS(elapsed));
                 node.setText(3, result.ok ? "✔ Success" : "✖ Error");
                 node.setText(4, result.processed + "/" + (result.processed + result.skipped) + " processed");
             } catch(_){}
@@ -323,6 +271,6 @@ function CC_runForAllGroups(params){
     Console.noteln("[cc] CosmeticCorrection complete");
     Console.writeln("[cc] Total processed: " + totalProcessed);
     Console.writeln("[cc] Total skipped: " + totalSkipped);
-    Console.writeln("[cc] Total time: " + CC_fmtTime(totalElapsed));
+    Console.writeln("[cc] Total time: " + CU_fmtElapsedMS(totalElapsed));
 }
 

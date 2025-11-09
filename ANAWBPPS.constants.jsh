@@ -10,6 +10,27 @@
  *
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
+
+// ============================================================================
+// Hardcoded defaults
+// ============================================================================
+var HARDCODED_DEFAULTS = {
+    lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS",
+    masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS/!!!MASTERS_NO_BIAS",
+    work1:   "V:/!!!WORK/ASTROFOTO/",
+    work2:   "W:/!!!WORK/ASTROFOTO/",
+    useTwo:  true,
+    useBias: false,
+    doCal: true,
+    doCC: true,
+    doSS: true,
+    doAutoRef: true,
+    doSA:  true,
+    doLN:  false,
+    doII:  true,
+    doDrizzle: false
+};
+
 // --- project defaults (stored inside Work1)
 var PROJECT_DEFAULTS_DIRNAME  = "!!!WORK_LIGHTS";            // main working dir name
 
