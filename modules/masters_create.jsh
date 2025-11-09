@@ -1301,11 +1301,12 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 3. Determine output paths
-    // For now: save to work2Path/!Integrated/ (mastersPath logic will be added later)
+    // Save to mastersPath/NEW/
     // Remove trailing slashes to avoid double slashes
     var w2 = work2Path.replace(/\/+$/, "");
     var w1 = work1Path.replace(/\/+$/, "");
-    var outputPath = w2 + "/!Integrated";
+    var mp = mastersPath.replace(/\/+$/, "");
+    var outputPath = mp + "/NEW";
 
     // Temp path fallback: work2Path if available, otherwise work1Path
     var tempPath = (work2Path && work2Path.trim()) ?
