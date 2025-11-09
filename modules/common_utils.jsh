@@ -256,15 +256,3 @@ function CU_readFitsKeywords(fullPath){
         return null;
     }
 }
-
-// ============================================================================
-// Export note
-// ============================================================================
-
-// All functions are prefixed with CU_ for Common Utilities
-// This module replaces:
-// - _fi_* utilities in fits_indexing.jsh
-// - _mc_* utilities in masters_create.jsh
-// - *_norm/*_basename/*_noext in all other modules
-// - *_fmtHMS/*_fmtTime in all modules
-// - *_sanitizeKey/*_buildSSKey in alignment/normalization/integration modules
