@@ -15,20 +15,20 @@
 // Hardcoded defaults
 // ============================================================================
 var HARDCODED_DEFAULTS = {
-    lights:  "D:/!!!WORK/ASTROFOTO/!!!WORK_LIGHTS",
-    masters: "D:/!!!WORK/ASTROFOTO/!!!!!MASTERS/!!!MASTERS_NO_BIAS",
-    work1:   "V:/!!!WORK/ASTROFOTO/",
-    work2:   "W:/!!!WORK/ASTROFOTO/",
+    lights:  "",
+    masters: "",
+    work1:   "",
+    work2:   "",
     useTwo:  true,
-    useBias: false,
+    useBias: true,
     doCal: true,
     doCC: true,
     doSS: true,
     doAutoRef: true,
     doSA:  true,
-    doLN:  false,
+    doLN:  true,
     doII:  true,
-    doDrizzle: false
+    doDrizzle: true
 };
 
 // --- project defaults (stored inside Work1)
