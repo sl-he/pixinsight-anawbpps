@@ -21,7 +21,7 @@
 #feature-id    sl-he > DarkBiasRebuilder
 #feature-info  Rebuild unbiased master-darks from bias-calibrated master-darks and master-biases.
 #define TITLE "DarkBiasRebuilder"
-#define VERSION "0.1.0"
+#define VERSION "1.0.0"
 
 
 #include <pjsr/StdDialogCode.jsh>

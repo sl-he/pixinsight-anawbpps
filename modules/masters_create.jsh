@@ -449,6 +449,57 @@ function _mc_dateDiffDays(date1, date2){
  * type: "Dark", "DarkFlat", "Flat"
  * Format: TELESCOP_INSTRUME_Master{Type}_DATE_[FILTER_]READOUT_G*_OS*_[U*_]Bin*_*s_*C.xisf
  */
+/**
+ * Generate subdirectory path for master file
+ * @param {object} group - Group object with items and minDate
+ * @param {string} type - Master type: "Dark", "DarkFlat", "Flat", "Bias"
+ * @param {string} basePath - Base masters path
+ * @returns {string} Full directory path
+ *   Examples:
+ *     Masters_Path/!!!DARKS_LIB/SETUP/DARKS_2024_01_15
+ *     Masters_Path/!!!DARKFLATS_LIB/SETUP/DARKFLATS_2024_01_15
+ *     Masters_Path/!!!FLATS_LIB/SETUP/FLATS_2024_01_15
+ */
+function MC_generateMasterSubdir(group, type, basePath){
+    var firstItem = group.items[0];
+
+    // Build setup name from TELESCOP and INSTRUME
+    var setup = "";
+    if (firstItem.telescop) setup += firstItem.telescop;
+    if (firstItem.instrume){
+        if (setup) setup += "_";
+        setup += firstItem.instrume;
+    }
+    if (!setup) setup = "UNKNOWN_SETUP";
+
+    // Library folder based on type
+    var libFolder;
+    var typePrefix; // for date folder name
+    if (type == "Dark") {
+        libFolder = "!!!DARKS_LIB";
+        typePrefix = "DARKS";
+    } else if (type == "DarkFlat") {
+        libFolder = "!!!DARKFLATS_LIB";
+        typePrefix = "DARKFLATS";
+    } else if (type == "Flat") {
+        libFolder = "!!!FLATS_LIB";
+        typePrefix = "FLATS";
+    } else if (type == "Bias") {
+        libFolder = "!!!BIASES_LIB";
+        typePrefix = "BIASES";
+    } else {
+        libFolder = "!!!MASTERS_LIB";
+        typePrefix = "MASTERS";
+    }
+
+    // Date-based subfolder (e.g., DARKS_2024_01_15)
+    var dateStr = _mc_dateToFilename(group.minDate); // YYYY_MM_DD
+    var dateFolder = typePrefix + "_" + dateStr;
+
+    // Combine: basePath/!!!DARKS_LIB/SETUP/DARKS_2024_01_15
+    return basePath + "/" + libFolder + "/" + setup + "/" + dateFolder;
+}
+
 function MC_generateMasterFileName(group, type){
     // Extract parameters from first item in group
     var firstItem = group.items[0];
@@ -515,10 +566,10 @@ function MC_generateMasterFileName(group, type){
 /**
  * Create MasterDark files
  * @param {Array} darkGroups - Array of grouped dark frames
- * @param {string} outputPath - Output directory path
+ * @param {string} mastersBasePath - Base masters path (will create subdirs)
  * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
+function MC_createMasterDarks(darkGroups, mastersBasePath, progressCallback){
     Console.noteln("[mc] Creating MasterDark files... (" + darkGroups.length + " groups)");
 
     var results = [];
@@ -527,9 +578,10 @@ function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
         var group = darkGroups[i];
         var firstItem = group.items[0];
 
-        // Generate output filename
+        // Generate output subdirectory and filename
+        var outputDir = MC_generateMasterSubdir(group, "Dark", mastersBasePath);
         var fileName = MC_generateMasterFileName(group, "Dark");
-        var fullPath = outputPath + "/" + fileName;
+        var fullPath = outputDir + "/" + fileName;
 
         Console.noteln("[mc]   Group " + (i+1) + "/" + darkGroups.length + ": " +
                        group.items.length + " files -> " + fileName);
@@ -620,9 +672,9 @@ function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
         intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
-        if (!File.directoryExists(outputPath)){
-            Console.noteln("[mc]     Creating directory: " + outputPath);
-            File.createDirectory(outputPath, true);
+        if (!File.directoryExists(outputDir)){
+            Console.noteln("[mc]     Creating directory: " + outputDir);
+            File.createDirectory(outputDir, true);
         }
 
         // Save as XISF
@@ -669,10 +721,10 @@ function MC_createMasterDarks(darkGroups, outputPath, progressCallback){
 /**
  * Create MasterDarkFlat files
  * @param {Array} dfGroups - Array of grouped dark flat frames
- * @param {string} outputPath - Output directory path
+ * @param {string} mastersBasePath - Base masters path (will create subdirs)
  * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
+function MC_createMasterDarkFlats(dfGroups, mastersBasePath, progressCallback){
     Console.noteln("[mc] Creating MasterDarkFlat files... (" + dfGroups.length + " groups)");
 
     var results = [];
@@ -681,9 +733,10 @@ function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
         var group = dfGroups[i];
         var firstItem = group.items[0];
 
-        // Generate output filename
+        // Generate output subdirectory and filename
+        var outputDir = MC_generateMasterSubdir(group, "DarkFlat", mastersBasePath);
         var fileName = MC_generateMasterFileName(group, "DarkFlat");
-        var fullPath = outputPath + "/" + fileName;
+        var fullPath = outputDir + "/" + fileName;
 
         Console.noteln("[mc]   Group " + (i+1) + "/" + dfGroups.length + ": " +
                        group.items.length + " files -> " + fileName);
@@ -775,9 +828,9 @@ function MC_createMasterDarkFlats(dfGroups, outputPath, progressCallback){
         intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
-        if (!File.directoryExists(outputPath)){
-            Console.noteln("[mc]     Creating directory: " + outputPath);
-            File.createDirectory(outputPath, true);
+        if (!File.directoryExists(outputDir)){
+            Console.noteln("[mc]     Creating directory: " + outputDir);
+            File.createDirectory(outputDir, true);
         }
 
         // Save as XISF
@@ -1108,10 +1161,10 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
 /**
  * Create MasterFlat files from calibrated Flat files
  * @param {Object} calibratedFlatGroups - Calibrated flat groups with paths
- * @param {string} outputPath - Output directory path
+ * @param {string} mastersBasePath - Base masters path (will create subdirs)
  * @param {function} progressCallback - Optional callback(index, total, groupInfo)
  */
-function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback){
+function MC_createMasterFlats(calibratedFlatGroups, mastersBasePath, progressCallback){
     var groupCount = Object.keys(calibratedFlatGroups).length;
     Console.noteln("[mc] Creating MasterFlat files... (" + groupCount + " groups)");
 
@@ -1129,9 +1182,10 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback
 
         processedCount++;
 
-        // Generate output filename
+        // Generate output subdirectory and filename
+        var outputDir = MC_generateMasterSubdir(flatGroup, "Flat", mastersBasePath);
         var fileName = MC_generateMasterFileName(flatGroup, "Flat");
-        var fullPath = outputPath + "/" + fileName;
+        var fullPath = outputDir + "/" + fileName;
 
         Console.noteln("[mc]   Group " + (groupIdx+1) + ": " +
                        calibratedPaths.length + " files -> " + fileName);
@@ -1214,9 +1268,9 @@ function MC_createMasterFlats(calibratedFlatGroups, outputPath, progressCallback
         intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
-        if (!File.directoryExists(outputPath)){
-            Console.noteln("[mc]     Creating directory: " + outputPath);
-            File.createDirectory(outputPath, true);
+        if (!File.directoryExists(outputDir)){
+            Console.noteln("[mc]     Creating directory: " + outputDir);
+            File.createDirectory(outputDir, true);
         }
 
         // Save as XISF
@@ -1300,20 +1354,18 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     }
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
-    // 3. Determine output paths
-    // Save to mastersPath/NEW/
+    // 3. Determine paths
     // Remove trailing slashes to avoid double slashes
     var w2 = work2Path.replace(/\/+$/, "");
     var w1 = work1Path.replace(/\/+$/, "");
     var mp = mastersPath.replace(/\/+$/, "");
-    var outputPath = mp + "/NEW";
 
     // Temp path fallback: work2Path if available, otherwise work1Path
     var tempPath = (work2Path && work2Path.trim()) ?
                    (w2 + "/Masters_Temp") :
                    (w1 + "/Masters_Temp");
 
-    Console.noteln("[mc]   Output path: " + outputPath);
+    Console.noteln("[mc]   Masters base path: " + mp);
     Console.noteln("[mc]   Temp path: " + tempPath);
 
     // Create progress callback wrapper for individual operations
@@ -1334,12 +1386,12 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
         };
     }
 
-    // 4. Create MasterDarks
-    var masterDarks = MC_createMasterDarks(groups.darks, outputPath, makeCallback('dark'));
+    // 4. Create MasterDarks (subdirs created automatically)
+    var masterDarks = MC_createMasterDarks(groups.darks, mp, makeCallback('dark'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
-    // 5. Create MasterDarkFlats
-    var masterDarkFlats = MC_createMasterDarkFlats(groups.darkFlats, outputPath, makeCallback('darkflat'));
+    // 5. Create MasterDarkFlats (subdirs created automatically)
+    var masterDarkFlats = MC_createMasterDarkFlats(groups.darkFlats, mp, makeCallback('darkflat'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     // 6. Match DarkFlats to Flats
@@ -1350,8 +1402,8 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     var calibratedFlats = MC_calibrateFlats(groups.flats, dfMatches, tempPath, makeCallback('calibflat'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
-    // 8. Create MasterFlats
-    var masterFlats = MC_createMasterFlats(calibratedFlats, outputPath, makeCallback('flat'));
+    // 8. Create MasterFlats (subdirs created automatically)
+    var masterFlats = MC_createMasterFlats(calibratedFlats, mp, makeCallback('flat'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     Console.noteln("[mc] Complete!");
