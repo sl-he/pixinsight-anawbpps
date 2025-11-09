@@ -17,6 +17,8 @@
 #ifndef __ANAWBPPS_FITS_INDEXING_JSH
 #define __ANAWBPPS_FITS_INDEXING_JSH
 
+#include "common_utils.jsh"
+
 /* ============================================================================
  * Performance Monitoring (optional, for testing)
  * ============================================================================ */
@@ -42,18 +44,7 @@ function FI_getBytesRead(){
 
 /* -------- Path utilities -------- */
 
-/**
- * Normalize path to forward slashes, no trailing slash
- */
-function _fi_norm(path){
-    if (!path) return "";
-    var s = String(path).replace(/\\/g, '/');
-    // Remove trailing slashes
-    while (s.length > 1 && s.charAt(s.length-1) == '/'){
-        s = s.substring(0, s.length-1);
-    }
-    return s;
-}
+// _fi_norm removed - now using CU_norm from common_utils.jsh
 
 /**
  * Get file extension (lowercase, without dot)
@@ -73,14 +64,7 @@ function _fi_isFitsLike(path){
     return (e == "fits" || e == "fit" || e == "xisf");
 }
 
-/**
- * Extract basename from path
- */
-function _fi_basename(path){
-    var s = String(path || "").replace(/\\/g, '/');
-    var i = s.lastIndexOf('/');
-    return (i >= 0) ? s.substring(i+1) : s;
-}
+// _fi_basename removed - now using CU_basename from common_utils.jsh
 
 /**
  * Check if path is a directory
@@ -98,77 +82,18 @@ function _fi_isFile(path){
 
 /* -------- Type conversion -------- */
 
-/**
- * Safe integer conversion, returns null if invalid
- */
-function _fi_toInt(v){
-    if (v == undefined || v == null) return null;
-    var s = String(v).trim();
-    if (s.length == 0) return null;
-    var n = Number(s);
-    if (!isFinite(n)) return null;
-    return Math.round(n);
-}
-
-/**
- * Safe float conversion, returns null if invalid
- */
-function _fi_toFloat(v){
-    if (v == undefined || v == null) return null;
-    var s = String(v).trim();
-    if (s.length == 0) return null;
-    var n = Number(s);
-    if (!isFinite(n)) return null;
-    return n;
-}
+// _fi_toInt and _fi_toFloat removed - now using CU_toInt/CU_toFloat from common_utils.jsh
 
 /**
  * Number or null (for compatibility with masters_parse)
  */
 function _fi_numOrNull(v){
-    return _fi_toFloat(v);
+    return CU_toFloat(v);
 }
 
 /* -------- String utilities -------- */
 
-/**
- * Uppercase or null
- */
-function _fi_upperOrNull(s){
-    if (!s && s != 0) return null;
-    var t = String(s).trim();
-    return t.length ? t.toUpperCase() : null;
-}
-
-/**
- * Clean readout mode string (compact multiple spaces)
- */
-function _fi_cleanReadout(s){
-    if (!s && s != 0) return null;
-    var t = String(s).trim();
-    var out = "";
-    var prevSpace = false;
-    for (var i = 0; i < t.length; i++){
-        var c = t.charAt(i);
-        var isSpace = (c == " " || c == "\t");
-        if (isSpace){
-            if (!prevSpace){ out += " "; prevSpace = true; }
-        } else {
-            out += c; prevSpace = false;
-        }
-    }
-    return out.length ? out : null;
-}
-
-/**
- * Create binning string "XxY"
- */
-function _fi_mkBinning(xb, yb){
-    var xi = _fi_toInt(xb);
-    var yi = _fi_toInt(yb);
-    if (xi != null && yi != null) return xi + "x" + yi;
-    return null;
-}
+// _fi_upperOrNull, _fi_cleanReadout, _fi_mkBinning removed - now using CU_* from common_utils.jsh
 
 /**
  * Normalize filter name (HA → Ha, OIII → OIII, SII → SII)
@@ -223,57 +148,7 @@ function _fi_normFilterUnified(f){
 
 /* -------- Date/time parsing -------- */
 
-/**
- * Extract YYYY-MM-DD from various date formats (no regex)
- */
-function _fi_extractDateOnly(s){
-    if (!s) return null;
-    var str = String(s).trim();
-    if (!str.length) return null;
-
-    function isDigit(ch){ return ch >= '0' && ch <= '9'; }
-    function readNDigits(src, pos, n){
-        if (pos + n > src.length) return null;
-        var val = 0;
-        for (var k = 0; k < n; k++){
-            var ch = src.charAt(pos + k);
-            if (!isDigit(ch)) return null;
-            val = val * 10 + (ch.charCodeAt(0) - 48);
-        }
-        return val;
-    }
-
-    var L = str.length;
-    for (var i = 0; i <= L - 10; i++){
-        var y = readNDigits(str, i, 4);
-        if (y == null) continue;
-
-        var s1Pos = i + 4;
-        if (s1Pos >= L) continue;
-        var s1 = str.charAt(s1Pos);
-        if (!(s1 == '-' || s1 == '_' || s1 == '/')) continue;
-
-        var m = readNDigits(str, i + 5, 2);
-        if (m == null) continue;
-
-        var s2Pos = i + 7;
-        if (s2Pos >= L) continue;
-        var s2 = str.charAt(s2Pos);
-        if (!(s2 == '-' || s2 == '_' || s2 == '/')) continue;
-
-        var d = readNDigits(str, i + 8, 2);
-        if (d == null) continue;
-
-        // Basic range sanity
-        if (m < 1 || m > 12 || d < 1 || d > 31) continue;
-
-        // Build YYYY-MM-DD
-        var mm = (m < 10) ? ("0" + m) : String(m);
-        var dd = (d < 10) ? ("0" + d) : String(d);
-        return String(y) + "-" + mm + "-" + dd;
-    }
-    return null;
-}
+// _fi_extractDateOnly removed - now using CU_extractDateOnly from common_utils.jsh
 
 /**
  * Extract full date+time in ISO 8601 format: YYYY-MM-DDTHH:MM:SS
@@ -329,16 +204,7 @@ function _fi_dateTimeDiff(dt1, dt2){
 
 /* -------- Utility -------- */
 
-/**
- * Pick first non-null argument
- */
-function _fi_first(){
-    for (var i = 0; i < arguments.length; i++){
-        var v = arguments[i];
-        if (v != undefined && v != null) return v;
-    }
-    return null;
-}
+// _fi_first removed - now using CU_first from common_utils.jsh
 
 /**
  * Safe keyword lookup - checks if key exists before accessing
@@ -354,7 +220,7 @@ function _fi_getKey(map, key){
 }
 
 /**
- * Safe _fi_first() for keyword maps - avoids ES3 warnings
+ * Safe CU_first() for keyword maps - avoids ES3 warnings
  * Usage: _fi_firstKey(K, "KEY1", "KEY2", "KEY3")
  */
 function _fi_firstKey(map){
@@ -387,7 +253,7 @@ function _fi_looksWindows(dir){
  * Returns array of names (excluding "." and "..")
  */
 function _fi_listNames(dir){
-    dir = _fi_norm(dir);
+    dir = CU_norm(dir);
     var out = [];
 
     // Method 1: FileFind iterator (most reliable, works in PI 1.9.x)
@@ -471,7 +337,7 @@ function _fi_walkDir(dir, cb){
     var names = _fi_listNames(dir);
     for (var i = 0; i < names.length; i++){
         var name = names[i];
-        var full = _fi_norm(dir + "/" + name);
+        var full = CU_norm(dir + "/" + name);
         if (_fi_isDir(full)){
             _fi_walkDir(full, cb);
         } else if (_fi_isFile(full)){
@@ -488,7 +354,7 @@ function _fi_walkDir(dir, cb){
  * Example: root=D:/MASTERS, full=D:/MASTERS/CYPRUS_FSQ/.../file.fit → "CYPRUS_FSQ"
  */
 function _fi_setupFromPath(root, full){
-    var r = _fi_norm(root), f = _fi_norm(full);
+    var r = CU_norm(root), f = CU_norm(full);
     if (f.substring(0, r.length).toUpperCase() == r.toUpperCase()){
         var rel = f.substring(r.length);
         if (rel.charAt(0) == '/') rel = rel.substring(1);
@@ -502,7 +368,7 @@ function _fi_setupFromPath(root, full){
  * Get parent directory name (fallback for setup detection)
  */
 function _fi_parentDirName(full){
-    var s = _fi_norm(full);
+    var s = CU_norm(full);
     var i = s.lastIndexOf('/');
     if (i <= 0) return null;
     var parent = s.substring(0, i);
@@ -590,7 +456,7 @@ function _fi_readFitsKeywords(filePath){
  * @returns parsed object with all fields
  */
 function _fi_parseUnified(fullPath, rootPath, expectedType){
-    var fileName = _fi_basename(fullPath);
+    var fileName = CU_basename(fullPath);
     var fileNameUp = fileName.toUpperCase();
 
     // Skip DarkFlats
@@ -605,9 +471,9 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
     // Extract common identity keywords (if headers available)
     var telescope = null, camera = null, imagetyp = null;
     if (headersAvailable){
-        telescope = _fi_upperOrNull(_fi_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
-        camera = _fi_upperOrNull(_fi_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
-        imagetyp = _fi_upperOrNull(_fi_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
+        telescope = CU_upperOrNull(CU_first(_fi_getKey(K, "TELESCOP"), _fi_getKey(K, "TELESCOPE")));
+        camera = CU_upperOrNull(CU_first(_fi_getKey(K, "INSTRUME"), _fi_getKey(K, "INSTRUMENT")));
+        imagetyp = CU_upperOrNull(CU_first(_fi_getKey(K, "IMAGETYP"), _fi_getKey(K, "IMAGETYPE"), _fi_getKey(K, "FRAME")));
     }
 
     // Auto-detect type if not specified
@@ -647,14 +513,14 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
     // For MASTER: check critical parameters from headers before deciding fallback
     if (detectedType == "MASTER" && !useFilenameFallback && headersAvailable && telescope && camera && imagetyp){
         // Pre-check critical parameters (gain, offset, usb, readout, binning, tempSetC)
-        var gain_pre = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
-        var offset_pre = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
-        var usb_pre = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
-        var readout_pre = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+        var gain_pre = CU_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+        var offset_pre = CU_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+        var usb_pre = CU_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+        var readout_pre = CU_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
         var xbin_pre = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
         var ybin_pre = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
-        var binning_pre = _fi_mkBinning(xbin_pre, ybin_pre);
-        var tempSetC_pre = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
+        var binning_pre = CU_mkBinning(xbin_pre, ybin_pre);
+        var tempSetC_pre = CU_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
 
         // If any critical parameters missing, use filename fallback
         if ((gain_pre === null || gain_pre === undefined) ||
@@ -718,17 +584,17 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         // Gain / Offset / USB
         var mG = clean.match(/_G(\d+)/i);
-        if (mG) gain = _fi_toInt(mG[1]);
+        if (mG) gain = CU_toInt(mG[1]);
 
         var mO = clean.match(/_OS(\d+)/i);
-        if (mO) offset = _fi_toInt(mO[1]);
+        if (mO) offset = CU_toInt(mO[1]);
 
         var mU = clean.match(/_U(\d+)/i);
-        if (mU) usb = _fi_toInt(mU[1]);
+        if (mU) usb = CU_toInt(mU[1]);
 
         // Temperature: _0C or _-20C
         var mT = clean.match(/_(-?\d+)C/i);
-        if (mT) tempSetC = _fi_toInt(mT[1]);
+        if (mT) tempSetC = CU_toInt(mT[1]);
 
         // tempC = tempSetC (matching uses tempC)
         tempC = tempSetC;
@@ -764,18 +630,18 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         var filterRaw = _fi_getKey(K, "FILTER");
         filter = _fi_normFilterUnified(filterRaw);
-        readout = _fi_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
-        gain = _fi_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
-        offset = _fi_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
-        usb = _fi_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
+        readout = CU_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+        gain = CU_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
+        offset = CU_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
+        usb = CU_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
 
         var xbin = _fi_firstKey(K, "XBINNING", "BINNINGX", "XBIN", "XBINNING_BIN");
         var ybin = _fi_firstKey(K, "YBINNING", "BINNINGY", "YBIN", "YBINNING_BIN");
-        binning = _fi_mkBinning(xbin, ybin);
+        binning = CU_mkBinning(xbin, ybin);
 
-        exp = _fi_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
+        exp = CU_toFloat(_fi_firstKey(K, "EXPOSURE", "EXPTIME", "DURATION"));
 
-        tempSetC = _fi_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
+        tempSetC = CU_toFloat(_fi_firstKey(K, "SET-TEMP", "SETTEMP", "SET_TEMP"));
         if (tempSetC != null) tempSetC = Math.round(tempSetC);
 
         // tempC = tempSetC (matching uses tempC)
@@ -783,7 +649,7 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         var dateObsRaw = _fi_firstKey(K, "DATE-OBS", "DATE_OBS", "DATEOBS", "DATE");
         var dateLocRaw = _fi_firstKey(K, "DATE-LOC", "DATE_LOC", "DATELOC");
-        date = _fi_extractDateOnly(dateObsRaw);
+        date = CU_extractDateOnly(dateObsRaw);
         dateTime = _fi_extractDateTime(dateObsRaw);
         dateTimeLoc = _fi_extractDateTime(dateLocRaw);
     }
@@ -804,9 +670,9 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
             })(_fi_getKey(K, "OBJECT"));
 
             // Optical params (for scale calculation)
-            focalLen = _fi_toFloat(_fi_firstKey(K, "FOCALLEN", "FOCAL", "FOCLEN"));
-            xPixSz = _fi_toFloat(_fi_firstKey(K, "XPIXSZ", "PIXSIZE", "PIXELSZ"));
-            yPixSz = _fi_toFloat(_fi_firstKey(K, "YPIXSZ", "PIXSIZE", "PIXELSZ"));
+            focalLen = CU_toFloat(_fi_firstKey(K, "FOCALLEN", "FOCAL", "FOCLEN"));
+            xPixSz = CU_toFloat(_fi_firstKey(K, "XPIXSZ", "PIXSIZE", "PIXELSZ"));
+            yPixSz = CU_toFloat(_fi_firstKey(K, "YPIXSZ", "PIXSIZE", "PIXELSZ"));
 
             // Calculate scale
             if (focalLen != null && xPixSz != null){
@@ -846,7 +712,7 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
     // Build result
     var result = {
-        path: _fi_norm(fullPath),
+        path: CU_norm(fullPath),
         filename: fileName,
         type: type,
         parseMethod: parseMethod,  // "headers" or "filename"
@@ -1023,7 +889,7 @@ function FI_indexMasters(rootPath, savePath){
         // Master files MUST be in XISF format (required for calibration in PixInsight)
         var ext = File.extractExtension(fullPath).toLowerCase();
         if (ext != ".xisf"){
-            var fileName = _fi_basename(fullPath);
+            var fileName = CU_basename(fullPath);
             Console.warningln("[FI_indexMasters] Skipping non-XISF master: " + fileName + " (ext: " + ext + ")");
             return;
         }

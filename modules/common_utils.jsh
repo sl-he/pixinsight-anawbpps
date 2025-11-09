@@ -12,6 +12,9 @@
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
 
+#ifndef __ANAWBPPS_COMMON_UTILS_JSH
+#define __ANAWBPPS_COMMON_UTILS_JSH
+
 // ============================================================================
 // Path Utilities
 // ============================================================================
@@ -66,37 +69,45 @@ function CU_noext(s){
 /**
  * Safe integer conversion with default value
  * @param {*} val - Value to convert
- * @param {number} def - Default value if conversion fails (default: 0)
- * @returns {number} Integer value
+ * @param {number} def - Default value if conversion fails (default: null)
+ * @returns {number|null} Integer value or null/default
  */
 function CU_toInt(val, def){
-    if (val == null || val == undefined) return (def != null) ? def : 0;
-    var n = parseInt(val, 10);
-    return isNaN(n) ? ((def != null) ? def : 0) : n;
+    if (val == null || val == undefined) return (def !== undefined) ? def : null;
+    var s = String(val).trim();
+    if (s.length == 0) return (def !== undefined) ? def : null;
+    var n = Number(s);
+    if (!isFinite(n)) return (def !== undefined) ? def : null;
+    return Math.round(n);
 }
 
 /**
  * Safe float conversion with default value
  * @param {*} val - Value to convert
- * @param {number} def - Default value if conversion fails (default: 0.0)
- * @returns {number} Float value
+ * @param {number} def - Default value if conversion fails (default: null)
+ * @returns {number|null} Float value or null/default
  */
 function CU_toFloat(val, def){
-    if (val == null || val == undefined) return (def != null) ? def : 0.0;
-    var n = parseFloat(val);
-    return isNaN(n) ? ((def != null) ? def : 0.0) : n;
+    if (val == null || val == undefined) return (def !== undefined) ? def : null;
+    var s = String(val).trim();
+    if (s.length == 0) return (def !== undefined) ? def : null;
+    var n = Number(s);
+    if (!isFinite(n)) return (def !== undefined) ? def : null;
+    return n;
 }
 
 /**
- * Get first non-null value from array of candidates
- * @param {Array} arr - Array of candidate values
+ * Get first non-null value from arguments (variadic function)
  * @returns {*} First non-null value or null
+ * Usage: CU_first(val1, val2, val3) or CU_first([val1, val2, val3])
  */
-function CU_first(arr){
-    if (!arr || !arr.length) return null;
-    for (var i=0; i<arr.length; i++){
+function CU_first(){
+    // Support both array and individual arguments
+    var arr = (arguments.length == 1 && arguments[0] instanceof Array) ? arguments[0] : arguments;
+
+    for (var i = 0; i < arr.length; i++){
         var v = arr[i];
-        if (v != null && v != undefined && v != "") return v;
+        if (v != undefined && v != null) return v;
     }
     return null;
 }
@@ -106,23 +117,36 @@ function CU_first(arr){
 // ============================================================================
 
 /**
- * Convert string to uppercase, return null if empty
+ * Convert string to uppercase, return null if empty (after trim)
  * @param {string} s - String to convert
  * @returns {string|null} Uppercase string or null
  */
 function CU_upperOrNull(s){
-    if (!s || s == "") return null;
-    return String(s).toUpperCase();
+    if (!s && s != 0) return null;
+    var t = String(s).trim();
+    return t.length ? t.toUpperCase() : null;
 }
 
 /**
- * Clean readout mode string (replace spaces with underscores)
- * @param {string} r - Readout mode string
- * @returns {string} Cleaned readout mode
+ * Clean readout mode string (compact multiple spaces to single space)
+ * @param {string} s - Readout mode string
+ * @returns {string|null} Cleaned readout mode or null
  */
-function CU_cleanReadout(r){
-    if (!r) return "";
-    return String(r).replace(/ /g, '_');
+function CU_cleanReadout(s){
+    if (!s && s != 0) return null;
+    var t = String(s).trim();
+    var out = "";
+    var prevSpace = false;
+    for (var i = 0; i < t.length; i++){
+        var c = t.charAt(i);
+        var isSpace = (c == " " || c == "\t");
+        if (isSpace){
+            if (!prevSpace){ out += " "; prevSpace = true; }
+        } else {
+            out += c; prevSpace = false;
+        }
+    }
+    return out.length ? out : null;
 }
 
 /**
@@ -256,3 +280,5 @@ function CU_readFitsKeywords(fullPath){
         return null;
     }
 }
+
+#endif // __ANAWBPPS_COMMON_UTILS_JSH
