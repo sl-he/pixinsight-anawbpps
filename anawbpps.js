@@ -79,24 +79,14 @@ function PP_setElapsed(dlg, node, elapsedText){
 }
 
 // Format elapsed time in seconds to HH:MM:SS.hh format (same as SubframeSelector)
+// Time formatting functions moved to common_utils.jsh (CU_fmtHMS, CU_fmtElapsedMS)
+// Keeping wrapper functions for backward compatibility
 function PP_fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var hs = Math.floor((sec - t) * 100); // hundredths
-    var pad=function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
+    return CU_fmtHMS(sec);
 }
 
-/* Utilities */
 function formatElapsedMS(ms) {
-    if (ms < 0) ms = 0;
-    var totalSeconds = Math.floor(ms / 1000);
-    var hh = Math.floor(totalSeconds / 3600);
-    var mm = Math.floor((totalSeconds % 3600) / 60);
-    var ss = totalSeconds % 60;
-    var hundredths = Math.floor((ms % 1000) / 10);
-    function pad2(n) { return (n < 10 ? "0" : "") + n; }
-    return pad2(hh) + ":" + pad2(mm) + ":" + pad2(ss) + "." + pad2(hundredths);
+    return CU_fmtElapsedMS(ms);
 }
 
 function PP_guessMastersCounts(MI){
