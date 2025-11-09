@@ -14,68 +14,8 @@
 
 /* -------- Helper functions (reused from lights_parse) -------- */
 
-function _mc_basename(p){
-    var s = String(p||"").replace(/\\/g,'/');
-    var i = s.lastIndexOf('/');
-    return (i>=0) ? s.substring(i+1) : s;
-}
-
-function _mc_toInt(v){
-    if (v == undefined || v == null) return null;
-    var s = String(v).trim();
-    if (s.length == 0) return null;
-    var n = Number(s);
-    if (!isFinite(n)) return null;
-    return Math.round(n);
-}
-
-function _mc_toFloat(v){
-    if (v == undefined || v == null) return null;
-    var s = String(v).trim();
-    if (s.length == 0) return null;
-    var n = Number(s);
-    if (!isFinite(n)) return null;
-    return n;
-}
-
-function _mc_first(){
-    for (var i=0; i<arguments.length; ++i){
-        var v = arguments[i];
-        if (v != undefined && v != null) return v;
-    }
-    return null;
-}
-
-function _mc_upperOrNull(s){
-    if (!s && s!=0) return null;
-    var t = String(s).trim();
-    return t.length ? t.toUpperCase() : null;
-}
-
-function _mc_cleanReadout(s){
-    if (!s && s!=0) return null;
-    var t = String(s).trim();
-    // Compact multiple spaces
-    var out = "";
-    var prevSpace = false;
-    for (var i=0;i<t.length;++i){
-        var c = t.charAt(i);
-        var isSpace = (c==" " || c=="\t");
-        if (isSpace){
-            if (!prevSpace){ out += " "; prevSpace = true; }
-        } else {
-            out += c; prevSpace = false;
-        }
-    }
-    return out.length ? out : null;
-}
-
-function _mc_mkBinning(xb, yb){
-    var xi = _mc_toInt(xb);
-    var yi = _mc_toInt(yb);
-    if (xi!=null && yi!=null) return xi + "x" + yi;
-    return null;
-}
+// Common utility functions (_mc_basename, _mc_toInt, _mc_toFloat, _mc_first,
+// _mc_upperOrNull, _mc_cleanReadout, _mc_mkBinning) removed - now using CU_* from common_utils.jsh
 
 /* Extract full DATE-OBS with time (ISO 8601 format) */
 function _mc_extractDateTimeISO(s){
@@ -88,47 +28,7 @@ function _mc_extractDateTimeISO(s){
     return null;
 }
 
-/* Extract YYYY-MM-DD from DATE-OBS */
-function _mc_extractDateOnly(s){
-    if (!s) return null;
-    var str = String(s).trim();
-    if (!str.length) return null;
-
-    function isDigit(ch){ return ch>='0' && ch<='9'; }
-    function readNDigits(src, pos, n){
-        if (pos+n > src.length) return null;
-        var val = 0;
-        for (var k=0;k<n;++k){
-            var ch = src.charAt(pos+k);
-            if (!isDigit(ch)) return null;
-            val = val*10 + (ch.charCodeAt(0)-48);
-        }
-        return val;
-    }
-    var L = str.length;
-    for (var i=0;i<=L-10;++i){
-        var y = readNDigits(str, i, 4); if (y==null) continue;
-        var s1Pos = i+4; if (s1Pos >= L) continue;
-        var s1 = str.charAt(s1Pos);
-        if (!(s1=='-' || s1=='_' || s1=='/')) continue;
-
-        var m = readNDigits(str, i+5, 2); if (m==null) continue;
-        var s2Pos = i+7; if (s2Pos >= L) continue;
-        var s2 = str.charAt(s2Pos);
-        if (!(s2=='-' || s2=='_' || s2=='/')) continue;
-
-        var d = readNDigits(str, i+8, 2); if (d==null) continue;
-
-        if (m<1 || m>12) continue;
-        if (d<1 || d>31) continue;
-        if (y<1900 || y>2100) continue;
-
-        var mm = (m<10) ? ("0"+m) : String(m);
-        var dd = (d<10) ? ("0"+d) : String(d);
-        return String(y) + "-" + mm + "-" + dd;
-    }
-    return null;
-}
+// _mc_extractDateOnly removed - now using CU_extractDateOnly from common_utils.jsh
 
 /* Convert date string to YYYY_MM_DD format for filename */
 function _mc_dateToFilename(dateStr){
@@ -248,21 +148,21 @@ function MC_indexRawFiles(rawPath){
         if (!K) continue;
 
         // Extract metadata
-        var imageType = _mc_upperOrNull(K["IMAGETYP"]);
+        var imageType = CU_upperOrNull(K["IMAGETYP"]);
         if (!imageType) continue; // Skip files without IMAGETYP
 
-        var dateObs = _mc_extractDateOnly(K["DATE-OBS"]);
+        var dateObs = CU_extractDateOnly(K["DATE-OBS"]);
         var dateTimeObs = _mc_extractDateTimeISO(K["DATE-OBS"]); // Full date-time for precise grouping
-        var filter = _mc_upperOrNull(K["FILTER"]);
-        var gain = _mc_toInt(K["GAIN"]);
-        var offset = _mc_toInt(K["OFFSET"]);
-        var usb = _mc_toInt(_mc_first(K["USBLIMIT"], K["QUSBLIM"]));
-        var binning = _mc_mkBinning(K["XBINNING"], K["YBINNING"]);
-        var readout = _mc_cleanReadout(K["READOUTM"]);
-        var setTemp = _mc_toFloat(K["SET-TEMP"]);
-        var expTime = _mc_toFloat(K["EXPTIME"]);
-        var telescop = _mc_upperOrNull(_mc_first(K["TELESCOP"], K["TELESCOPE"]));
-        var instrume = _mc_upperOrNull(_mc_first(K["INSTRUME"], K["INSTRUMENT"]));
+        var filter = CU_upperOrNull(K["FILTER"]);
+        var gain = CU_toInt(K["GAIN"]);
+        var offset = CU_toInt(K["OFFSET"]);
+        var usb = CU_toInt(CU_first(K["USBLIMIT"], K["QUSBLIM"]));
+        var binning = CU_mkBinning(K["XBINNING"], K["YBINNING"]);
+        var readout = CU_cleanReadout(K["READOUTM"]);
+        var setTemp = CU_toFloat(K["SET-TEMP"]);
+        var expTime = CU_toFloat(K["EXPTIME"]);
+        var telescop = CU_upperOrNull(CU_first(K["TELESCOP"], K["TELESCOPE"]));
+        var instrume = CU_upperOrNull(CU_first(K["INSTRUME"], K["INSTRUMENT"]));
 
         // Setup: TELESCOP + "_" + INSTRUME
         var setup = null;
@@ -1167,7 +1067,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         var calibratedPaths = [];
         for (var j = 0; j < flatGroup.items.length; j++){
             var originalPath = flatGroup.items[j].path;
-            var originalName = _mc_basename(originalPath);
+            var originalName = CU_basename(originalPath);
             var baseName = originalName.replace(/\.(fit|fits|fts|xisf)$/i, "");
             var calibratedName = baseName + "_c.xisf";
             var calibratedPath = tempPath + "/" + calibratedName;

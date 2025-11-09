@@ -17,8 +17,6 @@
 #ifndef __ANAWBPPS_FITS_INDEXING_JSH
 #define __ANAWBPPS_FITS_INDEXING_JSH
 
-#include "common_utils.jsh"
-
 /* ============================================================================
  * Performance Monitoring (optional, for testing)
  * ============================================================================ */
