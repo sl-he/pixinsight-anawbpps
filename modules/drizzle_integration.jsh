@@ -16,37 +16,8 @@
 // Helpers
 // ============================================================================
 
-function DI_norm(p){
-    var s = String(p||"");
-    while (s.indexOf("\\") >= 0){
-        var i = s.indexOf("\\");
-        s = s.substring(0,i) + "/" + s.substring(i+1);
-    }
-    return s;
-}
-
-function DI_basename(p){
-    var s = DI_norm(p);
-    var i = s.lastIndexOf("/");
-    return (i>=0) ? s.substring(i+1) : s;
-}
-
-function DI_noext(p){
-    var b = DI_basename(p);
-    var i = b.lastIndexOf(".");
-    return (i>0) ? b.substring(0,i) : b;
-}
-
 function DI_sanitizeKey(key){
     return String(key||"").replace(/[|:\\/\s]+/g, "_");
-}
-
-function DI_fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var hs = Math.floor((sec - t) * 100);
-    var pad = function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
 }
 
 // ============================================================================
@@ -113,7 +84,7 @@ function DI_collectAndGroupFiles(PLAN, workFolders){
         
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
-            var stem = DI_noext(DI_basename(basePath));
+            var stem = CU_noext(CU_basename(basePath));
             var xdrzFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xdrz";
             
             if (File.exists(xdrzFile)){
@@ -149,7 +120,7 @@ function DI_buildInputDataArray(files, useLN, workFolders){
             
             // Validate .xnml exists
             if (!File.exists(xnmlPath)){
-                Console.warningln("[di]     LN data not found (skipping): " + DI_basename(xnmlPath));
+                Console.warningln("[di]     LN data not found (skipping): " + CU_basename(xnmlPath));
                 skipped.push(xdrzPath);
                 continue;
             }
@@ -157,13 +128,13 @@ function DI_buildInputDataArray(files, useLN, workFolders){
         
         // Validate .xdrz exists
         if (!File.exists(xdrzPath)){
-            Console.warningln("[di]     Drizzle data not found (skipping): " + DI_basename(xdrzPath));
+            Console.warningln("[di]     Drizzle data not found (skipping): " + CU_basename(xdrzPath));
             skipped.push(xdrzPath);
             continue;
         }
         
         // Add to inputData: [enabled, xdrzPath, xnmlPath]
-        inputData.push([true, DI_norm(xdrzPath), DI_norm(xnmlPath)]);
+        inputData.push([true, CU_norm(xdrzPath), CU_norm(xnmlPath)]);
     }
     
     if (skipped.length > 0){
@@ -257,7 +228,7 @@ function DI_buildOutputPath(ssKey, fileCount, workFolders, scale, isWeights){
         Console.writeln("[di]   Created folder: !Integrated");
     }
     
-    var fullPath = DI_norm(integratedFolder + "/" + filename);
+    var fullPath = CU_norm(integratedFolder + "/" + filename);
     
     return fullPath;
 }
@@ -282,20 +253,20 @@ function DI_saveResults(drzView, weightsView, basePath, weightsPath, scale){
         var weightsWindow = weightsView.window;
         
         // Save drizzle integration
-        Console.writeln("[di]     Writing drizzle integration: " + DI_basename(basePath));
+        Console.writeln("[di]     Writing drizzle integration: " + CU_basename(basePath));
         if (!drzWindow.saveAs(basePath, false, false, true, false)){
             throw new Error("Failed to save drizzle integration");
         }
         
         // Save weights
-        Console.writeln("[di]     Writing drizzle weights: " + DI_basename(weightsPath));
+        Console.writeln("[di]     Writing drizzle weights: " + CU_basename(weightsPath));
         if (!weightsWindow.saveAs(weightsPath, false, false, true, false)){
             throw new Error("Failed to save drizzle weights");
         }
         
         Console.writeln("[di]   ✓ Saved 2 files (32-bit float)");
-        Console.writeln("[di]     Main:    " + DI_basename(basePath));
-        Console.writeln("[di]     Weights: " + DI_basename(weightsPath));
+        Console.writeln("[di]     Main:    " + CU_basename(basePath));
+        Console.writeln("[di]     Weights: " + CU_basename(weightsPath));
         
     }catch(e){
         throw e;
@@ -383,7 +354,7 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
     }
     var elapsed = (Date.now() - t0) / 1000;
     
-    Console.writeln("[di]   ✓ Completed in " + DI_fmtHMS(elapsed));
+    Console.writeln("[di]   ✓ Completed in " + CU_fmtHMS(elapsed));
     
     // Save results
     try{
@@ -405,8 +376,8 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
         var weightsPath = DI_buildOutputPath(ssKey, inputData.length, workFolders, scale, true);
         
         // Build view IDs with scale
-        var baseName = DI_basename(basePath).replace(/\.xisf$/i, "");
-        var weightsName = DI_basename(weightsPath).replace(/\.xisf$/i, "");
+        var baseName = CU_basename(basePath).replace(/\.xisf$/i, "");
+        var weightsName = CU_basename(weightsPath).replace(/\.xisf$/i, "");
         
         // Rename views
         Console.writeln("[di]     Renaming views...");
@@ -435,7 +406,7 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
     // Update UI - Success
     if (node){
         try{
-            node.setText(2, DI_fmtHMS(elapsed));
+            node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, inputData.length + " subs drizzled");
             if (typeof processEvents === "function") processEvents();
