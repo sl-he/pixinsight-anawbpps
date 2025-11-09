@@ -16,27 +16,6 @@
 // Helpers
 // ============================================================================
 
-function II_norm(p){
-    var s = String(p||"");
-    while (s.indexOf("\\") >= 0){
-        var i = s.indexOf("\\");
-        s = s.substring(0,i) + "/" + s.substring(i+1);
-    }
-    return s;
-}
-
-function II_basename(p){
-    var s = II_norm(p);
-    var i = s.lastIndexOf("/");
-    return (i>=0) ? s.substring(i+1) : s;
-}
-
-function II_noext(p){
-    var b = II_basename(p);
-    var i = b.lastIndexOf(".");
-    return (i>0) ? b.substring(0,i) : b;
-}
-
 function II_sanitizeKey(key){
     return String(key||"").replace(/[|:\\/\s]+/g, "_");
 }
@@ -46,7 +25,7 @@ function II_buildSimpleSSKey(group){
     var object = group.object || group.target || "UNKNOWN";
     var filter = group.filter || "L";
     var expTime = group.exposureSec || group.exposure || 0;
-    
+
     return object + "|" + filter + "|" + expTime + "s";
 }
 
@@ -59,14 +38,6 @@ function II_buildFullSSKey(group){
     var expTime = group.exposureSec || group.exposure || 0;
 
     return setup + "|" + object + "|" + filter + "|" + "bin" + binning + "|" + expTime + "s";
-}
-
-function II_fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var hs = Math.floor((sec - t) * 100);
-    var pad = function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
 }
 
 // ============================================================================
@@ -96,7 +67,7 @@ function II_buildOutputPath(ssKey, fileCount, workFolders){
         Console.writeln("[ii]   Created folder: !Integrated");
     }
 
-    var fullPath = II_norm(integratedFolder + "/" + filename);
+    var fullPath = CU_norm(integratedFolder + "/" + filename);
 
     return fullPath;
 }
@@ -121,7 +92,7 @@ function II_saveResultsAsContainer(intView, lowView, highView, outputPath){
 
     // Build paths for 3 separate files
     var basePath = outputPath.replace(/\.xisf$/i, "");
-    var baseName = II_basename(basePath);
+    var baseName = CU_basename(basePath);
 
     var intPath = basePath + ".xisf";
     var lowPath = basePath + "_rejection_low.xisf";
@@ -148,27 +119,27 @@ function II_saveResultsAsContainer(intView, lowView, highView, outputPath){
         Console.writeln("[ii]       " + oldHighId + " → " + highView.id);
 
         // Save integration (main result)
-        Console.writeln("[ii]     Writing integration: " + II_basename(intPath));
+        Console.writeln("[ii]     Writing integration: " + CU_basename(intPath));
         if (!intWindow.saveAs(intPath, false, false, true, false)){
             throw new Error("Failed to save integration");
         }
 
         // Save rejection_low
-        Console.writeln("[ii]     Writing rejection_low: " + II_basename(lowPath));
+        Console.writeln("[ii]     Writing rejection_low: " + CU_basename(lowPath));
         if (!lowWindow.saveAs(lowPath, false, false, true, false)){
             throw new Error("Failed to save rejection_low");
         }
 
         // Save rejection_high
-        Console.writeln("[ii]     Writing rejection_high: " + II_basename(highPath));
+        Console.writeln("[ii]     Writing rejection_high: " + CU_basename(highPath));
         if (!highWindow.saveAs(highPath, false, false, true, false)){
             throw new Error("Failed to save rejection_high");
         }
 
         Console.writeln("[ii]   ✓ Saved 3 files (32-bit float)");
-        Console.writeln("[ii]     Main:  " + II_basename(intPath));
-        Console.writeln("[ii]     Low:   " + II_basename(lowPath));
-        Console.writeln("[ii]     High:  " + II_basename(highPath));
+        Console.writeln("[ii]     Main:  " + CU_basename(intPath));
+        Console.writeln("[ii]     Low:   " + CU_basename(lowPath));
+        Console.writeln("[ii]     High:  " + CU_basename(highPath));
 
     }catch(e){
         throw e;
@@ -263,11 +234,11 @@ function II_findReferenceForGroup(ssKey, icGroup, workFolders){
     
     // Step 5: Build reference path
     var topFile = xisfFiles[0];
-    var stem = II_noext(topFile);  // e.g. "!1_..._c_cc_a"
+    var stem = CU_noext(topFile);  // e.g. "!1_..._c_cc_a"
     var rFile = workFolders.approvedSet + "/" + stem + "_r.xisf";
     
     Console.writeln("[ii]   TOP-5 file: " + topFile);
-    Console.writeln("[ii]   Reference XISF: " + II_basename(rFile));
+    Console.writeln("[ii]   Reference XISF: " + CU_basename(rFile));
     
     // Step 6: Validate reference XISF exists
     if (!File.exists(rFile)){
@@ -322,7 +293,7 @@ function II_collectAndGroupFiles(PLAN, workFolders){
         
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
-            var stem = II_noext(II_basename(basePath));
+            var stem = CU_noext(CU_basename(basePath));
             var rFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xisf";
             
             if (File.exists(rFile)){
@@ -354,7 +325,7 @@ function II_collectAndGroupFiles(PLAN, workFolders){
             // Add reference to files list if not already present
             var refExists = false;
             for (var i=0; i<iiGroup.files.length; ++i){
-                if (II_norm(iiGroup.files[i]) === II_norm(refFile)){
+                if (CU_norm(iiGroup.files[i]) === CU_norm(refFile)){
                     refExists = true;
                     break;
                 }
@@ -376,7 +347,7 @@ function II_collectAndGroupFiles(PLAN, workFolders){
             csvName = csvName.replace(/[\s|:\/\\]+/g, "_");  // Sanitize
             iiGroup.csvPath = workFolders.approved + "/" + csvName;
             
-            Console.writeln("[ii]   CSV weights: " + II_basename(iiGroup.csvPath));
+            Console.writeln("[ii]   CSV weights: " + CU_basename(iiGroup.csvPath));
             
         }catch(e){
             Console.criticalln("[ii] Failed to prepare group '" + ssKey + "': " + e);
@@ -400,7 +371,7 @@ function II_buildImagesArray(files, referenceFile, useLN){
     var skipped = [];
     
     // 1. Add REFERENCE FIRST
-    Console.writeln("[ii]   Reference (TOP-5): " + II_basename(referenceFile));
+    Console.writeln("[ii]   Reference (TOP-5): " + CU_basename(referenceFile));
     
     var refXdrz = referenceFile.replace(/\.xisf$/, ".xdrz");
     var refXnml = useLN ? referenceFile.replace(/\.xisf$/, ".xnml") : "";
@@ -418,14 +389,14 @@ function II_buildImagesArray(files, referenceFile, useLN){
                        "Please run LocalNormalization for all files first");
     }
     
-    images.push([true, II_norm(referenceFile), II_norm(refXdrz), II_norm(refXnml)]);
+    images.push([true, CU_norm(referenceFile), CU_norm(refXdrz), CU_norm(refXnml)]);
     
     // 2. Add other files AFTER reference
     for (var i=0; i<files.length; ++i){
         var file = files[i];
         
         // Skip reference if it's in the list
-        if (II_norm(file) === II_norm(referenceFile)){
+        if (CU_norm(file) === CU_norm(referenceFile)){
             continue;
         }
         
@@ -434,7 +405,7 @@ function II_buildImagesArray(files, referenceFile, useLN){
         
         // Validate file
         if (!File.exists(file)){
-            Console.warningln("[ii]     File not found (skipping): " + II_basename(file));
+            Console.warningln("[ii]     File not found (skipping): " + CU_basename(file));
             skipped.push(file);
             continue;
         }
@@ -449,7 +420,7 @@ function II_buildImagesArray(files, referenceFile, useLN){
                            "Please run LocalNormalization for all files first");
         }
         
-        images.push([true, II_norm(file), II_norm(xdrzPath), II_norm(xnmlPath)]);
+        images.push([true, CU_norm(file), CU_norm(xdrzPath), CU_norm(xnmlPath)]);
     }
     
     if (skipped.length > 0){
@@ -472,7 +443,7 @@ function II_configureInstance(P, imagesArray, csvPath, useLN){
     // Weights from CSV
     P.weightMode = ImageIntegration.prototype.CSVWeightsFile;
     P.weightKeyword = "SSWEIGHT";
-    P.csvWeightsFilePath = II_norm(csvPath);
+    P.csvWeightsFilePath = CU_norm(csvPath);
     P.weightScale = ImageIntegration.prototype.WeightScale_BWMV;
     P.minWeight = 0.005000;
     P.csvWeights = "";
@@ -588,9 +559,9 @@ function II_processGroup(ssKey, iiGroup, workFolders, useLN, node){
         throw new Error("No CSV weights path for group: " + ssKey);
     }
     
-    Console.writeln("[ii]   Reference: " + II_basename(iiGroup.referenceFile));
+    Console.writeln("[ii]   Reference: " + CU_basename(iiGroup.referenceFile));
     Console.writeln("[ii]   Files: " + iiGroup.files.length);
-    Console.writeln("[ii]   CSV: " + II_basename(iiGroup.csvPath));
+    Console.writeln("[ii]   CSV: " + CU_basename(iiGroup.csvPath));
     
     // Update UI - Running
     if (node){
@@ -622,7 +593,7 @@ function II_processGroup(ssKey, iiGroup, workFolders, useLN, node){
     }
     var elapsed = (Date.now() - t0) / 1000;
 
-    Console.writeln("[ii]   ✓ Completed in " + II_fmtHMS(elapsed));
+    Console.writeln("[ii]   ✓ Completed in " + CU_fmtHMS(elapsed));
 
     // NEW: Save results as XISF container
     try{
@@ -662,7 +633,7 @@ function II_processGroup(ssKey, iiGroup, workFolders, useLN, node){
     // Update UI - Success
     if (node){
         try{
-            node.setText(2, II_fmtHMS(elapsed));
+            node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, imagesArray.length + "/" + imagesArray.length + " integrated");
             if (typeof processEvents === "function") processEvents();
