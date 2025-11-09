@@ -16,27 +16,6 @@
 // Helpers
 // ============================================================================
 
-function SA_norm(p){
-    var s = String(p||"");
-    while (s.indexOf("\\") >= 0){
-        var i = s.indexOf("\\");
-        s = s.substring(0,i) + "/" + s.substring(i+1);
-    }
-    return s;
-}
-
-function SA_basename(p){
-    var s = SA_norm(p);
-    var i = s.lastIndexOf("/");
-    return (i>=0) ? s.substring(i+1) : s;
-}
-
-function SA_noext(p){
-    var b = SA_basename(p);
-    var i = b.lastIndexOf(".");
-    return (i>0) ? b.substring(0,i) : b;
-}
-
 function SA_sanitizeKey(key){
     return String(key||"").replace(/[|:\\/\s]+/g, "_");
 }
@@ -51,14 +30,6 @@ function SA_buildSSKey(group){
     var expTime = group.exposureSec || group.exposure || 0;
 
     return setup + "|" + object + "|" + filter + "|" + "bin" + binning + "|" + expTime + "s";
-}
-
-function SA_fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var hs = Math.floor((sec - t) * 100);
-    var pad = function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
 }
 
 // ============================================================================
@@ -172,7 +143,7 @@ function SA_findReferenceFile(refGroup, workFolders){
     Console.writeln("[sa]   Sanitized key: " + sanitizedKey);
     
     // Build TOP-5 path
-    var top5Path = SA_norm(workFolders.approved + "/!Approved_Best5/" + sanitizedKey);
+    var top5Path = CU_norm(workFolders.approved + "/!Approved_Best5/" + sanitizedKey);
     Console.writeln("[sa]   TOP-5 path: " + top5Path);
     
     // Check if directory exists
@@ -212,7 +183,7 @@ function SA_findReferenceFile(refGroup, workFolders){
     }
     
     // Exactly 1 file - use it
-    var referenceFile = SA_norm(top5Path + "/" + xisfFiles[0]);
+    var referenceFile = CU_norm(top5Path + "/" + xisfFiles[0]);
     Console.writeln("[sa]   Reference file: " + xisfFiles[0]);
     
     return referenceFile;
@@ -266,14 +237,14 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
             continue;
         }
 
-        var top5Path = SA_norm(approvedDir + "/!Approved_Best5/" + sanitizedKey);
+        var top5Path = CU_norm(approvedDir + "/!Approved_Best5/" + sanitizedKey);
 
         if (File.directoryExists(top5Path)){
             var fileFind2 = new FileFind;
             if (fileFind2.begin(top5Path + "/*.xisf")){
                 do {
                     if (!fileFind2.isDirectory){
-                        var fullPath = SA_norm(top5Path + "/" + fileFind2.name);
+                        var fullPath = CU_norm(top5Path + "/" + fileFind2.name);
                         targetFiles.push(fullPath);
                         Console.writeln("[sa]     Added TOP-5 [" + tg.filter + "]: " + fileFind2.name);
                     }
@@ -301,8 +272,8 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
         // DEBUG: Show first file from group
         if (bases.length > 0){
             Console.writeln("[sa]     DEBUG: First base path: " + bases[0]);
-            Console.writeln("[sa]     DEBUG: Extracted stem: " + SA_noext(SA_basename(bases[0])));
-            var testPath = SA_norm(approvedDir + "/" + SA_noext(SA_basename(bases[0])) + "_c_cc_a.xisf");
+            Console.writeln("[sa]     DEBUG: Extracted stem: " + CU_noext(CU_basename(bases[0])));
+            var testPath = CU_norm(approvedDir + "/" + CU_noext(CU_basename(bases[0])) + "_c_cc_a.xisf");
             Console.writeln("[sa]     DEBUG: Looking for: " + testPath);
             Console.writeln("[sa]     DEBUG: File exists: " + File.exists(testPath));
         }
@@ -310,8 +281,8 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
         // Build approved file paths
         for (var j=0; j<bases.length; ++j){
             var basePath = bases[j];
-            var stem = SA_noext(SA_basename(basePath));
-            var approvedPath = SA_norm(approvedDir + "/" + stem + "_c_cc_a.xisf");
+            var stem = CU_noext(CU_basename(basePath));
+            var approvedPath = CU_norm(approvedDir + "/" + stem + "_c_cc_a.xisf");
 
             if (File.exists(approvedPath)){
                 targetFiles.push(approvedPath);
@@ -472,7 +443,7 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
     P.referenceIsFile = true;
     
     // Set output directory
-    P.outputDirectory = SA_norm(workFolders.approvedSet);
+    P.outputDirectory = CU_norm(workFolders.approvedSet);
     
     // Create output directory if needed
     try{
@@ -495,7 +466,7 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
     Console.writeln("[sa]   DEBUG after loop: P.targets.length=" + P.targets.length);
     P.targets = targetsArray;  // Присваиваем весь массив целиком!
     Console.writeln("[sa]   DEBUG after assign: P.targets.length=" + P.targets.length);
-    Console.writeln("[sa]   Reference: " + SA_basename(referenceFile));
+    Console.writeln("[sa]   Reference: " + CU_basename(referenceFile));
     Console.writeln("[sa]   Targets: " + P.targets.length + " files");
     Console.writeln("[sa]   Output: " + P.outputDirectory);
     Console.writeln("[sa]   Running StarAlignment...");
@@ -505,12 +476,12 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
     P.executeGlobal();  // Ignore return value - SA handles errors internally
     var elapsed = (Date.now() - t0) / 1000;
     
-    Console.writeln("[sa]   ✔ Completed in " + SA_fmtHMS(elapsed));
+    Console.writeln("[sa]   ✔ Completed in " + CU_fmtHMS(elapsed));
     
     // Step 8: Update UI - Success
     if (node){
         try{
-            node.setText(2, SA_fmtHMS(elapsed));
+            node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, targetFiles.length + "/" + targetFiles.length + " registered");
             if (typeof processEvents === "function") processEvents();
