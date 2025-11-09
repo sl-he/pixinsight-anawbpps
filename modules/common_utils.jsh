@@ -26,11 +26,39 @@
  */
 function CU_norm(p){
     if (!p) return "";
-    var s = String(p).replace(/\\/g, '/');
+    var s = String(p);
+
+    // Replace backslashes with forward slashes
+    while (s.indexOf("\\") >= 0){
+        var i = s.indexOf("\\");
+        s = s.substring(0, i) + "/" + s.substring(i+1);
+    }
+
+    // Collapse duplicate forward slashes
+    var changed = true;
+    while (changed){
+        changed = false;
+        for (var i = 0; i < s.length-1; i++){
+            if (s.charAt(i) == "/" && s.charAt(i+1) == "/"){
+                s = s.substring(0, i) + "/" + s.substring(i+2);
+                changed = true;
+                break;
+            }
+        }
+    }
+
+    // Uppercase drive letter (q:/ → Q:/)
+    if (s.length > 2 && s.charAt(1) == ":" && s.charAt(2) == "/"){
+        var c = s.charAt(0);
+        if (c >= "a" && c <= "z")
+            s = c.toUpperCase() + s.substring(1);
+    }
+
     // Remove trailing slash
     if (s.length > 1 && s.charAt(s.length-1) == '/'){
         s = s.substring(0, s.length-1);
     }
+
     return s;
 }
 
@@ -247,6 +275,84 @@ function CU_buildFullSSKey(frame){
     var f = CU_sanitizeKey(frame.filter || "");
     var e = CU_toInt(frame.exposureSec, 0);
     return s + "_" + o + "_" + f + "_" + e + "s";
+}
+
+// ============================================================================
+// Date and Time Utilities
+// ============================================================================
+
+/**
+ * Parse ISO date string (YYYY-MM-DD) to Date object
+ * @param {string} yyyy_mm_dd - Date string in YYYY-MM-DD format
+ * @returns {Date|null} Date object or null if invalid
+ */
+function CU_parseISODate(yyyy_mm_dd){
+    var s = String(yyyy_mm_dd||"").trim();
+    var y = 0, m = 0, d = 0;
+    var i1 = s.indexOf('-');
+    if (i1 > 0){
+        y = parseInt(s.substring(0, i1), 10);
+        var i2 = s.indexOf('-', i1+1);
+        if (i2 > i1){
+            m = parseInt(s.substring(i1+1, i2), 10);
+            d = parseInt(s.substring(i2+1), 10);
+        }
+    }
+    if (!(y > 0 && m > 0 && d > 0)) return null;
+    return new Date(y, m-1, d);
+}
+
+/**
+ * Calculate difference in days between two dates
+ * @param {Date} a - First date
+ * @param {Date} b - Second date
+ * @returns {number} Difference in days (rounded)
+ */
+function CU_daysDiff(a, b){
+    return Math.round((a.getTime() - b.getTime()) / (24*3600*1000));
+}
+
+// ============================================================================
+// Comparison Utilities
+// ============================================================================
+
+/**
+ * Compare two values as strings
+ * @param {*} a - First value
+ * @param {*} b - Second value
+ * @returns {boolean} True if equal as strings
+ */
+function CU_sameStr(a, b){
+    return String(a||"") == String(b||"");
+}
+
+/**
+ * Compare two values as integers
+ * @param {*} a - First value
+ * @param {*} b - Second value
+ * @returns {boolean} True if equal as integers
+ */
+function CU_sameInt(a, b){
+    return parseInt(a, 10) == parseInt(b, 10);
+}
+
+// ============================================================================
+// Object Validation Utilities
+// ============================================================================
+
+/**
+ * Check if object has all required keys with non-empty values
+ * @param {Object} obj - Object to check
+ * @param {Array} keys - Required key names
+ * @returns {boolean} True if all keys present and non-empty
+ */
+function CU_hasAllKeys(obj, keys){
+    for (var i = 0; i < keys.length; i++){
+        var k = keys[i];
+        if (obj[k] === null || typeof obj[k] === "undefined" || obj[k] === "")
+            return false;
+    }
+    return true;
 }
 
 // ============================================================================
