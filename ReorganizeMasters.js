@@ -210,8 +210,8 @@ function ReorganizeMastersDialog(){
     var self = this;
 
     // Default values
-    this.sourcePath = "V:/!!!WORK/ASTROFOTO/!!!MASTERS_NO_BIAS";
-    this.targetPath = "W:/!!!WORK/ASTROFOTO/!!!!!MASTERS";
+    this.sourcePath = "";
+    this.targetPath = "";
     this.dryRun = true;
     this.recursive = true;
     this.moveFiles = false;
