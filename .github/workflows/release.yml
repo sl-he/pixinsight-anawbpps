@@ -39,9 +39,11 @@ jobs:
           mkdir -p /tmp/build/src/scripts/ANAWBPPS
           
           # Copy files
-          cp anawbpps.js /tmp/build/src/scripts/ANAWBPPS/
-          cp anawbpps.constants.jsh /tmp/build/src/scripts/ANAWBPPS/
-          cp dark_bias_rebuilder.js /tmp/build/src/scripts/ANAWBPPS/
+          cp ANAWBPPS.js /tmp/build/src/scripts/ANAWBPPS/
+          cp ANAWBPPS.constants.jsh /tmp/build/src/scripts/ANAWBPPS/
+          cp DarkBiasRebuilder.js /tmp/build/src/scripts/ANAWBPPS/
+          cp ReorganizeMasters.js /tmp/build/src/scripts/ANAWBPPS/
+          cp BatchFormatConversionRecursive.js /tmp/build/src/scripts/ANAWBPPS/
           cp -r modules /tmp/build/src/scripts/ANAWBPPS/
           
           # Create ZIP
