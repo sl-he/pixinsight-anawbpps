@@ -16,27 +16,6 @@
 // Helpers
 // ============================================================================
 
-function LN_norm(p){
-    var s = String(p||"");
-    while (s.indexOf("\\") >= 0){
-        var i = s.indexOf("\\");
-        s = s.substring(0,i) + "/" + s.substring(i+1);
-    }
-    return s;
-}
-
-function LN_basename(p){
-    var s = LN_norm(p);
-    var i = s.lastIndexOf("/");
-    return (i>=0) ? s.substring(i+1) : s;
-}
-
-function LN_noext(p){
-    var b = LN_basename(p);
-    var i = b.lastIndexOf(".");
-    return (i>0) ? b.substring(0,i) : b;
-}
-
 function LN_sanitizeKey(key){
     return String(key||"").replace(/[|:\\/\s]+/g, "_");
 }
@@ -46,7 +25,7 @@ function LN_buildSimpleSSKey(group){
     var object = group.object || group.target || "UNKNOWN";
     var filter = group.filter || "L";
     var expTime = group.exposureSec || group.exposure || 0;
-    
+
     return object + "|" + filter + "|" + expTime + "s";
 }
 
@@ -59,14 +38,6 @@ function LN_buildFullSSKey(group){
     var expTime = group.exposureSec || group.exposure || 0;
 
     return setup + "|" + object + "|" + filter + "|" + "bin" + binning + "|" + expTime + "s";
-}
-
-function LN_fmtHMS(sec){
-    var t = Math.max(0, Math.floor(sec));
-    var hh = Math.floor(t/3600), mm = Math.floor((t%3600)/60), ss = t%60;
-    var hs = Math.floor((sec - t) * 100);
-    var pad = function(n){ return (n<10?"0":"")+n; };
-    return pad(hh)+":"+pad(mm)+":"+pad(ss)+"."+pad(hs);
 }
 
 // ============================================================================
@@ -118,12 +89,12 @@ function LN_findReferenceForGroup(ssKey, icGroup, workFolders){
     
     // Step 5: Build reference paths
     var topFile = xisfFiles[0];
-    var stem = LN_noext(topFile);  // e.g. "!1_..._c_cc_a"
+    var stem = CU_noext(topFile);  // e.g. "!1_..._c_cc_a"
     var rFile = workFolders.approvedSet + "/" + stem + "_r.xisf";
     var xdrzFile = workFolders.approvedSet + "/" + stem + "_r.xdrz";
     
     Console.writeln("[ln]   TOP-5 file: " + topFile);
-    Console.writeln("[ln]   Reference XISF: " + LN_basename(rFile));
+    Console.writeln("[ln]   Reference XISF: " + CU_basename(rFile));
     
     // Step 6: Validate reference XISF exists
     if (!File.exists(rFile)){
@@ -186,7 +157,7 @@ function LN_collectAndGroupFiles(PLAN, workFolders){
         
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
-            var stem = LN_noext(LN_basename(basePath));
+            var stem = CU_noext(CU_basename(basePath));
             var rFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xisf";
             
             if (File.exists(rFile)){
@@ -218,7 +189,7 @@ function LN_collectAndGroupFiles(PLAN, workFolders){
             // Add reference to files list if not already present
             var refExists = false;
             for (var i=0; i<lnGroup.files.length; ++i){
-                if (LN_norm(lnGroup.files[i]) === LN_norm(refFile)){
+                if (CU_norm(lnGroup.files[i]) === CU_norm(refFile)){
                     refExists = true;
                     break;
                 }
@@ -321,7 +292,7 @@ function LN_processGroup(ssKey, lnGroup, workFolders, node){
         throw new Error("No files to normalize for group: " + ssKey);
     }
     
-    Console.writeln("[ln]   Reference: " + LN_basename(lnGroup.referenceFile));
+    Console.writeln("[ln]   Reference: " + CU_basename(lnGroup.referenceFile));
     Console.writeln("[ln]   Files: " + lnGroup.files.length);
     
     // Update UI - Running
@@ -338,15 +309,15 @@ function LN_processGroup(ssKey, lnGroup, workFolders, node){
     LN_applyInstanceSettings(P);
     
     // Set reference
-    P.referencePathOrViewId = LN_norm(lnGroup.referenceFile);
+    P.referencePathOrViewId = CU_norm(lnGroup.referenceFile);
     
     // Set output directory
-    P.outputDirectory = LN_norm(workFolders.approvedSet);
+    P.outputDirectory = CU_norm(workFolders.approvedSet);
     
     // Build targets array
     var targetsArray = [];
     for (var i=0; i<lnGroup.files.length; ++i){
-        targetsArray.push([true, LN_norm(lnGroup.files[i])]);
+        targetsArray.push([true, CU_norm(lnGroup.files[i])]);
     }
     
     P.targetItems = targetsArray;
@@ -365,12 +336,12 @@ function LN_processGroup(ssKey, lnGroup, workFolders, node){
     }
     var elapsed = (Date.now() - t0) / 1000;
     
-    Console.writeln("[ln]   ✓ Completed in " + LN_fmtHMS(elapsed));
+    Console.writeln("[ln]   ✓ Completed in " + CU_fmtHMS(elapsed));
     
     // Update UI - Success
     if (node){
         try{
-            node.setText(2, LN_fmtHMS(elapsed));
+            node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, lnGroup.files.length + "/" + lnGroup.files.length + " normalized");
             if (typeof processEvents === "function") processEvents();
