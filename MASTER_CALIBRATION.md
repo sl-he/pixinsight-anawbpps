@@ -385,13 +385,13 @@ If you have extensive dark library:
 - Monthly if temperature-controlled
 - After camera cooldown changes
 
-**DarkFlat:** Same schedule as darks
-
 **Flat:**
 - Every imaging session (dust changes!)
 - After cleaning optics
-- After rotating/adjusting camera
+- After rotating/adjusting camera (if camera not rotate with filters)
 - After changing filters
+
+**DarkFlat:** Same schedule as flats
 
 ### 6. File Format
 

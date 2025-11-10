@@ -925,7 +925,7 @@ function SS_runForAllGroups(params){
             Console.warningln("[ss]   Measure failed - skipping group");
             try{
                 if (outputNode) outputNode.setText(3, "✖ Error");
-                if (outputNode) outputNode.setText(4, "Measure failed");
+                if (outputNode) outputNode.setText(4, "Failed: Measure failed");
             }catch(_){}
             continue;
         }

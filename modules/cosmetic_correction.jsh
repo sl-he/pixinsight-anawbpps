@@ -233,14 +233,16 @@ function CC_runForAllGroups(params){
         
         // Update progress UI
         var node = null;
+        var count = 0;
         if (dlg && dlg.ccRowsMap && dlg.ccRowsMap[gkey]){
             node = dlg.ccRowsMap[gkey].node;
+            count = dlg.ccRowsMap[gkey].count || 0;
         }
-        
+
         if (node){
             try {
                 node.setText(3, "▶ Running");
-                node.setText(4, "processing...");
+                node.setText(4, "0/" + count + " processing");
                 node.setText(2, "00:00:00.00");
             } catch(_){}
             try { processEvents(); } catch(_){}

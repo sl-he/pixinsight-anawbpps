@@ -483,7 +483,7 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
         try{
             node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
-            node.setText(4, targetFiles.length + "/" + targetFiles.length + " registered");
+            node.setText(4, targetFiles.length + "/" + targetFiles.length + " aligned");
             if (typeof processEvents === "function") processEvents();
         }catch(_){}
     }

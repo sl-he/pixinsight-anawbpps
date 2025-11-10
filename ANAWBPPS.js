@@ -465,7 +465,7 @@ function PP_runImageCalibration_UI(dlg, plan, options){
         if (!rec || !rec.node) continue;
 
         PP_setStatus(dlg, rec.node, PP_iconRunning());
-        PP_setNote  (dlg, rec.node, rec.frames ? (rec.frames+"/"+rec.frames+" running") : "running");
+        PP_setNote  (dlg, rec.node, rec.frames ? ("0/"+rec.frames+" calibrating") : "calibrating");
         try{ processEvents(); }catch(_){}
 
         var mp = __miniPlanFor(gkey);
@@ -492,8 +492,8 @@ function PP_runImageCalibration_UI(dlg, plan, options){
         if (processed==null) processed = okG ? (rec.frames||0) : 0;
 
         PP_setStatus(dlg, rec.node, okG ? PP_iconSuccess() : PP_iconError());
-        PP_setNote  (dlg, rec.node, okG ? (processed+"/"+(rec.frames||0)+" processed")
-            : (gErr || errG || "Error"));
+        PP_setNote  (dlg, rec.node, okG ? (processed+"/"+(rec.frames||0)+" calibrated")
+            : ("Failed: " + (gErr || errG || "Unknown error")));
         try{ processEvents(); }catch(_){}
         if (!okG) throw new Error(errG || gErr || "ImageCalibration failed");
     }
@@ -678,7 +678,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 var row = dlg.addRow("MasterDark Integration", fileName);
                 dlg.masterRows[key] = row;
                 PP_setStatus(dlg, row, PP_iconQueued());
-                PP_setNote(dlg, row, darkGroup.items.length + " files");
+                PP_setNote(dlg, row, darkGroup.items.length + "/" + darkGroup.items.length + " queued");
             }
 
             // MasterDarkFlat Integration rows
@@ -689,7 +689,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 var row = dlg.addRow("MasterDarkFlat Integration", fileName);
                 dlg.masterRows[key] = row;
                 PP_setStatus(dlg, row, PP_iconQueued());
-                PP_setNote(dlg, row, dfGroup.items.length + " files");
+                PP_setNote(dlg, row, dfGroup.items.length + "/" + dfGroup.items.length + " queued");
             }
 
             // Flat Calibration rows - use same naming as MasterFlat
@@ -703,7 +703,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 var row = dlg.addRow("Flat Calibration", fileName);
                 dlg.masterRows[key] = row;
                 PP_setStatus(dlg, row, PP_iconQueued());
-                PP_setNote(dlg, row, flatGroup.items.length + " files");
+                PP_setNote(dlg, row, flatGroup.items.length + "/" + flatGroup.items.length + " queued");
             }
 
             // MasterFlat Integration rows
@@ -714,7 +714,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 var row = dlg.addRow("MasterFlat Integration", fileName);
                 dlg.masterRows[key] = row;
                 PP_setStatus(dlg, row, PP_iconQueued());
-                PP_setNote(dlg, row, flatGroup.items.length + " files");
+                PP_setNote(dlg, row, flatGroup.items.length + "/" + flatGroup.items.length + " queued");
             }
 
             try { processEvents(); } catch(_){}
@@ -744,22 +744,28 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 }
 
                 // Mark as running
+                var fileCount = groupInfo.fileCount || 0;
                 PP_setStatus(dlg, row, PP_iconRunning());
-                PP_setNote(dlg, row, operationType + " " + (groupInfo.fileCount || 0) + " files");
+                PP_setNote(dlg, row, "0/" + fileCount + " " + operationType);
                 try { processEvents(); } catch(_){}
 
             } else if (itemPhase === 'complete'){
                 // Mark as complete with elapsed time
                 var elapsed = groupInfo.elapsed || 0; // in seconds
+                var fileCount = groupInfo.fileCount || 0;
                 PP_setElapsed(dlg, row, PP_fmtHMS(elapsed));
                 PP_setStatus(dlg, row, groupInfo.success ? PP_iconSuccess() : PP_iconError());
 
                 // Determine completion note
                 var noteText = "";
-                if (type === "dark" || type === "darkflat" || type === "flat"){
-                    noteText = "integrated";
-                } else if (type === "calibflat"){
-                    noteText = "calibrated";
+                if (groupInfo.success){
+                    if (type === "dark" || type === "darkflat" || type === "flat"){
+                        noteText = fileCount + "/" + fileCount + " integrated";
+                    } else if (type === "calibflat"){
+                        noteText = fileCount + "/" + fileCount + " calibrated";
+                    }
+                } else {
+                    noteText = "Failed: " + (groupInfo.error || "Unknown error");
                 }
                 PP_setNote(dlg, row, noteText);
                 try { processEvents(); } catch(_){}
@@ -786,7 +792,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 } catch(_){}
                 if (currentStatus.indexOf("Running") >= 0 || currentStatus.indexOf("Queued") >= 0){
                     PP_setStatus(dlg, row, PP_iconError());
-                    PP_setNote(dlg, row, "Error");
+                    PP_setNote(dlg, row, "Failed: " + (err || "Unknown error"));
                 }
             }
         }
