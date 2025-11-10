@@ -41,7 +41,7 @@ function DI_buildSimpleSSKey(group){
     var object = group.object || group.target || "UNKNOWN";
     var filter = group.filter || "L";
     var expTime = group.exposureSec || group.exposure || 0;
-    
+
     return object + "|" + filter + "|" + expTime + "s";
 }
 
@@ -81,12 +81,12 @@ function DI_collectAndGroupFiles(PLAN, workFolders){
         
         // Collect files from this IC group
         var bases = G.lights || [];
-        
+
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
             var stem = CU_noext(CU_basename(basePath));
             var xdrzFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xdrz";
-            
+
             if (File.exists(xdrzFile)){
                 diGroups[simpleSSKey].files.push(xdrzFile);
             } else {
@@ -94,9 +94,54 @@ function DI_collectAndGroupFiles(PLAN, workFolders){
             }
         }
     }
-    
+
+    // Find and add reference file for each DI group (using II_findReferenceForGroup)
+    for (var ssKey in diGroups){
+        if (!diGroups.hasOwnProperty(ssKey)) continue;
+
+        var diGroup = diGroups[ssKey];
+
+        if (diGroup.icGroups.length === 0){
+            Console.warningln("[di] No IC groups for DI group: " + ssKey);
+            continue;
+        }
+
+        // Use first IC group to find TOP-5 reference
+        var firstICGroup = diGroup.icGroups[0];
+
+        try{
+            // Use II_findReferenceForGroup to get .xisf path, then convert to .xdrz
+            var refXisf = II_findReferenceForGroup(ssKey, firstICGroup, workFolders);
+            var refXdrz = refXisf.replace(/\.xisf$/, ".xdrz");
+
+            // Validate .xdrz exists
+            if (!File.exists(refXdrz)){
+                Console.warningln("[di]   Reference drizzle data not found: " + refXdrz);
+                continue;
+            }
+
+            // Check if reference is already in files list
+            var refExists = false;
+            for (var i=0; i<diGroup.files.length; ++i){
+                if (CU_norm(diGroup.files[i]) === CU_norm(refXdrz)){
+                    refExists = true;
+                    break;
+                }
+            }
+
+            if (!refExists){
+                diGroup.files.push(refXdrz);
+                Console.writeln("[di]   Added reference to files list: " + CU_basename(refXdrz));
+            } else {
+                Console.writeln("[di]   Reference already in files list");
+            }
+        }catch(e){
+            Console.warningln("[di]   Failed to find reference: " + e);
+        }
+    }
+
     Console.writeln("[di] Grouped into " + Object.keys(diGroups).length + " DI group(s)");
-    
+
     return diGroups;
 }
 
