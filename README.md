@@ -129,12 +129,10 @@ https://sl-he.github.io/pixinsight-anawbpps/
 
 ### Usage
 
-1. **Script** → **Script Editor**
-2. Open `anawbpps.js`
-3. Press **Execute (F5)**
-4. Configure paths and camera settings
-5. Select workflow stages
-6. Click **RUN**
+1. Open **PI Menu** → **SCRIPT** → **sl-he** → **ANAWBPPS**
+2. Configure paths and camera settings
+3. Select workflow stages
+4. Click **RUN**
 
 ---
 
