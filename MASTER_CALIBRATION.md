@@ -127,10 +127,10 @@ The script will:
   - **Time elapsed**
 
 **Typical processing time:**
-- **Bias** (50 frames): ~30 seconds
-- **Dark** (20 frames): ~20 seconds per group
-- **DarkFlat** (20 frames): ~20 seconds per group
-- **Flat** (30 frames): ~30 seconds per group
+- **Bias** (50 frames): ~90 seconds
+- **Dark** (20 frames): ~40 seconds per group
+- **DarkFlat** (20 frames): ~40 seconds per group
+- **Flat** (30 frames): ~60 seconds per group
 
 ### Step 5: Verify Output
 
@@ -173,7 +173,7 @@ E:/Masters_Library/
 - Same GAIN, OFFSET, BINNING as lights
 - Temperature doesn't matter (some prefer matching)
 
-**Recommended count:** 50-100 frames
+**Recommended count:** 50-100-200 frames
 
 **When to use:**
 - Always recommended for best quality
@@ -190,9 +190,9 @@ E:/Masters_Library/
 **Requirements:**
 - Same EXPOSURE as lights
 - Camera shutter closed
-- Same GAIN, OFFSET, BINNING, TEMPERATURE (±3°C) as lights
+- Same GAIN, OFFSET, BINNING, TEMPERATURE (±1°C) as lights
 
-**Recommended count:** 20-30 frames per exposure/temperature combination
+**Recommended count:** 30-50 frames per exposure/temperature combination
 
 **Temperature matching:**
 - ±3°C tolerance for matching
@@ -213,7 +213,7 @@ E:/Masters_Library/
 - Same GAIN, OFFSET, BINNING as flats
 - TEMPERATURE matching (±3 hours by observation time)
 
-**Recommended count:** 20 frames per flat exposure time
+**Recommended count:** 30-50 frames per flat exposure time
 
 **Important notes:**
 - DarkFlat exposure must match Flat exposure exactly
@@ -230,7 +230,7 @@ E:/Masters_Library/
 
 **Requirements:**
 - Evenly illuminated surface (light panel, twilight sky)
-- Median ADU ~30-40% of camera range (e.g., 20,000-25,000 for 16-bit)
+- Median ADU ~50% of camera range (e.g., ~32700 for 16-bit)
 - Same FILTER, GAIN, OFFSET, BINNING as lights
 - Same focus/rotation as lights (critical!)
 
@@ -328,17 +328,17 @@ Masters are organized in hierarchical folders:
 
 | Frame Type | Minimum | Recommended | Optimal |
 |------------|---------|-------------|---------|
-| **Bias** | 30 | 50 | 100 |
-| **Dark** | 15 | 20 | 30 |
-| **DarkFlat** | 15 | 20 | 30 |
-| **Flat** | 20 | 30 | 50 |
+| **Bias** | 50      | 100         | 200     |
+| **Dark** | 15      | 30          | 50      |
+| **DarkFlat** | 15      | 30          | 50      |
+| **Flat** | 20      | 30          | 50      |
 
 More frames = better noise reduction (√N law)
 
 ### 2. Temperature Management
 
 **For Darks:**
-- Use same temperature as lights (±3°C)
+- Use same temperature as lights (±1°C)
 - Colder darks work better (thermal noise scales with temperature)
 - Create separate masters for different temperature bins:
   - Summer: -5°C to 0°C
@@ -366,7 +366,7 @@ If you have extensive dark library:
 
 **Critical factors:**
 - Even illumination (no gradients, no bright spots)
-- Correct ADU level (30-40% of range)
+- Correct ADU level (~50% of range)
 - Same optical train (focus, rotation, spacing)
 - Taken close to imaging session (dust changes!)
 
@@ -374,7 +374,7 @@ If you have extensive dark library:
 1. Open master flat in PixInsight
 2. **Process** → **Statistics**
 3. Verify:
-   - Mean ≈ 0.3-0.4 (for normalized 0-1 range)
+   - Mean ≈ 0.5 (for normalized 0-1 range)
    - StdDev low (< 0.1)
    - No obvious gradients or patterns
 
@@ -437,8 +437,8 @@ FITS format also supported but XISF preferred.
 3. Check TELESCOP/INSTRUME spelling (case-sensitive)
 
 **Expected behavior:**
-- Darks at -10°C, -11°C, -12°C → Single group (within ±3°C)
-- Darks at -10°C and -15°C → Two groups (>3°C difference)
+- Darks at -10°C, -10.1°C, -10.2°C → Single group (within ±1°C)
+- Darks at -10°C and -12°C → Two groups (>1°C difference)
 
 ### Problem: "Master file looks wrong (too bright/dark)"
 
@@ -464,8 +464,8 @@ FITS format also supported but XISF preferred.
 
 **RAM requirements:**
 - ~2GB per 20MP frame
-- 50 x 20MP frames ≈ 16GB RAM needed
-- 100 x 60MP frames ≈ 48GB RAM needed
+- 50 x 20MP frames ≈ 16GB of free RAM needed
+- 100 x 60MP frames ≈ 48GB of free RAM needed
 
 ### Problem: "DarkFlat not matched to Flat"
 
