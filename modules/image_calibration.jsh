@@ -594,3 +594,163 @@ function IC_runCalibration(plan, workFolders, useBias){
         throw e;
     }
 }
+
+// ============================================================================
+// PART 3: UI-INTEGRATED RUNNER (like other modules)
+// ============================================================================
+
+function IC_runForAllGroups(params){
+    // params: { plan, workFolders, useBias, dlg }
+    var plan = params.plan;
+    var workFolders = params.workFolders;
+    var useBias = (params.useBias !== undefined) ? params.useBias : true;
+    var dlg = params.dlg || null;
+
+    if (!plan || !plan.groups){
+        // Fallback: single row if no groups
+        if (dlg){
+            var r = dlg.addRow("ImageCalibration", "Apply masters to lights");
+            try{
+                if (typeof PP_setStatus === "function") PP_setStatus(dlg, r, PP_iconQueued());
+                if (typeof processEvents === "function") processEvents();
+            }catch(_){}
+            try{
+                if (typeof PP_setStatus === "function") PP_setStatus(dlg, r, PP_iconRunning());
+                if (typeof processEvents === "function") processEvents();
+            }catch(_){}
+            var ok=true, err="", t0=Date.now();
+            try{ IC_runCalibration(plan, workFolders, useBias); }catch(e){ ok=false; err=e.toString(); }
+            var dt = Date.now()-t0;
+            try{
+                if (typeof formatElapsedMS === "function"){
+                    dlg.updateRow(r, { elapsed: formatElapsedMS(dt), note: ok? "" : ("Failed: " + err) });
+                }
+                if (typeof PP_setStatus === "function") PP_setStatus(dlg, r, ok ? PP_iconSuccess() : PP_iconError());
+                if (typeof processEvents === "function") processEvents();
+            }catch(_){}
+            if (!ok) throw new Error(err);
+        } else {
+            IC_runCalibration(plan, workFolders, useBias);
+        }
+        return;
+    }
+
+    // Extract group keys
+    var keys = [];
+    try{
+        if (plan.order && plan.order.length) keys = plan.order.slice(0);
+        else for (var k in plan.groups) if (plan.groups.hasOwnProperty(k)) keys.push(k);
+    }catch(_){}
+
+    if (keys.length === 0){
+        Console.warningln("[cal] No groups found in plan");
+        return;
+    }
+
+    Console.noteln("[cal] ImageCalibration for " + keys.length + " group(s)" + (useBias ? " (with Bias)" : " (without Bias)"));
+
+    // Pre-add UI rows for all groups
+    if (dlg){
+        if (!dlg.icRowsMap) dlg.icRowsMap = {};
+        for (var i=0; i<keys.length; i++){
+            var gkey   = keys[i];
+            var g      = plan.groups[gkey] || {};
+            var frames = (g && g.lights && g.lights.length) ? g.lights.length : 0;
+            var label  = gkey;
+
+            // Format group key for UI (using CP__fmtGroupForUI if available)
+            try{
+                if (typeof CP__fmtGroupForUI === "function"){
+                    label = CP__fmtGroupForUI(gkey);
+                }
+            }catch(_){}
+
+            label += (frames ? (" ("+frames+" subs)") : "");
+
+            var node = dlg.addRow("ImageCalibration", label);
+            try{
+                if (typeof PP_setStatus === "function") PP_setStatus(dlg, node, PP_iconQueued());
+                if (typeof PP_setNote === "function") PP_setNote(dlg, node, frames ? (frames+"/"+frames+" queued") : "");
+            }catch(_){}
+
+            dlg.icRowsMap[gkey] = { node: node, frames: frames };
+        }
+        try{ if (typeof processEvents === "function") processEvents(); }catch(_){}
+    }
+
+    // Helper: build mini-plan for single group
+    function __miniPlanFor(key){
+        var mp = {};
+        for (var prop in plan)
+            if (plan.hasOwnProperty(prop) && prop !== "groups" && prop !== "order")
+                mp[prop] = plan[prop];
+        mp.groups = {}; mp.groups[key] = plan.groups[key];
+        mp.order = [key];
+        return mp;
+    }
+
+    // Process each group
+    for (var j=0; j<keys.length; j++){
+        var gkey = keys[j];
+        var rec  = dlg ? dlg.icRowsMap[gkey] : null;
+        var node = rec ? rec.node : null;
+
+        // Update UI - Running
+        if (node){
+            try{
+                if (typeof PP_setStatus === "function") PP_setStatus(dlg, node, PP_iconRunning());
+                if (typeof PP_setNote === "function") PP_setNote(dlg, node, rec.frames ? ("0/"+rec.frames+" calibrating") : "calibrating");
+                if (typeof processEvents === "function") processEvents();
+            }catch(_){}
+        }
+
+        // Run calibration for this group
+        var mp = __miniPlanFor(gkey);
+        var okG = true, errG = "", t0 = Date.now();
+        try{ IC_runCalibration(mp, workFolders, useBias); }catch(e){ okG=false; errG = e.toString(); }
+        var dt = Date.now()-t0;
+
+        // Update elapsed time
+        if (node){
+            try{
+                if (typeof formatElapsedMS === "function"){
+                    dlg.updateRow(node, { elapsed: formatElapsedMS(dt) });
+                }
+            }catch(_){}
+        }
+
+        // Try to get stats from PP_getLastImageCalibrationStats if available
+        var processed = null, failed = null, gErr = null;
+        if (typeof PP_getLastImageCalibrationStats === "function"){
+            try{
+                var S   = PP_getLastImageCalibrationStats();
+                var per = S && (S.groups || S.byGroup || S.perGroup || S.results || S.map);
+                var st  = per ? (per[gkey] || per[String(gkey)] || null) : null;
+                if (st){
+                    gErr      = st.error || st.err || st.message || null;
+                    processed = st.processed || st.ok || st.calibrated || st.success || st.done || null;
+                    failed    = st.failed || st.errors || st.bad || null;
+                    if (processed==null && failed!=null) processed = Math.max(0, (rec.frames||0) - failed);
+                    if (processed==null && !gErr)        processed = (rec.frames||0);
+                    if (gErr) okG = false;
+                }
+            }catch(_){}
+        }
+
+        if (processed==null) processed = okG ? (rec ? rec.frames : 0) : 0;
+
+        // Update UI - Complete
+        if (node){
+            try{
+                if (typeof PP_setStatus === "function") PP_setStatus(dlg, node, okG ? PP_iconSuccess() : PP_iconError());
+                if (typeof PP_setNote === "function") PP_setNote(dlg, node, okG ? (processed+"/"+(rec.frames||0)+" calibrated")
+                    : ("Failed: " + (gErr || errG || "Unknown error")));
+                if (typeof processEvents === "function") processEvents();
+            }catch(_){}
+        }
+
+        if (!okG) throw new Error(errG || gErr || "ImageCalibration failed");
+    }
+
+    Console.noteln("[cal] All groups completed successfully");
+}

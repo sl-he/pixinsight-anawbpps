@@ -303,14 +303,6 @@ function ReindexCalibrationFiles(mastersRoot, mastersJsonPath) {
     return FI_indexMasters(mastersRoot, mastersJsonPath);
 }
 
-function RunImageCalibration(plan, options){
-    if (typeof IC_runCalibration !== "function")
-        throw new Error("IC_runCalibration not found");
-    var workFolders = (options && options.workFolders) ? options.workFolders : undefined;
-    var useBias = (options && options.useBias !== undefined) ? options.useBias : true;
-    return IC_runCalibration(plan, workFolders, useBias);
-}
-
 /* Getters for last indices */
 function PP_getLastLightsIndex(){
     try{
@@ -410,95 +402,6 @@ function PP_runIndexCalibrationFiles_UI(dlg, mastersRoot, mastersJsonPath){
             return "B:" + c.b + "  D:" + c.d + "  F:" + c.f;
         }
     );
-}
-
-function PP_runImageCalibration_UI(dlg, plan, options){
-    if (!dlg) throw new Error("Progress dialog is not provided.");
-
-    if (!plan || !plan.groups){
-        var r = dlg.addRow("ImageCalibration", "Apply masters to lights");
-        PP_setStatus(dlg, r, PP_iconQueued());
-        try{ processEvents(); }catch(_){}
-        PP_setStatus(dlg, r, PP_iconRunning());
-        var ok=true, err="", t0=Date.now();
-        try{ RunImageCalibration(plan, options); }catch(e){ ok=false; err=e.toString(); }
-        var dt = Date.now()-t0;
-        dlg.updateRow(r, { elapsed: formatElapsedMS(dt), note: ok? "" : "Error" });
-        PP_setStatus(dlg, r, ok?PP_iconSuccess():PP_iconError());
-        if (!ok) throw new Error(err);
-        return { ok:true, groups:1 };
-    }
-
-    var keys = [];
-    try{
-        if (plan.order && plan.order.length) keys = plan.order.slice(0);
-        else for (var k in plan.groups) if (plan.groups.hasOwnProperty(k)) keys.push(k);
-    }catch(_){}
-
-    if (!dlg.icRowsMap) dlg.icRowsMap = {};
-    for (var i=0; i<keys.length; i++){
-        var gkey   = keys[i];
-        var g      = plan.groups[gkey] || {};
-        var frames = (g && g.lights && g.lights.length) ? g.lights.length : 0;
-        var core   = CP__fmtGroupForUI(gkey);
-        var label  = core + (frames ? (" ("+frames+" subs)") : "");
-        var node   = dlg.addRow("ImageCalibration", label);
-        PP_setStatus(dlg, node, PP_iconQueued());
-        PP_setNote(dlg, node, frames ? (frames+"/"+frames+" queued") : "");
-        dlg.icRowsMap[gkey] = { node: node, frames: frames };
-    }
-    try{ processEvents(); }catch(_){}
-
-    function __miniPlanFor(key){
-        var mp = {};
-        for (var prop in plan)
-            if (plan.hasOwnProperty(prop) && prop !== "groups" && prop !== "order")
-                mp[prop] = plan[prop];
-        mp.groups = {}; mp.groups[key] = plan.groups[key];
-        mp.order = [key];
-        return mp;
-    }
-
-    for (var j=0; j<keys.length; j++){
-        var gkey = keys[j];
-        var rec  = dlg.icRowsMap[gkey];
-        if (!rec || !rec.node) continue;
-
-        PP_setStatus(dlg, rec.node, PP_iconRunning());
-        PP_setNote  (dlg, rec.node, rec.frames ? ("0/"+rec.frames+" calibrating") : "calibrating");
-        try{ processEvents(); }catch(_){}
-
-        var mp = __miniPlanFor(gkey);
-        var okG = true, errG = "", t0 = Date.now();
-        try{ RunImageCalibration(mp, options); }catch(e){ okG=false; errG = e.toString(); }
-        var dt = Date.now()-t0;
-        try{ dlg.updateRow(rec.node, { elapsed: formatElapsedMS(dt) }); }catch(_){}
-
-        var processed = null, failed = null, gErr = null;
-        try{
-            var S   = PP_getLastImageCalibrationStats();
-            var per = S && (S.groups || S.byGroup || S.perGroup || S.results || S.map);
-            var st  = per ? (per[gkey] || per[String(gkey)] || null) : null;
-            if (st){
-                gErr      = st.error || st.err || st.message || null;
-                processed = st.processed || st.ok || st.calibrated || st.success || st.done || null;
-                failed    = st.failed || st.errors || st.bad || null;
-                if (processed==null && failed!=null) processed = Math.max(0, (rec.frames||0) - failed);
-                if (processed==null && !gErr)        processed = (rec.frames||0);
-                if (gErr) okG = false;
-            }
-        }catch(_){}
-
-        if (processed==null) processed = okG ? (rec.frames||0) : 0;
-
-        PP_setStatus(dlg, rec.node, okG ? PP_iconSuccess() : PP_iconError());
-        PP_setNote  (dlg, rec.node, okG ? (processed+"/"+(rec.frames||0)+" calibrated")
-            : ("Failed: " + (gErr || errG || "Unknown error")));
-        try{ processEvents(); }catch(_){}
-        if (!okG) throw new Error(errG || gErr || "ImageCalibration failed");
-    }
-
-    return { ok:true, groups: keys.length };
 }
 
 function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
@@ -1181,7 +1084,12 @@ function ANAWBPPSDialog(){
             var wf = makeWorkFolders(work1Root, work2Root, useTwo);
 
             if (self.cbCal && self.cbCal.checked){
-                PP_runImageCalibration_UI(ppDlg, PLAN, { workFolders: wf, useBias: useBias });
+                IC_runForAllGroups({
+                    plan: PLAN,
+                    workFolders: wf,
+                    useBias: useBias,
+                    dlg: ppDlg
+                });
             }
 
 //            if (self.cbCC && self.cbCC.checked){
