@@ -75,7 +75,7 @@ TELESCOP_INSTRUME_Master{Type}_EXPTIME_GAIN_OFFSET_BINNING_TEMP.xisf
 Edge_HD_8__QHY600M_MasterDark_300s_Gain56_Offset10_1x1_-10C.xisf
 ```
 
-See [Master Calibration Guide](docs/MASTER_CALIBRATION.md) for detailed instructions.
+See [Master Calibration Guide](MASTER_CALIBRATION.md) for detailed instructions.
 
 ---
 
