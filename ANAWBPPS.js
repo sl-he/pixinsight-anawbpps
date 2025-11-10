@@ -404,6 +404,173 @@ function PP_runIndexCalibrationFiles_UI(dlg, mastersRoot, mastersJsonPath){
     );
 }
 
+// ============================================================================
+// Settings Save/Load
+// ============================================================================
+
+function PP_getDefaultSettingsPath(){
+    // Get home directory and build path to ~/.anawbpps/settings.json
+    var homeDir = File.homeDirectory;
+    var settingsDir = homeDir + "/.anawbpps";
+    var settingsFile = settingsDir + "/settings.json";
+
+    // Ensure directory exists
+    try{
+        if (!File.directoryExists(settingsDir)){
+            File.createDirectory(settingsDir, true);
+        }
+    }catch(e){
+        Console.warningln("[settings] Failed to create settings directory: " + e);
+    }
+
+    return settingsFile;
+}
+
+function PP_collectSettings(dlg){
+    if (!dlg) return null;
+
+    return {
+        version: "1.0",
+        appName: "ANAWBPPS",
+        paths: {
+            lights: dlg.rowLights.edit.text || "",
+            masters: dlg.rowMasters.edit.text || "",
+            raw: dlg.editRaw.text || "",
+            work1: dlg.rowWork1.edit.text || "",
+            work2: dlg.rowWork2.edit.text || ""
+        },
+        options: {
+            useTwoWork: !!dlg.cbTwoWork.checked,
+            doCal: !!dlg.cbCal.checked,
+            useBias: !!dlg.cbUseBias.checked,
+            doCC: !!dlg.cbCC.checked,
+            doSS: !!dlg.cbSS.checked,
+            autoRef: !!dlg.cbAutoRef.checked,
+            doSA: !!dlg.cbSA.checked,
+            doLN: !!dlg.cbLN.checked,
+            doII: !!dlg.cbII.checked,
+            doDrizzle: !!dlg.cbDrz.checked
+        }
+    };
+}
+
+function PP_applySettings(dlg, settings){
+    if (!dlg || !settings) return;
+
+    // Apply paths
+    if (settings.paths){
+        if (settings.paths.lights !== undefined) dlg.rowLights.edit.text = settings.paths.lights;
+        if (settings.paths.masters !== undefined) dlg.rowMasters.edit.text = settings.paths.masters;
+        if (settings.paths.raw !== undefined) dlg.editRaw.text = settings.paths.raw;
+        if (settings.paths.work1 !== undefined) dlg.rowWork1.edit.text = settings.paths.work1;
+        if (settings.paths.work2 !== undefined) dlg.rowWork2.edit.text = settings.paths.work2;
+    }
+
+    // Apply options
+    if (settings.options){
+        if (settings.options.useTwoWork !== undefined){
+            dlg.cbTwoWork.checked = !!settings.options.useTwoWork;
+            dlg.rowWork2.sizer.visible = dlg.cbTwoWork.checked;
+        }
+        if (settings.options.doCal !== undefined) dlg.cbCal.checked = !!settings.options.doCal;
+        if (settings.options.useBias !== undefined) dlg.cbUseBias.checked = !!settings.options.useBias;
+        if (settings.options.doCC !== undefined) dlg.cbCC.checked = !!settings.options.doCC;
+        if (settings.options.doSS !== undefined) dlg.cbSS.checked = !!settings.options.doSS;
+        if (settings.options.autoRef !== undefined) dlg.cbAutoRef.checked = !!settings.options.autoRef;
+        if (settings.options.doSA !== undefined) dlg.cbSA.checked = !!settings.options.doSA;
+        if (settings.options.doLN !== undefined) dlg.cbLN.checked = !!settings.options.doLN;
+        if (settings.options.doII !== undefined) dlg.cbII.checked = !!settings.options.doII;
+        if (settings.options.doDrizzle !== undefined) dlg.cbDrz.checked = !!settings.options.doDrizzle;
+    }
+}
+
+function PP_saveSettings(dlg){
+    if (!dlg) return;
+
+    var sfd = new SaveFileDialog();
+    sfd.caption = "Save ANAWBPPS Settings";
+    sfd.filters = [["JSON files", "*.json"], ["All files", "*"]];
+    sfd.defaultExtension = "json";
+    sfd.initialPath = PP_getDefaultSettingsPath();
+
+    if (!sfd.execute()) return;
+
+    try{
+        var settings = PP_collectSettings(dlg);
+        var json = JSON.stringify(settings, null, 2);
+
+        var f = new File();
+        f.createForWriting(sfd.fileName);
+        f.outTextLn(json);
+        f.close();
+
+        Console.noteln("[settings] Settings saved to: " + sfd.fileName);
+        showDialogBox("ANAWBPPS Settings", "Settings saved successfully to:\n\n" + sfd.fileName);
+    }catch(e){
+        Console.criticalln("[settings] Failed to save settings: " + e);
+        showDialogBox("ANAWBPPS Settings Error", "Failed to save settings:\n\n" + e.toString());
+    }
+}
+
+function PP_loadSettings(dlg){
+    if (!dlg) return;
+
+    var ofd = new OpenFileDialog();
+    ofd.caption = "Load ANAWBPPS Settings";
+    ofd.filters = [["JSON files", "*.json"], ["All files", "*"]];
+    ofd.initialPath = PP_getDefaultSettingsPath();
+
+    if (!ofd.execute()) return;
+
+    try{
+        // Read file using File.readTextFile
+        var text = File.readTextFile(ofd.fileName);
+        var settings = JSON.parse(text);
+
+        // Validate settings structure
+        if (!settings || !settings.appName || settings.appName != "ANAWBPPS"){
+            throw new Error("Invalid settings file format");
+        }
+
+        PP_applySettings(dlg, settings);
+
+        Console.noteln("[settings] Settings loaded from: " + ofd.fileName);
+        showDialogBox("ANAWBPPS Settings", "Settings loaded successfully from:\n\n" + ofd.fileName);
+    }catch(e){
+        Console.criticalln("[settings] Failed to load settings: " + e);
+        showDialogBox("ANAWBPPS Settings Error", "Failed to load settings:\n\n" + e.toString());
+    }
+}
+
+function PP_autoLoadSettings(dlg){
+    if (!dlg) return;
+
+    var settingsFile = PP_getDefaultSettingsPath();
+
+    if (!File.exists(settingsFile)){
+        Console.writeln("[settings] No saved settings found at: " + settingsFile);
+        return;
+    }
+
+    try{
+        // Read file using File.readTextFile
+        var text = File.readTextFile(settingsFile);
+        var settings = JSON.parse(text);
+
+        // Validate settings structure
+        if (!settings || !settings.appName || settings.appName != "ANAWBPPS"){
+            Console.warningln("[settings] Invalid settings file format, skipping auto-load");
+            return;
+        }
+
+        PP_applySettings(dlg, settings);
+
+        Console.noteln("[settings] Auto-loaded settings from: " + settingsFile);
+    }catch(e){
+        Console.warningln("[settings] Failed to auto-load settings: " + e);
+    }
+}
+
 function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     if (!dlg) throw new Error("Progress dialog is not provided.");
     if (!PLAN || !PLAN.groups) throw new Error("Plan is empty (no groups).");
@@ -944,16 +1111,14 @@ function ANAWBPPSDialog(){
     this.btnLoad.text = "📂";
     this.btnLoad.toolTip = "Load settings from file";
     this.btnLoad.onClick = function() {
-        // TODO: implement load settings
-        Console.writeln("[settings] Load settings - not implemented yet");
+        PP_loadSettings(this.dialog);
     };
 
     this.btnSave = new ToolButton(this);
     this.btnSave.text = "💾";
     this.btnSave.toolTip = "Save settings to file";
     this.btnSave.onClick = function() {
-        // TODO: implement save settings
-        Console.writeln("[settings] Save settings - not implemented yet");
+        PP_saveSettings(this.dialog);
     };
 
     this.btnRun = new PushButton(this);
@@ -1002,6 +1167,9 @@ function ANAWBPPSDialog(){
     this.sizer.add(buttons);
 
     this.adjustToContents();
+
+    // Auto-load settings from default location
+    PP_autoLoadSettings(this);
 
     this.onClose = function(){
         try{
