@@ -12,7 +12,7 @@
  */
 
 // ============================================================================
-// Hardcoded defaults
+// Hardcoded defaults (used only on first run, before settings.json exists)
 // ============================================================================
 var HARDCODED_DEFAULTS = {
     lights:  "",
@@ -20,15 +20,16 @@ var HARDCODED_DEFAULTS = {
     work1:   "",
     work2:   "",
     useTwo:  true,
-    useBias: true,
+    useBias: false,
     doCal: true,
     doCC: true,
     doSS: true,
     doAutoRef: true,
     doSA:  true,
-    doLN:  true,
+    doLN:  false,
     doII:  true,
-    doDrizzle: true
+    doDrizzle: false,
+    drizzleScale: 1  // 1x or 2x
 };
 
 // --- project defaults (stored inside Work1)

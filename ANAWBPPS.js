@@ -449,7 +449,8 @@ function PP_collectSettings(dlg){
             doSA: !!dlg.cbSA.checked,
             doLN: !!dlg.cbLN.checked,
             doII: !!dlg.cbII.checked,
-            doDrizzle: !!dlg.cbDrz.checked
+            doDrizzle: !!dlg.cbDrz.checked,
+            drizzleScale: (dlg.comboDrzScale.currentItem + 1) // 0=1x, 1=2x -> 1, 2
         }
     };
 }
@@ -481,6 +482,10 @@ function PP_applySettings(dlg, settings){
         if (settings.options.doLN !== undefined) dlg.cbLN.checked = !!settings.options.doLN;
         if (settings.options.doII !== undefined) dlg.cbII.checked = !!settings.options.doII;
         if (settings.options.doDrizzle !== undefined) dlg.cbDrz.checked = !!settings.options.doDrizzle;
+        if (settings.options.drizzleScale !== undefined){
+            var scaleIdx = (settings.options.drizzleScale || 1) - 1; // 1,2 -> 0,1
+            if (scaleIdx >= 0 && scaleIdx <= 1) dlg.comboDrzScale.currentItem = scaleIdx;
+        }
     }
 }
 
@@ -1094,7 +1099,24 @@ function ANAWBPPSDialog(){
     this.cbSA  = new CheckBox(this); this.cbSA.text  = "StarAlignment";        this.cbSA.checked  = !!HARDCODED_DEFAULTS.doSA;
     this.cbLN  = new CheckBox(this); this.cbLN.text  = "LocalNormalization";   this.cbLN.checked  = !!HARDCODED_DEFAULTS.doLN;
     this.cbII  = new CheckBox(this); this.cbII.text  = "ImageIntegration";     this.cbII.checked  = !!HARDCODED_DEFAULTS.doII;
-    this.cbDrz = new CheckBox(this); this.cbDrz.text = "DrizzleIntegration";   this.cbDrz.checked = !!HARDCODED_DEFAULTS.doDrizzle;
+
+    // DrizzleIntegration with Scale selector
+    this.cbDrz = new CheckBox(this);
+    this.cbDrz.text = "DrizzleIntegration";
+    this.cbDrz.checked = !!HARDCODED_DEFAULTS.doDrizzle;
+
+    this.comboDrzScale = new ComboBox(this);
+    this.comboDrzScale.addItem("1x");
+    this.comboDrzScale.addItem("2x");
+    this.comboDrzScale.currentItem = HARDCODED_DEFAULTS.drizzleScale ? Math.min(HARDCODED_DEFAULTS.drizzleScale - 1, 1) : 0; // 0=1x, 1=2x
+    this.comboDrzScale.toolTip = "Drizzle scale factor (1x = native resolution, 2x = 2x upsampling)";
+    this.comboDrzScale.setFixedWidth(80);
+
+    this.drzRowSizer = new HorizontalSizer;
+    this.drzRowSizer.spacing = 6;
+    this.drzRowSizer.add(this.cbDrz);
+    this.drzRowSizer.add(this.comboDrzScale);
+    this.drzRowSizer.addStretch();
 
     this.gbOptions.sizer.add(this.calRowSizer);
     this.gbOptions.sizer.add(this.cbCC);
@@ -1104,7 +1126,7 @@ function ANAWBPPSDialog(){
     this.gbOptions.sizer.add(this.cbSA);
     this.gbOptions.sizer.add(this.cbLN);
     this.gbOptions.sizer.add(this.cbII);
-    this.gbOptions.sizer.add(this.cbDrz);
+    this.gbOptions.sizer.add(this.drzRowSizer);
 
     // Load/Save Settings buttons (icon only)
     this.btnLoad = new ToolButton(this);
@@ -1298,7 +1320,7 @@ function ANAWBPPSDialog(){
 
             if (self.cbDrz && self.cbDrz.checked){
                 var useLN = (self.cbLN && self.cbLN.checked);
-                var scale = 1.0;
+                var scale = (self.comboDrzScale.currentItem + 1); // 0=1x, 1=2x -> 1.0, 2.0
                 PP_runDrizzleIntegration_UI(ppDlg, PLAN, wf, useLN, scale);
             }
 
