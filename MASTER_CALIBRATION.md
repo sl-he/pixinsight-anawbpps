@@ -195,7 +195,7 @@ E:/Masters_Library/
 **Recommended count:** 30-50 frames per exposure/temperature combination
 
 **Temperature matching:**
-- ±3°C tolerance for matching
+- ±1°C tolerance for matching
 - Colder is better (less thermal noise)
 - Create separate masters for different temperature ranges
 
