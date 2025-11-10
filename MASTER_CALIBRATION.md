@@ -97,9 +97,7 @@ In ANAWBPPS main dialog:
 
 ### Step 1: Open ANAWBPPS
 
-1. **Script** → **Script Editor**
-2. Open `anawbpps.js`
-3. Press **Execute (F5)**
+**PI Menu** → **SCRIPT** → **sl-he** → **ANAWBPPS**
 
 ### Step 2: Launch Master Creation Tool
 
