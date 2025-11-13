@@ -644,10 +644,8 @@ function MC_createMasterDarks(darkGroups, mastersBasePath, progressCallback){
 
         var intWindow = intView.window;
 
-        // Rename view (sanitize for valid identifier: only letters, digits, underscore)
-        var baseName = fileName.replace(/\.xisf$/i, "");
-        var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
-        intView.id = viewId;
+        // Rename view (sanitize for valid identifier)
+        intView.id = CU_sanitizeViewId(fileName, "MD");
 
         // Add FITS keywords (IMAGETYP, EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
         // Get existing keywords, filter out old IMAGETYP, add new ones
@@ -799,10 +797,8 @@ function MC_createMasterDarkFlats(dfGroups, mastersBasePath, progressCallback){
 
         var intWindow = intView.window;
 
-        // Rename view (sanitize for valid identifier: only letters, digits, underscore)
-        var baseName = fileName.replace(/\.xisf$/i, "");
-        var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
-        intView.id = viewId;
+        // Rename view (sanitize for valid identifier)
+        intView.id = CU_sanitizeViewId(fileName, "MDF");
 
         // Add FITS keywords (IMAGETYP, EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
         // FILTER is copied automatically by ImageIntegration
@@ -1248,10 +1244,8 @@ function MC_createMasterFlats(calibratedFlatGroups, mastersBasePath, progressCal
 
         var intWindow = intView.window;
 
-        // Rename view (sanitize for valid identifier: only letters, digits, underscore)
-        var baseName = fileName.replace(/\.xisf$/i, "");
-        var viewId = baseName.replace(/[^a-zA-Z0-9_]/g, "_");
-        intView.id = viewId;
+        // Rename view (sanitize for valid identifier)
+        intView.id = CU_sanitizeViewId(fileName, "MF");
 
         // Add IMAGETYP keyword for MasterFlat
         // (FILTER, XBINNING, YBINNING, TELESCOP, DATE-OBS copied automatically)

@@ -428,9 +428,9 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
         Console.writeln("[di]     Renaming views...");
         var oldDrzId = drzView.id;
         var oldWeightsId = weightsView.id;
-        
-        drzView.id = baseName;           // "Sivan_2_B_21x30s_drz2x"
-        weightsView.id = weightsName;     // "Sivan_2_B_21x30s_drz2x_weights"
+
+        drzView.id = CU_sanitizeViewId(baseName, "DI");           // "Sivan_2_B_21x30s_drz2x"
+        weightsView.id = CU_sanitizeViewId(weightsName, "DI");    // "Sivan_2_B_21x30s_drz2x_weights"
         
         Console.writeln("[di]       " + oldDrzId + " → " + drzView.id);
         Console.writeln("[di]       " + oldWeightsId + " → " + weightsView.id);

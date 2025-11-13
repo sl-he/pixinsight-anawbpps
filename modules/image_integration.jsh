@@ -110,9 +110,10 @@ function II_saveResultsAsContainer(intView, lowView, highView, outputPath){
         var oldLowId = lowView.id;
         var oldHighId = highView.id;
 
-        intView.id = baseName;
-        lowView.id = baseName + "_rejection_low";
-        highView.id = baseName + "_rejection_high";
+        var viewId = CU_sanitizeViewId(baseName, "II");
+        intView.id = viewId;
+        lowView.id = viewId + "_rejection_low";
+        highView.id = viewId + "_rejection_high";
 
         Console.writeln("[ii]       " + oldIntId + " → " + intView.id);
         Console.writeln("[ii]       " + oldLowId + " → " + lowView.id);

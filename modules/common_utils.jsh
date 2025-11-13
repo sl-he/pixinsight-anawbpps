@@ -387,4 +387,26 @@ function CU_readFitsKeywords(fullPath){
     }
 }
 
+/**
+ * Sanitize a filename/basename to create a valid PixInsight view identifier.
+ * Ensures the ID starts with a letter or underscore (not a digit).
+ * @param {string} baseName - Filename or basename (with or without .xisf extension)
+ * @param {string} prefix - Prefix to add if name starts with digit (e.g., "MD", "II", "DI")
+ * @returns {string} Valid view identifier
+ */
+function CU_sanitizeViewId(baseName, prefix){
+    // Remove .xisf extension if present
+    var name = baseName.replace(/\.xisf$/i, "");
+
+    // Replace all non-alphanumeric characters with underscore
+    var viewId = name.replace(/[^a-zA-Z0-9_]/g, "_");
+
+    // If starts with digit, prepend prefix
+    if (viewId.length > 0 && viewId.charAt(0).match(/[0-9]/)){
+        viewId = prefix + "_" + viewId;
+    }
+
+    return viewId;
+}
+
 #endif // __ANAWBPPS_COMMON_UTILS_JSH
