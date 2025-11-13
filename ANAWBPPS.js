@@ -25,7 +25,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "0.9.5.2"
+#define VERSION "0.9.6"
 
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
@@ -40,6 +40,7 @@
 #include "modules/local_normalization.jsh"
 #include "modules/image_integration.jsh"
 #include "modules/drizzle_integration.jsh"
+#include "modules/notifications.jsh"
 
 // ============================================================================
 // Progress UI (inline - no external module to avoid reload crashes)
@@ -451,6 +452,11 @@ function PP_collectSettings(dlg){
             doII: !!dlg.cbII.checked,
             doDrizzle: !!dlg.cbDrz.checked,
             drizzleScale: (dlg.comboDrzScale.currentItem + 1) // 0=1x, 1=2x -> 1, 2
+        },
+        notifications: {
+            telegramEnabled: !!dlg.telegramEnabled,
+            telegramBotToken: dlg.telegramBotToken || "",
+            telegramChatId: dlg.telegramChatId || ""
         }
     };
 }
@@ -486,6 +492,13 @@ function PP_applySettings(dlg, settings){
             var scaleIdx = (settings.options.drizzleScale || 1) - 1; // 1,2 -> 0,1
             if (scaleIdx >= 0 && scaleIdx <= 1) dlg.comboDrzScale.currentItem = scaleIdx;
         }
+    }
+
+    // Apply notifications
+    if (settings.notifications){
+        if (settings.notifications.telegramEnabled !== undefined) dlg.telegramEnabled = !!settings.notifications.telegramEnabled;
+        if (settings.notifications.telegramBotToken !== undefined) dlg.telegramBotToken = settings.notifications.telegramBotToken;
+        if (settings.notifications.telegramChatId !== undefined) dlg.telegramChatId = settings.notifications.telegramChatId;
     }
 }
 
@@ -575,6 +588,142 @@ function PP_autoLoadSettings(dlg){
         Console.warningln("[settings] Failed to auto-load settings: " + e);
     }
 }
+
+// ============================================================================
+// Notifications Settings Dialog
+// ============================================================================
+
+function NotificationsSettingsDialog(parentDlg){
+    this.__base__ = Dialog;
+    this.__base__();
+
+    var self = this;
+
+    // Store parent reference
+    this.parentDlg = parentDlg;
+
+    // Title
+    this.titleLabel = new Label(this);
+    this.titleLabel.text = "Notifications Settings";
+    this.titleLabel.styleSheet = "QLabel { font-weight: bold; font-size: 11pt; }";
+
+    // Enable Telegram checkbox
+    this.cbEnableTelegram = new CheckBox(this);
+    this.cbEnableTelegram.text = "Enable Telegram notifications";
+    this.cbEnableTelegram.checked = !!(parentDlg.telegramEnabled);
+    this.cbEnableTelegram.toolTip = "Send notification when processing completes";
+
+    // Instructions
+    this.instructionsLabel = new Label(this);
+    this.instructionsLabel.text =
+        "To receive Telegram notifications:\n" +
+        "1. Create a bot via @BotFather on Telegram (get bot token)\n" +
+        "2. Get your chat ID via @userinfobot or @RawDataBot\n" +
+        "3. Enter the credentials below";
+    this.instructionsLabel.wordWrapping = true;
+    this.instructionsLabel.styleSheet = "QLabel { margin: 8px 0; color: #666; }";
+
+    // Bot Token
+    this.tokenLabel = new Label(this);
+    this.tokenLabel.text = "Bot Token:";
+    this.tokenLabel.setFixedWidth(80);
+
+    this.tokenEdit = new Edit(this);
+    this.tokenEdit.text = parentDlg.telegramBotToken || "";
+    this.tokenEdit.toolTip = "Enter your Telegram bot token (from @BotFather)";
+    this.tokenEdit.setMinWidth(400);
+
+    this.tokenSizer = new HorizontalSizer;
+    this.tokenSizer.spacing = 6;
+    this.tokenSizer.add(this.tokenLabel);
+    this.tokenSizer.add(this.tokenEdit, 100);
+
+    // Chat ID
+    this.chatIdLabel = new Label(this);
+    this.chatIdLabel.text = "Chat ID:";
+    this.chatIdLabel.setFixedWidth(80);
+
+    this.chatIdEdit = new Edit(this);
+    this.chatIdEdit.text = parentDlg.telegramChatId || "";
+    this.chatIdEdit.toolTip = "Enter your Telegram chat ID (from @userinfobot)";
+
+    this.chatIdSizer = new HorizontalSizer;
+    this.chatIdSizer.spacing = 6;
+    this.chatIdSizer.add(this.chatIdLabel);
+    this.chatIdSizer.add(this.chatIdEdit, 100);
+
+    // Test button
+    this.testButton = new PushButton(this);
+    this.testButton.text = "Send Test Message";
+    this.testButton.icon = this.scaledResource(":/icons/network.png");
+    this.testButton.toolTip = "Test Telegram notification";
+    this.testButton.onClick = function(){
+        var token = self.tokenEdit.text.trim();
+        var chatId = self.chatIdEdit.text.trim();
+
+        if (!token || !chatId){
+            showDialogBox("Telegram Settings", "Please enter both Bot Token and Chat ID");
+            return;
+        }
+
+        Console.writeln("=".repeat(60));
+        Console.writeln("[notifications] Testing Telegram notification...");
+
+        var success = NOTIF_sendTelegram(token, chatId, "🔭 ANAWBPPS Test: Telegram notifications are working!");
+
+        if (success){
+            showDialogBox("Telegram Test", "Test message sent successfully!\nCheck your Telegram app.");
+        }else{
+            showDialogBox("Telegram Test", "Failed to send test message.\nCheck the Console for details.");
+        }
+    };
+
+    // Buttons
+    this.okButton = new PushButton(this);
+    this.okButton.text = "OK";
+    this.okButton.icon = this.scaledResource(":/icons/ok.png");
+    this.okButton.onClick = function(){
+        // Save values back to parent dialog
+        self.parentDlg.telegramEnabled = self.cbEnableTelegram.checked;
+        self.parentDlg.telegramBotToken = self.tokenEdit.text.trim();
+        self.parentDlg.telegramChatId = self.chatIdEdit.text.trim();
+
+        Console.writeln("[notifications] Settings updated");
+        self.ok();
+    };
+
+    this.cancelButton = new PushButton(this);
+    this.cancelButton.text = "Cancel";
+    this.cancelButton.icon = this.scaledResource(":/icons/cancel.png");
+    this.cancelButton.onClick = function(){
+        self.cancel();
+    };
+
+    this.buttonsSizer = new HorizontalSizer;
+    this.buttonsSizer.spacing = 6;
+    this.buttonsSizer.add(this.testButton);
+    this.buttonsSizer.addStretch();
+    this.buttonsSizer.add(this.okButton);
+    this.buttonsSizer.add(this.cancelButton);
+
+    // Main layout
+    this.sizer = new VerticalSizer;
+    this.sizer.margin = 12;
+    this.sizer.spacing = 8;
+    this.sizer.add(this.titleLabel);
+    this.sizer.add(this.cbEnableTelegram);
+    this.sizer.add(this.instructionsLabel);
+    this.sizer.addSpacing(6);
+    this.sizer.add(this.tokenSizer);
+    this.sizer.add(this.chatIdSizer);
+    this.sizer.addSpacing(10);
+    this.sizer.add(this.buttonsSizer);
+
+    this.windowTitle = "ANAWBPPS - Notifications Settings";
+    this.adjustToContents();
+}
+
+NotificationsSettingsDialog.prototype = new Dialog;
 
 function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     if (!dlg) throw new Error("Progress dialog is not provided.");
@@ -1128,6 +1277,11 @@ function ANAWBPPSDialog(){
     this.gbOptions.sizer.add(this.cbII);
     this.gbOptions.sizer.add(this.drzRowSizer);
 
+    // Initialize notification settings (will be saved/loaded)
+    this.telegramEnabled = false;
+    this.telegramBotToken = "";
+    this.telegramChatId = "";
+
     // Load/Save Settings buttons (icon only)
     this.btnLoad = new ToolButton(this);
     this.btnLoad.text = "📂";
@@ -1141,6 +1295,14 @@ function ANAWBPPSDialog(){
     this.btnSave.toolTip = "Save settings to file";
     this.btnSave.onClick = function() {
         PP_saveSettings(this.dialog);
+    };
+
+    this.btnNotifications = new ToolButton(this);
+    this.btnNotifications.text = "🔔";
+    this.btnNotifications.toolTip = "Notifications settings (Telegram, etc.)";
+    this.btnNotifications.onClick = function() {
+        var notifDlg = new NotificationsSettingsDialog(this.dialog);
+        notifDlg.execute();
     };
 
     this.btnRun = new PushButton(this);
@@ -1171,6 +1333,7 @@ function ANAWBPPSDialog(){
     buttons.spacing = 6;
     buttons.add(this.btnLoad);
     buttons.add(this.btnSave);
+    buttons.add(this.btnNotifications);
     buttons.addStretch();
     buttons.add(this.btnRun);
     buttons.add(this.ok_Button);
@@ -1223,6 +1386,8 @@ function ANAWBPPSDialog(){
 
         Console.show();
         Console.noteln("[run] START");
+        var t0 = Date.now();
+        var errorCount = 0;
         function _norm(p){
             var s = String(p||"");
             var out = "";
@@ -1330,9 +1495,42 @@ function ANAWBPPSDialog(){
                 self.setDone();
             } catch(_){}
 
+            // Send completion notification
+            var totalTime = Date.now() - t0;
+            Console.noteln("[run] COMPLETE - Total time: " + (totalTime/1000).toFixed(1) + "s");
+
+            if (self.telegramEnabled && self.telegramBotToken && self.telegramChatId){
+                try{
+                    NOTIF_sendCompletionTelegram({
+                        botToken: self.telegramBotToken,
+                        chatId: self.telegramChatId,
+                        totalTime: totalTime,
+                        errors: errorCount
+                    });
+                }catch(notifErr){
+                    Console.warningln("[notifications] Failed to send completion notification: " + notifErr);
+                }
+            }
+
         } catch(e){
+            errorCount++;
             Console.criticalln("[run] Pipeline error: " + e);
             showDialogBox("ANAWBPPS — Error", "Pipeline failed:\n" + e);
+
+            // Send error notification
+            if (self.telegramEnabled && self.telegramBotToken && self.telegramChatId){
+                try{
+                    var totalTime = Date.now() - t0;
+                    NOTIF_sendCompletionTelegram({
+                        botToken: self.telegramBotToken,
+                        chatId: self.telegramChatId,
+                        totalTime: totalTime,
+                        errors: errorCount
+                    });
+                }catch(notifErr){
+                    Console.warningln("[notifications] Failed to send error notification: " + notifErr);
+                }
+            }
         }
     };
 
