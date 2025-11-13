@@ -41,6 +41,7 @@
 #include "modules/image_integration.jsh"
 #include "modules/drizzle_integration.jsh"
 #include "modules/notifications.jsh"
+#include "modules/logging.jsh"
 
 // ============================================================================
 // Progress UI (inline - no external module to avoid reload crashes)
@@ -451,7 +452,8 @@ function PP_collectSettings(dlg){
             doLN: !!dlg.cbLN.checked,
             doII: !!dlg.cbII.checked,
             doDrizzle: !!dlg.cbDrz.checked,
-            drizzleScale: (dlg.comboDrzScale.currentItem + 1) // 0=1x, 1=2x -> 1, 2
+            drizzleScale: (dlg.comboDrzScale.currentItem + 1), // 0=1x, 1=2x -> 1, 2
+            saveLog: !!dlg.cbSaveLog.checked
         },
         notifications: {
             telegramEnabled: !!dlg.telegramEnabled,
@@ -492,6 +494,7 @@ function PP_applySettings(dlg, settings){
             var scaleIdx = (settings.options.drizzleScale || 1) - 1; // 1,2 -> 0,1
             if (scaleIdx >= 0 && scaleIdx <= 1) dlg.comboDrzScale.currentItem = scaleIdx;
         }
+        if (settings.options.saveLog !== undefined) dlg.cbSaveLog.checked = !!settings.options.saveLog;
     }
 
     // Apply notifications
@@ -1277,6 +1280,13 @@ function ANAWBPPSDialog(){
     this.gbOptions.sizer.add(this.cbII);
     this.gbOptions.sizer.add(this.drzRowSizer);
 
+    // Save log to file checkbox
+    this.cbSaveLog = new CheckBox(this);
+    this.cbSaveLog.text = "Save Console log to file";
+    this.cbSaveLog.checked = false;
+    this.cbSaveLog.toolTip = "Save all console output to YYYY-MM-DD_HH-MM-SS.log in the !Integrated folder";
+    this.gbOptions.sizer.add(this.cbSaveLog);
+
     // Initialize notification settings (will be saved/loaded)
     this.telegramEnabled = false;
     this.telegramBotToken = "";
@@ -1388,6 +1398,39 @@ function ANAWBPPSDialog(){
         Console.noteln("[run] START");
         var t0 = Date.now();
         var errorCount = 0;
+
+        // Initialize logging early if enabled
+        if (self.cbSaveLog && self.cbSaveLog.checked){
+            var work1Root = self.rowWork1.edit.text.trim();
+            var work2Root = self.rowWork2.edit.text.trim();
+            var useTwo = self.cbTwoWork.checked;
+
+            // Determine base directory (same logic as makeWorkFolders)
+            var base1 = work1Root;
+            if (base1 && !base1.match(/!!!WORK_LIGHTS$/)){
+                base1 = base1 + "/!!!WORK_LIGHTS";
+            }
+
+            var base = base1;
+            if (useTwo && work2Root){
+                var base2 = work2Root;
+                if (base2 && !base2.match(/!!!WORK_LIGHTS$/)){
+                    base2 = base2 + "/!!!WORK_LIGHTS";
+                }
+                base = base2;
+            }
+
+            var integratedFolder = base + "/!Integrated";
+
+            // Create folder if not exists
+            if (!File.directoryExists(integratedFolder)){
+                File.createDirectory(integratedFolder, true);
+            }
+
+            LOG_init(integratedFolder);
+            LOG_hijackConsole(); // Redirect all Console.* calls to log file
+        }
+
         function _norm(p){
             var s = String(p||"");
             var out = "";
@@ -1512,6 +1555,10 @@ function ANAWBPPSDialog(){
                 }
             }
 
+            // Close log file and restore Console
+            LOG_restoreConsole();
+            LOG_close();
+
         } catch(e){
             errorCount++;
             Console.criticalln("[run] Pipeline error: " + e);
@@ -1531,6 +1578,10 @@ function ANAWBPPSDialog(){
                     Console.warningln("[notifications] Failed to send error notification: " + notifErr);
                 }
             }
+
+            // Close log file and restore Console
+            LOG_restoreConsole();
+            LOG_close();
         }
     };
 
