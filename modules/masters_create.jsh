@@ -1476,6 +1476,16 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     var dfMatches = MC_matchDarkFlatToFlat(masterDarkFlats, groups.flats);
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
+    // Notify UI about dfMatches (for creating Flat Calibration rows)
+    if (progressCallback){
+        try {
+            progressCallback('dfmatches', { dfMatches: dfMatches, flatGroups: groups.flats });
+        } catch(e){
+            Console.warningln("[mc] Progress callback (dfmatches) error: " + e);
+        }
+    }
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
     // 7a. Calibrate matched Flat groups (with DarkFlat)
     var calibratedWithDF = MC_calibrateFlats(groups.flats, dfMatches, tempPath, makeCallback('calibflat'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}

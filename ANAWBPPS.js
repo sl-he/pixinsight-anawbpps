@@ -52,6 +52,7 @@ function PP_iconQueued(){  return "⏳ Queued";  }
 function PP_iconRunning(){ return "▶ Running"; }
 function PP_iconSuccess(){ return "✔ Success"; }
 function PP_iconError(){   return "✖ Error";   }
+function PP_iconSkipped(){ return "⊘ Skipped"; }
 
 /* Status helpers */
 function PP_setStatus(dlg, node, statusText){
@@ -919,13 +920,10 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 PP_setNote(dlg, row, dfGroup.items.length + "/" + dfGroup.items.length + " queued");
             }
 
-            // Flat Calibration rows - use same naming as MasterFlat
-            var calibFlatIndex = 0;
+            // Flat Calibration rows - create for all groups
             for (var i = 0; i < groups.flats.length; i++){
                 var flatGroup = groups.flats[i];
-                calibFlatIndex++;
-                var key = "calibflat_" + calibFlatIndex;
-                // Generate filename same as MasterFlat to keep consistency
+                var key = "calibflat_" + (i + 1);
                 var fileName = MC_generateMasterFileName(flatGroup, "Flat");
                 var row = dlg.addRow("Flat Calibration", fileName);
                 dlg.masterRows[key] = row;
@@ -942,6 +940,42 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 dlg.masterRows[key] = row;
                 PP_setStatus(dlg, row, PP_iconQueued());
                 PP_setNote(dlg, row, flatGroup.items.length + "/" + flatGroup.items.length + " queued");
+            }
+
+            try { processEvents(); } catch(_){}
+
+        } else if (phase === 'dfmatches'){
+            // Mark unmatched Flat Calibration rows as Skipped
+            var dfMatches = data.dfMatches;
+            var flatGroups = data.flatGroups;
+
+            Console.noteln("[UI] dfMatches phase: " + Object.keys(dfMatches).length + " matched groups");
+            for (var k in dfMatches){
+                if (dfMatches.hasOwnProperty(k)){
+                    Console.noteln("[UI]   Matched group index: " + k + " (type: " + typeof k + ")");
+                }
+            }
+
+            // Check each Flat group
+            for (var i = 0; i < flatGroups.length; i++){
+                var calibKey = "calibflat_" + (i + 1);
+                var row = dlg.masterRows[calibKey];
+
+                if (!row){
+                    Console.warningln("[UI] Row not found for " + calibKey);
+                    continue;
+                }
+
+                // Check if this group is matched (check both numeric and string keys)
+                var isMatched = dfMatches.hasOwnProperty(i) || dfMatches.hasOwnProperty(String(i));
+
+                Console.noteln("[UI] Group " + i + ": " + (isMatched ? "matched" : "unmatched"));
+
+                if (!isMatched){
+                    // Mark as skipped
+                    PP_setStatus(dlg, row, PP_iconSkipped());
+                    PP_setNote(dlg, row, "No DarkFlat found");
+                }
             }
 
             try { processEvents(); } catch(_){}
