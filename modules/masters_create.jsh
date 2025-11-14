@@ -968,6 +968,88 @@ function MC_matchDarkFlatToFlat(dfMasters, flatGroups){
 }
 
 /**
+ * Find Flat group indices that have no matching DarkFlat
+ * @param {Array} flatGroups - Array of all Flat groups
+ * @param {Object} dfMatches - Object with matched DarkFlats { groupIndex: dfMaster }
+ * @returns {Array} Array of unmatched group indices
+ */
+function MC_findUnmatchedGroups(flatGroups, dfMatches){
+    var unmatched = [];
+    for (var i = 0; i < flatGroups.length; i++){
+        if (!dfMatches.hasOwnProperty(i)){
+            unmatched.push(i);
+        }
+    }
+    return unmatched;
+}
+
+/**
+ * Prepare raw Flat groups (without calibration) for MasterFlat creation
+ * @param {Array} flatGroups - Array of all Flat groups
+ * @param {Array} unmatchedIndices - Array of group indices without DarkFlat
+ * @returns {Object} { groupIndex: { group, calibratedPaths, wasCalibrated } }
+ */
+function MC_prepareRawFlats(flatGroups, unmatchedIndices){
+    if (unmatchedIndices.length == 0) {
+        return {};
+    }
+
+    Console.warningln("[mc] Preparing raw Flats without DarkFlat calibration for " +
+                      unmatchedIndices.length + " group(s)");
+
+    var result = {};
+
+    for (var i = 0; i < unmatchedIndices.length; i++){
+        var idx = unmatchedIndices[i];
+        var group = flatGroups[idx];
+        var firstFlat = group.items[0];
+
+        Console.warningln("[mc]   Group " + (idx+1) + " (filter=" + firstFlat.filter +
+                          ", expTime=" + firstFlat.expTime + "s): No DarkFlat found, using raw Flats");
+
+        // Collect raw file paths
+        var rawPaths = [];
+        for (var j = 0; j < group.items.length; j++){
+            rawPaths.push(group.items[j].path);
+        }
+
+        result[idx] = {
+            group: group,
+            calibratedPaths: rawPaths,  // Actually raw, but same structure
+            wasCalibrated: false        // Flag for reporting
+        };
+    }
+
+    return result;
+}
+
+/**
+ * Merge two group objects into one
+ * @param {Object} obj1 - First object (e.g., calibrated groups)
+ * @param {Object} obj2 - Second object (e.g., raw groups)
+ * @returns {Object} Merged object
+ */
+function MC_mergeGroups(obj1, obj2){
+    var result = {};
+
+    // Copy obj1
+    for (var key in obj1){
+        if (obj1.hasOwnProperty(key)){
+            result[key] = obj1[key];
+        }
+    }
+
+    // Copy obj2
+    for (var key in obj2){
+        if (obj2.hasOwnProperty(key)){
+            result[key] = obj2[key];
+        }
+    }
+
+    return result;
+}
+
+/**
  * Calibrate Flat files using MasterDarkFlat
  * Returns: { flatGroupIndex: [array of calibrated file paths] }
  * @param {Array} flatGroups - Array of grouped flat frames
@@ -1023,7 +1105,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         var t0 = Date.now();
         if (progressCallback){
             try {
-                progressCallback(processedGroupCount, matchedGroupCount, {
+                progressCallback(groupIdx + 1, matchedGroupCount, {
                     fileName: "CalibFlat_" + firstFlat.filter,
                     fileCount: flatGroup.items.length,
                     filter: firstFlat.filter,
@@ -1126,7 +1208,8 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         calibratedGroups[groupIdx] = {
             group: flatGroup,
             calibratedPaths: calibratedPaths,
-            dfMaster: dfMaster
+            dfMaster: dfMaster,
+            wasCalibrated: true
         };
 
         Console.noteln("[mc]     Calibrated " + calibratedPaths.length + " files -> " + tempPath);
@@ -1136,7 +1219,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         var elapsed = (Date.now() - t0) / 1000; // in seconds
         if (progressCallback){
             try {
-                progressCallback(processedGroupCount, matchedGroupCount, {
+                progressCallback(groupIdx + 1, matchedGroupCount, {
                     fileName: "CalibFlat_" + firstFlat.filter,
                     fileCount: flatGroup.items.length,
                     filter: firstFlat.filter,
@@ -1299,7 +1382,8 @@ function MC_createMasterFlats(calibratedFlatGroups, mastersBasePath, progressCal
         results.push({
             path: fullPath,
             fileName: fileName,
-            group: flatGroup
+            group: flatGroup,
+            wasCalibrated: data.wasCalibrated
         });
     }
 
@@ -1392,17 +1476,39 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     var dfMatches = MC_matchDarkFlatToFlat(masterDarkFlats, groups.flats);
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
-    // 7. Calibrate Flats
-    var calibratedFlats = MC_calibrateFlats(groups.flats, dfMatches, tempPath, makeCallback('calibflat'));
+    // 7a. Calibrate matched Flat groups (with DarkFlat)
+    var calibratedWithDF = MC_calibrateFlats(groups.flats, dfMatches, tempPath, makeCallback('calibflat'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
-    // 8. Create MasterFlats (subdirs created automatically)
-    var masterFlats = MC_createMasterFlats(calibratedFlats, mp, makeCallback('flat'));
+    // 7b. Find unmatched Flat groups (no DarkFlat)
+    var unmatchedIndices = MC_findUnmatchedGroups(groups.flats, dfMatches);
+
+    // 7c. Prepare raw Flats for unmatched groups (auto-fallback)
+    var rawFlats = MC_prepareRawFlats(groups.flats, unmatchedIndices);
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
+    // 7d. Merge calibrated and raw groups
+    var allFlats = MC_mergeGroups(calibratedWithDF, rawFlats);
+
+    // 8. Create MasterFlats from ALL groups (calibrated + raw)
+    var masterFlats = MC_createMasterFlats(allFlats, mp, makeCallback('flat'));
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 
     Console.noteln("[mc] Complete!");
     Console.noteln("[mc]   MasterDark: " + masterDarks.length);
     Console.noteln("[mc]   MasterDarkFlat: " + masterDarkFlats.length);
     Console.noteln("[mc]   MasterFlat: " + masterFlats.length);
+
+    // 9. Report MasterFlats created without DarkFlat calibration
+    if (unmatchedIndices.length > 0) {
+        Console.noteln("[mc]");
+        Console.noteln("[mc]   MasterFlats created WITHOUT DarkFlat calibration:");
+        for (var i = 0; i < masterFlats.length; i++) {
+            if (masterFlats[i].wasCalibrated === false) {
+                Console.noteln("[mc]     - " + masterFlats[i].fileName);
+            }
+        }
+    }
+
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 }
