@@ -140,8 +140,8 @@ function _fi_normFilterUnified(f){
     if (u == "OIII" || u == "O-III" || u == "O3") return "OIII";
     if (u == "SII" || u == "S-II" || u == "S2") return "SII";
 
-    // Custom filter - return original (preserve user's case)
-    return s;
+    // Custom filter - sanitize to avoid invalid characters (TODO-35)
+    return CU_sanitizeKey(s);
 }
 
 /* -------- Date/time parsing -------- */
@@ -566,6 +566,14 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
         }
 
         // Setup: telescope + "_" + camera
+        // TODO-35: Sanitize telescope and camera, then build setup
+        if (telescope){
+            telescope = CU_sanitizeKey(telescope);
+        }
+        if (camera){
+            camera = CU_sanitizeKey(camera);
+        }
+
         if (telescope && camera){
             setup = telescope + "_" + camera;
         } else if (telescope){
@@ -574,7 +582,11 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         // Readout: "High Gain Mode 16BIT"
         var mRead = clean.match(/(High Gain Mode\s*\d*BIT|Low Gain Mode\s*\d*BIT)/i);
-        if (mRead) readout = mRead[1];
+        if (mRead){
+            readout = mRead[1];
+            // TODO-35: Sanitize readout mode
+            readout = CU_sanitizeKey(readout);
+        }
 
         // Binning: 1x1 or Bin1x1
         var mBin = clean.match(/(?:BIN)?(\d+)x(\d+)/i);
@@ -624,11 +636,41 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
     } else {
         // === PARSE FROM HEADERS ===
+        // TODO-35: Sanitize telescope and camera, then build setup
+        if (telescope){
+            telescope = CU_sanitizeKey(telescope);
+        }
+        if (camera){
+            camera = CU_sanitizeKey(camera);
+        }
         setup = telescope + "_" + camera;
 
         var filterRaw = _fi_getKey(K, "FILTER");
         filter = _fi_normFilterUnified(filterRaw);
+
+        // Read Bayer pattern for CFA/OSC cameras (TODO-32 Phase 0)
+        var bayerPatRaw = _fi_getKey(K, "BAYERPAT");
+        var bayerPattern = null;
+        if (bayerPatRaw) {
+            var pattern = String(bayerPatRaw).trim().toUpperCase();
+            // Validate pattern (reject "Auto" and unknown patterns)
+            var validPatterns = ["RGGB", "BGGR", "GBRG", "GRBG", "GBGR", "RGBG", "BGRG"];
+            if (validPatterns.indexOf(pattern) >= 0) {
+                bayerPattern = pattern;
+                // CFA file: set default filter if missing
+                if (!filter) {
+                    filter = "CFA";
+                }
+            } else {
+                Console.warningln("[fits] Invalid BAYERPAT '" + pattern + "' in " + fullPath + " - file skipped");
+                return null;  // Skip file with invalid pattern
+            }
+        }
+        // TODO-35: Sanitize readout mode after cleaning
         readout = CU_cleanReadout(_fi_firstKey(K, "READOUTM", "QREADOUT", "READMODE", "CAMMODE"));
+        if (readout){
+            readout = CU_sanitizeKey(readout);
+        }
         gain = CU_toInt(_fi_firstKey(K, "GAIN", "EGAIN"));
         offset = CU_toInt(_fi_firstKey(K, "OFFSET", "QOFFSET"));
         usb = CU_toInt(_fi_firstKey(K, "USBLIMIT", "QUSBLIM"));
@@ -662,9 +704,10 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
 
         // Object name (only from headers)
         if (headersAvailable){
+            // TODO-35: Sanitize object name to avoid invalid characters
             object = (function(v){
                 var t = (v == null) ? "" : String(v).trim();
-                return t.length ? t : null;
+                return t.length ? CU_sanitizeKey(t) : null;
             })(_fi_getKey(K, "OBJECT"));
 
             // Optical params (for scale calculation)
@@ -724,6 +767,7 @@ function _fi_parseUnified(fullPath, rootPath, expectedType){
     // Add optional fields only if non-null (matching old parsers)
     if (object != null) result.object = object;
     if (filter != null) result.filter = filter;
+    if (bayerPattern != null) result.bayerPattern = bayerPattern;  // TODO-32 Phase 0
     if (binning != null) result.binning = binning;
     if (gain != null) result.gain = gain;
     if (offset != null) result.offset = offset;

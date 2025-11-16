@@ -441,12 +441,22 @@ function SS_copyRejectedFile(srcPath, dstPath){
 /**
  * SS_saveWeightsCSV - Save weights to CSV file
  * csvData: [{filename: "file_a.xisf", weight: 85.32}, ...]
+ * isCFA: If true, output 4 columns (imageId,weight_R,weight_G,weight_B) for RGB after debayer
+ *        If false, output 2 columns (imageId,weight) for mono
  */
-function SS_saveWeightsCSV(csvData, csvPath){
+function SS_saveWeightsCSV(csvData, csvPath, isCFA){
     try{
         var csv = "";
         for (var i=0; i<csvData.length; ++i){
-            csv += csvData[i].filename + "," + csvData[i].weight.toFixed(6) + "\n";
+            var weight = csvData[i].weight.toFixed(6);
+
+            if (isCFA){
+                // TODO-32: CFA/RGB format - 4 columns (duplicate weight for R,G,B)
+                csv += csvData[i].filename + "," + weight + "," + weight + "," + weight + "\n";
+            } else {
+                // Mono format - 2 columns
+                csv += csvData[i].filename + "," + weight + "\n";
+            }
         }
 
         var f = new File;
@@ -462,6 +472,7 @@ function SS_saveWeightsCSV(csvData, csvPath){
 }
 /**
  * SS_processGroup - Process one group: compute weights, use SS Output
+ * @param bayerPattern - Bayer pattern string ("RGGB", "BGGR", etc.) or null for mono
  */
 /**
  * SS_copyTop5 - Copy TOP-N best files to separate folder with rank prefix
@@ -525,9 +536,15 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir, auto
     }
 }
 
-function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node){
+function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node, bayerPattern){
     Console.writeln("[ss] Processing group: " + gkey);
     Console.writeln("[ss]   Files: " + groupFiles.length);
+
+    // TODO-32: Detect CFA for CSV output format
+    var isCFA = !!(bayerPattern);
+    if (isCFA){
+        Console.writeln("[ss]   CFA detected: " + bayerPattern + " (CSV will use 4 columns)");
+    }
 
     // Extract measurements for this group (as copies)
     var groupMeasurements = [];
@@ -677,8 +694,11 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
             // Create CSV filename from group key (replace | and spaces with _)
             var csvName = "subframe_weights_" + gkey.replace(/\|/g, "_").replace(/\s+/g, "_") + ".csv";
             var csvPath = CU_norm(approvedDir + "/" + csvName);
-            if (SS_saveWeightsCSV(csvData, csvPath)){
-                Console.writeln("[ss]   Saved weights CSV: " + csvPath + " (" + csvData.length + " entries)");
+
+            // TODO-32: Pass CFA flag to determine CSV format (2 or 4 columns)
+            if (SS_saveWeightsCSV(csvData, csvPath, isCFA)){
+                var format = isCFA ? "4 columns (RGB)" : "2 columns (mono)";
+                Console.writeln("[ss]   Saved weights CSV: " + csvPath + " (" + csvData.length + " entries, " + format + ")");
             } else {
                 Console.warningln("[ss]   Failed to save weights CSV");
             }
@@ -739,8 +759,14 @@ function SS_collectGroupFiles(PLAN, wf, preferCC){
             ssGroups[ssKey] = {
                 key: ssKey,
                 files: [],
-                binning: binning
+                binning: binning,
+                bayerPattern: null  // TODO-32: Will be set from first CFA group
             };
+        }
+
+        // TODO-32: Store bayerPattern from first CFA IC-group
+        if (G.bayerPattern && !ssGroups[ssKey].bayerPattern){
+            ssGroups[ssKey].bayerPattern = G.bayerPattern;
         }
 
         // Собрать CC файлы из этой IC-группы
@@ -754,10 +780,27 @@ function SS_collectGroupFiles(PLAN, wf, preferCC){
             fromCalibrated = false;
         }
 
+        // TODO-32: Check if group has CFA (debayered files)
+        var isCFA = !!(G.bayerPattern);
+        var debayeredRoot = wf.debayered ? CU_norm(wf.debayered) : null;
+
         // Построить ожидаемые CC-файлы на диске
         for (var i=0; i<bases.length; ++i){
             var b = String(bases[i]||"");
             var stem = CU_noext(CU_basename(b));
+
+            // TODO-32: For CFA, check debayered files first
+            if (isCFA && debayeredRoot){
+                var pDebayered = debayeredRoot + "/" + stem + "_c_cc_d.xisf";
+                try{
+                    if (File.exists(pDebayered)){
+                        ssGroups[ssKey].files.push(pDebayered);
+                        continue;
+                    }
+                }catch(_){}
+            }
+
+            // Fallback to regular CC files
             var p1, p2;
             if (fromCalibrated){
                 p1 = root + "/" + stem + "_cc.xisf";
@@ -826,7 +869,7 @@ function SS_runForAllGroups(params){
 
     if (!groups || groups.length === 0){
         Console.warningln("[ss] No groups with files found");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     Console.writeln("[ss] Found " + groups.length + " groups");
@@ -949,7 +992,8 @@ function SS_runForAllGroups(params){
             best5BaseDir,
             autoReference,
             dlg,
-            outputNode
+            outputNode,
+            g.bayerPattern || null  // TODO-32: Pass bayerPattern for CFA detection
         );
         var elapsedO = (Date.now() - t0O) / 1000;
 
@@ -964,4 +1008,21 @@ function SS_runForAllGroups(params){
     Console.writeln("[ss] ========================================");
     Console.writeln("[ss] SubframeSelector complete");
     Console.writeln("[ss] ========================================");
+
+    // Return statistics for notifications
+    var totalProcessed = 0;
+    var totalSkipped = 0;
+    var groupNames = [];
+
+    for (var gi=0; gi<groups.length; ++gi){
+        var g = groups[gi];
+        totalProcessed += g.files.length;
+        groupNames.push(g.key);
+    }
+
+    return {
+        totalProcessed: totalProcessed,
+        totalSkipped: totalSkipped,
+        groupNames: groupNames
+    };
 }

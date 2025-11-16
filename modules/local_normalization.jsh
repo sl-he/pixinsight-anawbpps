@@ -154,16 +154,27 @@ function LN_collectAndGroupFiles(PLAN, workFolders){
         
         // Collect files from this IC group
         var bases = G.lights || [];
-        
+
+        // TODO-32: Check if group is CFA
+        var isCFA = !!(G.bayerPattern);
+
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
             var stem = CU_noext(CU_basename(basePath));
-            var rFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xisf";
-            
+
+            // TODO-32: CFA files have _d suffix after debayer
+            var rFile;
+            if (isCFA){
+                rFile = workFolders.approvedSet + "/" + stem + "_c_cc_d_a_r.xisf";
+            } else {
+                rFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xisf";
+            }
+
             if (File.exists(rFile)){
                 lnGroups[simpleSSKey].files.push(rFile);
             } else {
-                Console.warningln("[ln]     File not found (SA rejected): " + stem + "_c_cc_a_r.xisf");
+                var suffix = isCFA ? "_c_cc_d_a_r.xisf" : "_c_cc_a_r.xisf";
+                Console.warningln("[ln]     File not found (SA rejected): " + stem + suffix);
             }
         }
     }
@@ -368,7 +379,7 @@ function LN_runForAllGroups(params){
 
     if (!lnGroups || Object.keys(lnGroups).length === 0){
         Console.warningln("[ln] No groups found");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     // Step 2: Get group keys
@@ -435,4 +446,22 @@ function LN_runForAllGroups(params){
     Console.writeln("[ln] ========================================");
     Console.writeln("[ln] LocalNormalization complete");
     Console.writeln("[ln] ========================================");
+
+    // Return statistics for notifications
+    var totalProcessed = 0;
+    var totalSkipped = 0;
+    var groupNames = [];
+
+    for (var i=0; i<groupKeys.length; ++i){
+        var ssKey = groupKeys[i];
+        var lnGroup = lnGroups[ssKey];
+        totalProcessed += lnGroup.files.length;
+        groupNames.push(ssKey);
+    }
+
+    return {
+        totalProcessed: totalProcessed,
+        totalSkipped: totalSkipped,
+        groupNames: groupNames
+    };
 }

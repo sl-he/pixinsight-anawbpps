@@ -40,6 +40,7 @@ var DIR_APPROVED       = "!Approved";            // approved frames (SubframeSel
 var DIR_APPROVED_SET   = "Lights_Cal_CC_Reg";    // registered frames
 var DIR_CALIBRATED     = "Calibrated";           // calibrated frames
 var DIR_COSMETIC       = "CosmeticCorrection";   // cosmetic correction results
+var DIR_DEBAYERED      = "Debayered";            // debayered CFA frames (TODO-32)
 var DIR_TRASH          = "!!!TRASH";             // rejected frames
 
 // --- UI parameters

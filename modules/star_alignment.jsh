@@ -61,16 +61,16 @@ function SA_groupByTarget(PLAN){
 }
 
 // ============================================================================
-// Reference Group Selection (G → OIII → ERROR)
+// Reference Group Selection (G → OIII → CFA → ERROR)
 // ============================================================================
 
 function SA_findReferenceGroup(targetGroups){
     if (!targetGroups || !targetGroups.length){
         throw new Error("No groups for target");
     }
-    
+
     Console.writeln("[sa]   Finding reference group...");
-    
+
     // Step 1: Try to find G channel groups
     var gGroups = [];
     for (var i=0; i<targetGroups.length; ++i){
@@ -80,10 +80,10 @@ function SA_findReferenceGroup(targetGroups){
             gGroups.push(tg);
         }
     }
-    
+
     if (gGroups.length > 0){
         Console.writeln("[sa]   Found " + gGroups.length + " group(s) with G channel");
-        
+
         // Find group with maximum exposure
         var maxExp = gGroups[0];
         for (var j=1; j<gGroups.length; ++j){
@@ -91,11 +91,11 @@ function SA_findReferenceGroup(targetGroups){
                 maxExp = gGroups[j];
             }
         }
-        
+
         Console.writeln("[sa]   Selected G channel, exposure: " + maxExp.exposureSec + "s");
         return maxExp;
     }
-    
+
     // Step 2: Try to find OIII channel groups
     var oiiiGroups = [];
     for (var k=0; k<targetGroups.length; ++k){
@@ -105,10 +105,10 @@ function SA_findReferenceGroup(targetGroups){
             oiiiGroups.push(tg2);
         }
     }
-    
+
     if (oiiiGroups.length > 0){
         Console.writeln("[sa]   Found " + oiiiGroups.length + " group(s) with OIII channel");
-        
+
         // Find group with maximum exposure
         var maxExp2 = oiiiGroups[0];
         for (var m=1; m<oiiiGroups.length; ++m){
@@ -116,13 +116,39 @@ function SA_findReferenceGroup(targetGroups){
                 maxExp2 = oiiiGroups[m];
             }
         }
-        
+
         Console.writeln("[sa]   Selected OIII channel, exposure: " + maxExp2.exposureSec + "s");
         return maxExp2;
     }
-    
-    // Step 3: No G or OIII found
-    throw new Error("No G or OIII channel found for reference selection");
+
+    // Step 3: Try to find CFA groups (TODO-32)
+    var cfaGroups = [];
+    for (var c=0; c<targetGroups.length; ++c){
+        var tgCFA = targetGroups[c];
+        var filtCFA = String(tgCFA.filter||"").toUpperCase();
+        // CFA groups have bayerPattern or filter="CFA"
+        if (tgCFA.bayerPattern || filtCFA === "CFA"){
+            cfaGroups.push(tgCFA);
+        }
+    }
+
+    if (cfaGroups.length > 0){
+        Console.writeln("[sa]   Found " + cfaGroups.length + " CFA group(s)");
+
+        // Find group with maximum exposure
+        var maxExpCFA = cfaGroups[0];
+        for (var cj=1; cj<cfaGroups.length; ++cj){
+            if (cfaGroups[cj].exposureSec > maxExpCFA.exposureSec){
+                maxExpCFA = cfaGroups[cj];
+            }
+        }
+
+        Console.writeln("[sa]   Selected CFA group, exposure: " + maxExpCFA.exposureSec + "s");
+        return maxExpCFA;
+    }
+
+    // Step 4: No G, OIII or CFA found
+    throw new Error("No G, OIII or CFA channel found for reference selection");
 }
 
 // ============================================================================
@@ -269,11 +295,22 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
         Console.writeln("[sa]     Group " + (i+1) + "/" + targetGroups.length +
             ": " + tg.filter + " (" + bases.length + " files)");
 
+        // TODO-32: Check if group is CFA (check G.bayerPattern, not tg.bayerPattern!)
+        var isCFA = !!(G.bayerPattern);
+
+        // DEBUG: Show group structure
+        Console.writeln("[sa]     DEBUG: Group fields: " + Object.keys(G).join(", "));
+        Console.writeln("[sa]     DEBUG: G.bayerPattern: " + (G.bayerPattern || "undefined"));
+        Console.writeln("[sa]     DEBUG: G.filter: " + (G.filter || "undefined"));
+        Console.writeln("[sa]     DEBUG: tg.filter: " + (tg.filter || "undefined"));
+        Console.writeln("[sa]     DEBUG: Is CFA: " + isCFA);
+
         // DEBUG: Show first file from group
         if (bases.length > 0){
             Console.writeln("[sa]     DEBUG: First base path: " + bases[0]);
             Console.writeln("[sa]     DEBUG: Extracted stem: " + CU_noext(CU_basename(bases[0])));
-            var testPath = CU_norm(approvedDir + "/" + CU_noext(CU_basename(bases[0])) + "_c_cc_a.xisf");
+            var testSuffix = isCFA ? "_c_cc_d_a.xisf" : "_c_cc_a.xisf";
+            var testPath = CU_norm(approvedDir + "/" + CU_noext(CU_basename(bases[0])) + testSuffix);
             Console.writeln("[sa]     DEBUG: Looking for: " + testPath);
             Console.writeln("[sa]     DEBUG: File exists: " + File.exists(testPath));
         }
@@ -282,12 +319,20 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
         for (var j=0; j<bases.length; ++j){
             var basePath = bases[j];
             var stem = CU_noext(CU_basename(basePath));
-            var approvedPath = CU_norm(approvedDir + "/" + stem + "_c_cc_a.xisf");
+
+            // TODO-32: CFA files have _d suffix after debayer
+            var approvedPath;
+            if (isCFA){
+                approvedPath = CU_norm(approvedDir + "/" + stem + "_c_cc_d_a.xisf");
+            } else {
+                approvedPath = CU_norm(approvedDir + "/" + stem + "_c_cc_a.xisf");
+            }
 
             if (File.exists(approvedPath)){
                 targetFiles.push(approvedPath);
             } else {
-                Console.warningln("[sa]       File not found (skipped): " + stem + "_c_cc_a.xisf");
+                var suffix = isCFA ? "_c_cc_d_a.xisf" : "_c_cc_a.xisf";
+                Console.warningln("[sa]       File not found (skipped): " + stem + suffix);
             }
         }
     }
@@ -508,7 +553,7 @@ function SA_runForAllTargets(params){
 
     if (!targets || Object.keys(targets).length === 0){
         Console.warningln("[sa] No targets found");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     // Step 2: Get target keys
@@ -564,4 +609,25 @@ function SA_runForAllTargets(params){
     Console.writeln("[sa] ========================================");
     Console.writeln("[sa] StarAlignment complete");
     Console.writeln("[sa] ========================================");
+
+    // Return statistics for notifications
+    var totalProcessed = 0;
+    var totalSkipped = 0;
+    var groupNames = [];
+
+    for (var i=0; i<targetKeys.length; ++i){
+        var target = targetKeys[i];
+        var targetGroups = targets[target];
+        groupNames.push(target);
+        for (var j=0; j<targetGroups.length; ++j){
+            var bases = targetGroups[j].group.lights || [];
+            totalProcessed += bases.length;
+        }
+    }
+
+    return {
+        totalProcessed: totalProcessed,
+        totalSkipped: totalSkipped,
+        groupNames: groupNames
+    };
 }

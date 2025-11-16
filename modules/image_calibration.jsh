@@ -161,6 +161,12 @@ function _pickDarkForLight(L, darks, verbose){
 
 // ---------- strict validators ----------
 function _isValidLight(L){
+    // TODO-32 Phase 0: CFA files don't have filter, but have bayerPattern
+    if (L.bayerPattern) {
+        // CFA file: filter optional, bayerPattern required
+        return CU_hasAllKeys(L, ["setup","readout","gain","offset","usb","binning","tempC","date","exposureSec"]);
+    }
+    // Mono file: filter required, bayerPattern absent
     return CU_hasAllKeys(L, ["setup","readout","gain","offset","usb","binning","tempC","date","exposureSec","filter"]);
 }
 
@@ -232,14 +238,45 @@ function _filterDarksForLight(L, DARKS){
 
 function _filterFlatsForLight(L, FLATS){
     var out = [];
+    Console.writeln("[plan] Filtering " + FLATS.length + " flats for light: setup=" + L.setup + ", filter=" + L.filter + ", bayerPattern=" + L.bayerPattern + ", binning=" + L.binning);
     for (var i=0;i<FLATS.length;++i){
         var F = FLATS[i];
-        if (!_isValidFlat(F)) continue;
-        if (!_sameSetup(L.setup, F.setup)) continue;
-        if (!CU_sameStr(L.filter, F.filter)) continue;
-        if (!CU_sameStr(L.binning,F.binning)) continue;
+        if (!_isValidFlat(F)) {
+            Console.writeln("[plan]   SKIP flat #" + i + ": invalid (filter=" + F.filter + ", type=" + F.type + ")");
+            continue;
+        }
+        if (!_sameSetup(L.setup, F.setup)) {
+            Console.writeln("[plan]   SKIP flat #" + i + ": setup mismatch (L=" + L.setup + ", F=" + F.setup + ")");
+            continue;
+        }
+
+        // TODO-32 Phase 0: For CFA, match by bayerPattern instead of filter
+        if (L.bayerPattern && F.bayerPattern) {
+            // Both CFA: match by Bayer pattern
+            if (!CU_sameStr(L.bayerPattern, F.bayerPattern)) {
+                Console.writeln("[plan]   SKIP flat #" + i + ": bayerPattern mismatch (L=" + L.bayerPattern + ", F=" + F.bayerPattern + ")");
+                continue;
+            }
+        } else if (!L.bayerPattern && !F.bayerPattern) {
+            // Both mono: match by filter
+            if (!CU_sameStr(L.filter, F.filter)) {
+                Console.writeln("[plan]   SKIP flat #" + i + ": filter mismatch (L=" + L.filter + ", F=" + F.filter + ")");
+                continue;
+            }
+        } else {
+            // Mismatch: CFA vs mono
+            Console.writeln("[plan]   SKIP flat #" + i + ": CFA/mono mismatch (L.bayerPattern=" + L.bayerPattern + ", F.bayerPattern=" + F.bayerPattern + ")");
+            continue;
+        }
+
+        if (!CU_sameStr(L.binning,F.binning)) {
+            Console.writeln("[plan]   SKIP flat #" + i + ": binning mismatch (L=" + L.binning + ", F=" + F.binning + ")");
+            continue;
+        }
+        Console.writeln("[plan]   MATCH flat #" + i + ": " + F.filename);
         out.push(F);
     }
+    Console.writeln("[plan] Found " + out.length + " matching flats");
     return out;
 }
 
@@ -313,6 +350,7 @@ function IC_buildCalibrationPlan(lightsIndex, mastersIndex, savePath, useBias){
                 setup: L.setup,
                 object: L.object,
                 filter: L.filter,
+                bayerPattern: L.bayerPattern || null,  // TODO-32 Phase 0: Store Bayer pattern for CFA
                 readout: L.readout,
                 gain: L.gain, offset: L.offset, usb: L.usb,
                 binning: L.binning, tempC: L.tempC, exposureSec: L.exposureSec,
@@ -404,10 +442,15 @@ function IC__extractMastersFromKey(gkey){
 
 // ----------------- parameters (EDIT HERE) -----------------
 // Вставь/правь профиль ImageCalibration ниже (строки вида IC.param = value;)
-function IC_applyUserParams(IC, useBias){
+function IC_applyUserParams(IC, useBias, group){
     // === BEGIN: your parameters ===
-    IC.enableCFA = false;
-//    IC.cfaPattern = "Auto";
+    // TODO-32: Dynamic CFA based on group
+    if (group && group.bayerPattern){
+        IC.enableCFA = true;
+        Console.writeln("[cal] CFA enabled for group (pattern: " + group.bayerPattern + ")");
+    } else {
+        IC.enableCFA = false;
+    }
     IC.inputHints  = "";
     IC.outputHints = "";
     IC.pedestal       = 0;
@@ -489,7 +532,7 @@ function IC_runCalibration(plan, workFolders, useBias){
     try{
         if (!plan || !plan.groups){
             Console.warningln("[cal] No plan.groups — skipping ImageCalibration.");
-            return;
+            return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
         }
 
         // Resolve output base dir (optional)
@@ -507,7 +550,7 @@ function IC_runCalibration(plan, workFolders, useBias){
                 var g = plan.groups[gkeys[gi]], lights = IC__groupLights(g);
                 Console.writeln("  [dry] " + gkeys[gi] + " : " + lights.length + " files");
             }
-            return;
+            return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
         }
 
         // Iterate groups
@@ -544,7 +587,7 @@ function IC_runCalibration(plan, workFolders, useBias){
 
             // --- пакетная калибровка всей группы за один запуск ---
             var IC = new ImageCalibration;
-            IC_applyUserParams(IC, useBias);
+            IC_applyUserParams(IC, useBias, g);
 
             // per-group masters: set bias only if useBias=true
             try{
@@ -753,4 +796,18 @@ function IC_runForAllGroups(params){
     }
 
     Console.noteln("[cal] All groups completed successfully");
+
+    // Return statistics for notifications
+    var totalFiles = 0;
+    for (var ki=0; ki<keys.length; ki++){
+        var gk = keys[ki];
+        var gg = plan.groups[gk];
+        if (gg && gg.lights) totalFiles += gg.lights.length;
+    }
+
+    return {
+        totalProcessed: totalFiles,
+        totalSkipped: 0,
+        groupNames: keys
+    };
 }

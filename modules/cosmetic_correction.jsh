@@ -18,43 +18,51 @@
 // CU_basename → CU_basename
 // CU_noext → CU_noext
 // Configure CosmeticCorrection instance with auto-detect mode
-function CC_configureInstance(P){
+function CC_configureInstance(P, group){
     Console.writeln("[cc] Configuring CosmeticCorrection instance");
-    
+
     // Target frames - will be set per group
     P.targetFrames = [];
-    
+
     // Master Dark - NOT USED!
     P.masterDarkPath = "";
     P.useMasterDark = false;
-    
+
     // Hot/Cold Dark detection - NOT USED!
     P.hotDarkCheck = false;
     P.hotDarkLevel = 1.0;
     P.coldDarkCheck = false;
     P.coldDarkLevel = 0.0;
-    
+
     // Auto Detection - ENABLED! (main mode)
     P.useAutoDetect = true;
     P.hotAutoCheck = true;
     P.hotAutoValue = 3.0;   // Sigma for hot pixels
     P.coldAutoCheck = true;
     P.coldAutoValue = 3.0;  // Sigma for cold pixels
-    
+
     // Defect List - NOT USED
     P.useDefectList = false;
     P.defects = [];
-    
+
     // Output settings
     P.outputDir = "";           // Will be set per group
     P.outputExtension = ".xisf";
     P.prefix = "";
     P.postfix = "_cc";
     P.overwrite = true;         // Overwrite existing files
-    
+
     // Other settings
     P.amount = 1.00;
-    P.cfa = false;
+
+    // TODO-32: Dynamic CFA based on group
+    if (group && group.bayerPattern){
+        P.cfa = true;
+        Console.writeln("[cc] CFA enabled for group (pattern: " + group.bayerPattern + ")");
+    } else {
+        P.cfa = false;
+    }
+
     P.generateHistoryProperties = false;
     
     // Compatibility aliases
@@ -123,10 +131,10 @@ function CC_runForGroup(groupKey, group, workFolders, dlg){
     
     Console.writeln("[cc]   Files to process: " + targetFrames.length);
     Console.writeln("[cc]   Output dir: " + outputDir);
-    
+
     // Create CC instance
     var P = new CosmeticCorrection;
-    CC_configureInstance(P);
+    CC_configureInstance(P, group);
     
     // Set target frames and output dir
     P.targetFrames = targetFrames;
@@ -169,7 +177,7 @@ function CC_runForAllGroups(params){
     
     if (!PLAN || !PLAN.groups){
         Console.warningln("[cc] No calibration plan groups");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
     
     Console.noteln("[cc] Starting CosmeticCorrection for all groups");
@@ -274,5 +282,12 @@ function CC_runForAllGroups(params){
     Console.writeln("[cc] Total processed: " + totalProcessed);
     Console.writeln("[cc] Total skipped: " + totalSkipped);
     Console.writeln("[cc] Total time: " + CU_fmtElapsedMS(totalElapsed));
+
+    // Return statistics for notifications
+    return {
+        totalProcessed: totalProcessed,
+        totalSkipped: totalSkipped,
+        groupNames: groupKeys
+    };
 }
 

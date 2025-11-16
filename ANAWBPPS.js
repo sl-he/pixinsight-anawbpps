@@ -35,6 +35,7 @@
 #include "modules/masters_create.jsh"
 #include "modules/image_calibration.jsh"
 #include "modules/cosmetic_correction.jsh"
+#include "modules/debayer.jsh"
 #include "modules/subframe_selector.jsh"
 #include "modules/star_alignment.jsh"
 #include "modules/local_normalization.jsh"
@@ -615,7 +616,7 @@ function NotificationsSettingsDialog(parentDlg){
     this.cbEnableTelegram = new CheckBox(this);
     this.cbEnableTelegram.text = "Enable Telegram notifications";
     this.cbEnableTelegram.checked = !!(parentDlg.telegramEnabled);
-    this.cbEnableTelegram.toolTip = "Send notification when processing completes";
+    this.cbEnableTelegram.toolTip = "Send notification when pipeline completes";
 
     // Instructions
     this.instructionsLabel = new Label(this);
@@ -740,7 +741,7 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
 
     Console.noteln("[ss] Running SubframeSelector (Measure+Output) for all groups...");
     Console.noteln("[ss]   Scale: " + scale + " arcsec/px, Gain: " + cameraGain);
-    SS_runForAllGroups({
+    var result = SS_runForAllGroups({
         PLAN: PLAN,
         workFolders: workFolders,
         preferCC: preferCC,
@@ -751,40 +752,44 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     });
 
     Console.noteln("[ss] SubframeSelector complete.");
+    return result;
 }
 
 function PP_runStarAlignment_UI(dlg, PLAN, workFolders){
     Console.noteln("[sa] Running StarAlignment...");
-    SA_runForAllTargets({
+    var result = SA_runForAllTargets({
         PLAN: PLAN,
         workFolders: workFolders,
         dlg: dlg
     });
     Console.noteln("[sa] StarAlignment complete.");
+    return result;
 }
 function PP_runLocalNormalization_UI(dlg, PLAN, workFolders){
     Console.noteln("[ln] Running LocalNormalization...");
-    LN_runForAllGroups({
+    var result = LN_runForAllGroups({
         PLAN: PLAN,
         workFolders: workFolders,
         dlg: dlg
     });
     Console.noteln("[ln] LocalNormalization complete.");
+    return result;
 }
 function PP_runImageIntegration_UI(dlg, PLAN, workFolders, useLN){
     Console.noteln("[ii] Running ImageIntegration...");
-    II_runForAllGroups({
+    var result = II_runForAllGroups({
         PLAN: PLAN,
         workFolders: workFolders,
         useLN: useLN,
         dlg: dlg
     });
     Console.noteln("[ii] ImageIntegration complete.");
+    return result;
 }
 
 function PP_runDrizzleIntegration_UI(dlg, PLAN, workFolders, useLN, scale){
     Console.noteln("[di] Running DrizzleIntegration...");
-    DI_runForAllGroups({
+    var result = DI_runForAllGroups({
         PLAN: PLAN,
         workFolders: workFolders,
         useLN: useLN,
@@ -792,6 +797,7 @@ function PP_runDrizzleIntegration_UI(dlg, PLAN, workFolders, useLN, scale){
         dlg: dlg
     });
     Console.noteln("[di] DrizzleIntegration complete.");
+    return result;
 }
 
 function PP_finalizeProgress(dlg){
@@ -848,6 +854,10 @@ function makeWorkFolders(work1Root, work2Root, useTwo){
     var trash = joinPath(base1, DIR_TRASH);
     ensureDir(trash);
 
+    // TODO-32: Debayered folder always in WORK1
+    var debayered = joinPath(base1, DIR_DEBAYERED);
+    ensureDir(debayered);
+
     var base2 = "";
     var cosmetic = "";
     var approvedSet;
@@ -866,6 +876,7 @@ function makeWorkFolders(work1Root, work2Root, useTwo){
     } else {
         cosmetic = joinPath(base1, DIR_COSMETIC);
         ensureDir(cosmetic);
+
         approvedSet = joinPath(approved1, DIR_APPROVED_SET);
         ensureDir(approvedSet);
     }
@@ -877,6 +888,7 @@ function makeWorkFolders(work1Root, work2Root, useTwo){
         approvedSet: approvedSet,
         calibrated: calibrated,
         cosmetic: cosmetic,
+        debayered: debayered,
         trash: trash
     };
 }
@@ -1536,6 +1548,15 @@ function ANAWBPPSDialog(){
                     dlg: ppDlg
                 });
                 Console.noteln("[cc] CosmeticCorrection complete.");
+
+                // TODO-32: Debayer runs automatically for CFA groups after CC
+                Console.noteln("[debayer] Running Debayer (automatic for CFA groups)...");
+                DEBAYER_runForAllGroups({
+                    calibPlan: PLAN,
+                    workFolders: wf,
+                    dlg: ppDlg
+                });
+                Console.noteln("[debayer] Debayer complete.");
             }
 
             if (self.cbSS && self.cbSS.checked){
@@ -1549,7 +1570,7 @@ function ANAWBPPSDialog(){
 
             if (self.cbSA && self.cbSA.checked){
                 PP_runStarAlignment_UI(ppDlg, PLAN, wf);
-                }
+            }
 
             if (self.cbLN && self.cbLN.checked){
                 PP_runLocalNormalization_UI(ppDlg, PLAN, wf);

@@ -153,18 +153,32 @@ function MC_indexRawFiles(rawPath){
 
         var dateObs = CU_extractDateOnly(K["DATE-OBS"]);
         var dateTimeObs = _mc_extractDateTimeISO(K["DATE-OBS"]); // Full date-time for precise grouping
-        var filter = CU_upperOrNull(K["FILTER"]);
+
+        // TODO-35: Sanitize filter to avoid invalid characters in paths/filenames
+        var filterRaw = CU_upperOrNull(K["FILTER"]);
+        var filter = filterRaw ? CU_sanitizeKey(filterRaw) : null;
+
+        var bayerPattern = CU_upperOrNull(K["BAYERPAT"]); // TODO-32: Read Bayer pattern for CFA
         var gain = CU_toInt(K["GAIN"]);
         var offset = CU_toInt(K["OFFSET"]);
         var usb = CU_toInt(CU_first(K["USBLIMIT"], K["QUSBLIM"]));
         var binning = CU_mkBinning(K["XBINNING"], K["YBINNING"]);
-        var readout = CU_cleanReadout(K["READOUTM"]);
+
+        // TODO-35: Sanitize readout mode to avoid invalid characters
+        var readoutRaw = CU_cleanReadout(K["READOUTM"]);
+        var readout = readoutRaw ? CU_sanitizeKey(readoutRaw) : null;
+
         var setTemp = CU_toFloat(K["SET-TEMP"]);
         var expTime = CU_toFloat(K["EXPTIME"]);
-        var telescop = CU_upperOrNull(CU_first(K["TELESCOP"], K["TELESCOPE"]));
-        var instrume = CU_upperOrNull(CU_first(K["INSTRUME"], K["INSTRUMENT"]));
 
-        // Setup: TELESCOP + "_" + INSTRUME
+        // TODO-35: Sanitize telescop and instrume
+        var telescop = CU_upperOrNull(CU_first(K["TELESCOP"], K["TELESCOPE"]));
+        if (telescop) telescop = CU_sanitizeKey(telescop);
+
+        var instrume = CU_upperOrNull(CU_first(K["INSTRUME"], K["INSTRUMENT"]));
+        if (instrume) instrume = CU_sanitizeKey(instrume);
+
+        // Setup: TELESCOP + "_" + INSTRUME (already sanitized above)
         var setup = null;
         if (telescop && instrume){
             setup = telescop + "_" + instrume;
@@ -180,6 +194,7 @@ function MC_indexRawFiles(rawPath){
             dateObs: dateObs,
             dateTimeObs: dateTimeObs, // Full date-time with hours:minutes:seconds
             filter: filter,
+            bayerPattern: bayerPattern, // TODO-32: Bayer pattern for CFA
             gain: gain,
             offset: offset,
             usb: usb,
@@ -464,11 +479,12 @@ function MC_generateMasterSubdir(group, type, basePath){
     var firstItem = group.items[0];
 
     // Build setup name from TELESCOP and INSTRUME
+    // TODO-35: Sanitize to avoid slashes and invalid characters in paths
     var setup = "";
-    if (firstItem.telescop) setup += firstItem.telescop;
+    if (firstItem.telescop) setup += CU_sanitizeKey(firstItem.telescop);
     if (firstItem.instrume){
         if (setup) setup += "_";
-        setup += firstItem.instrume;
+        setup += CU_sanitizeKey(firstItem.instrume);
     }
     if (!setup) setup = "UNKNOWN_SETUP";
 
@@ -507,11 +523,12 @@ function MC_generateMasterFileName(group, type){
     var parts = [];
 
     // TELESCOP and INSTRUME
+    // TODO-35: Sanitize to avoid slashes and invalid characters in filenames
     if (firstItem.telescop){
-        parts.push(firstItem.telescop);
+        parts.push(CU_sanitizeKey(firstItem.telescop));
     }
     if (firstItem.instrume){
-        parts.push(firstItem.instrume);
+        parts.push(CU_sanitizeKey(firstItem.instrume));
     }
 
     parts.push("Master" + type); // MasterDark, MasterDarkFlat, MasterFlat
@@ -520,13 +537,13 @@ function MC_generateMasterFileName(group, type){
 
     if (type == "DarkFlat" || type == "Flat"){
         if (firstItem.filter){
+            // TODO-35: Filter already sanitized in MC_indexRawFiles
             parts.push(firstItem.filter);
         }
     }
 
-    // Clean readout mode: replace spaces with underscores for filename
-    var readoutClean = (firstItem.readout || "UNKNOWN").replace(/\s+/g, "_");
-    parts.push(readoutClean);
+    // TODO-35: Readout already sanitized in MC_indexRawFiles
+    parts.push(firstItem.readout || "UNKNOWN");
     parts.push("G" + (firstItem.gain != null ? firstItem.gain : "NULL"));
     parts.push("OS" + (firstItem.offset != null ? firstItem.offset : "NULL"));
 
@@ -647,17 +664,36 @@ function MC_createMasterDarks(darkGroups, mastersBasePath, progressCallback){
         // Rename view (sanitize for valid identifier)
         intView.id = CU_sanitizeViewId(fileName, "MD");
 
-        // Add FITS keywords (IMAGETYP, EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
-        // Get existing keywords, filter out old IMAGETYP, add new ones
+        // Add FITS keywords (similar to MasterFlat)
+        // Get existing keywords, filter out duplicates, add required ones
         var keywords = intWindow.keywords;
         var filteredKeywords = [];
+        var keysToSkip = ["IMAGETYP", "TELESCOP", "INSTRUME", "BAYERPAT", "EXPTIME", "EXPOSURE", "GAIN", "OFFSET", "USBLIMIT", "READOUTM", "SET-TEMP", "XBINNING", "YBINNING"];
         for (var k = 0; k < keywords.length; ++k){
-            if (keywords[k].name != "IMAGETYP"){
+            var keyName = keywords[k].name.toUpperCase();
+            var shouldSkip = false;
+            for (var s = 0; s < keysToSkip.length; ++s){
+                if (keyName == keysToSkip[s]){
+                    shouldSkip = true;
+                    break;
+                }
+            }
+            if (!shouldSkip){
                 filteredKeywords.push(keywords[k]);
             }
         }
         keywords = filteredKeywords;
+
+        // Add required keywords from firstItem
         keywords.push(new FITSKeyword("IMAGETYP", "'MasterDark'", "Type of integrated image"));
+        keywords.push(new FITSKeyword("TELESCOP", "'" + firstItem.telescop + "'", "Telescope name"));
+        keywords.push(new FITSKeyword("INSTRUME", "'" + firstItem.instrume + "'", "Camera/Instrument name"));
+
+        // Add BAYERPAT for CFA cameras (TODO-32)
+        if (firstItem.bayerPattern){
+            keywords.push(new FITSKeyword("BAYERPAT", "'" + firstItem.bayerPattern + "'", "Bayer color filter array pattern"));
+        }
+
         keywords.push(new FITSKeyword("EXPTIME", String(firstItem.expTime), "[s] Exposure duration"));
         keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
         keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
@@ -667,6 +703,14 @@ function MC_createMasterDarks(darkGroups, mastersBasePath, progressCallback){
         keywords.push(new FITSKeyword("READOUTM", "'" + firstItem.readout + "'", "Sensor readout mode"));
         keywords.push(new FITSKeyword("SET-TEMP", String(firstItem.setTemp), "[degC] CCD temperature setpoint"));
         keywords.push(new FITSKeyword("EXPOSURE", String(firstItem.expTime), "[s] Exposure duration"));
+
+        // Add binning
+        var binParts = firstItem.binning.split("x");
+        if (binParts.length == 2){
+            keywords.push(new FITSKeyword("XBINNING", binParts[0], "Binning factor (X axis)"));
+            keywords.push(new FITSKeyword("YBINNING", binParts[1], "Binning factor (Y axis)"));
+        }
+
         intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
@@ -800,18 +844,41 @@ function MC_createMasterDarkFlats(dfGroups, mastersBasePath, progressCallback){
         // Rename view (sanitize for valid identifier)
         intView.id = CU_sanitizeViewId(fileName, "MDF");
 
-        // Add FITS keywords (IMAGETYP, EXPTIME, GAIN, OFFSET, USBLIMIT, READOUTM, SET-TEMP)
-        // FILTER is copied automatically by ImageIntegration
-        // Get existing keywords, filter out old IMAGETYP, add new ones
+        // Add FITS keywords (similar to MasterDark and MasterFlat)
+        // Get existing keywords, filter out duplicates, add required ones
         var keywords = intWindow.keywords;
         var filteredKeywords = [];
+        var keysToSkip = ["IMAGETYP", "TELESCOP", "INSTRUME", "BAYERPAT", "EXPTIME", "EXPOSURE", "GAIN", "OFFSET", "USBLIMIT", "READOUTM", "SET-TEMP", "XBINNING", "YBINNING", "FILTER"];
         for (var k = 0; k < keywords.length; ++k){
-            if (keywords[k].name != "IMAGETYP"){
+            var keyName = keywords[k].name.toUpperCase();
+            var shouldSkip = false;
+            for (var s = 0; s < keysToSkip.length; ++s){
+                if (keyName == keysToSkip[s]){
+                    shouldSkip = true;
+                    break;
+                }
+            }
+            if (!shouldSkip){
                 filteredKeywords.push(keywords[k]);
             }
         }
         keywords = filteredKeywords;
+
+        // Add required keywords from firstItem
         keywords.push(new FITSKeyword("IMAGETYP", "'MasterDarkFlat'", "Type of integrated image"));
+        keywords.push(new FITSKeyword("TELESCOP", "'" + firstItem.telescop + "'", "Telescope name"));
+        keywords.push(new FITSKeyword("INSTRUME", "'" + firstItem.instrume + "'", "Camera/Instrument name"));
+
+        // Add BAYERPAT for CFA cameras (TODO-32)
+        if (firstItem.bayerPattern){
+            keywords.push(new FITSKeyword("BAYERPAT", "'" + firstItem.bayerPattern + "'", "Bayer color filter array pattern"));
+        }
+
+        // Add FILTER
+        if (firstItem.filter){
+            keywords.push(new FITSKeyword("FILTER", "'" + firstItem.filter + "'", "Filter name"));
+        }
+
         keywords.push(new FITSKeyword("EXPTIME", String(firstItem.expTime), "[s] Exposure duration"));
         keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
         keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
@@ -821,6 +888,14 @@ function MC_createMasterDarkFlats(dfGroups, mastersBasePath, progressCallback){
         keywords.push(new FITSKeyword("READOUTM", "'" + firstItem.readout + "'", "Sensor readout mode"));
         keywords.push(new FITSKeyword("SET-TEMP", String(firstItem.setTemp), "[degC] CCD temperature setpoint"));
         keywords.push(new FITSKeyword("EXPOSURE", String(firstItem.expTime), "[s] Exposure duration"));
+
+        // Add binning
+        var binParts = firstItem.binning.split("x");
+        if (binParts.length == 2){
+            keywords.push(new FITSKeyword("XBINNING", binParts[0], "Binning factor (X axis)"));
+            keywords.push(new FITSKeyword("YBINNING", binParts[1], "Binning factor (Y axis)"));
+        }
+
         intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
@@ -1330,18 +1405,57 @@ function MC_createMasterFlats(calibratedFlatGroups, mastersBasePath, progressCal
         // Rename view (sanitize for valid identifier)
         intView.id = CU_sanitizeViewId(fileName, "MF");
 
-        // Add IMAGETYP keyword for MasterFlat
-        // (FILTER, XBINNING, YBINNING, TELESCOP, DATE-OBS copied automatically)
-        // Get existing keywords, filter out old IMAGETYP, add new one
+        // Add FITS keywords (similar to MasterDark creation)
+        // Get existing keywords, filter out duplicates, add required ones
         var keywords = intWindow.keywords;
         var filteredKeywords = [];
+        var keysToSkip = ["IMAGETYP", "TELESCOP", "INSTRUME", "BAYERPAT", "GAIN", "OFFSET", "USBLIMIT", "READOUTM", "SET-TEMP", "XBINNING", "YBINNING", "FILTER"];
         for (var k = 0; k < keywords.length; ++k){
-            if (keywords[k].name != "IMAGETYP"){
+            var keyName = keywords[k].name.toUpperCase();
+            var shouldSkip = false;
+            for (var s = 0; s < keysToSkip.length; ++s){
+                if (keyName == keysToSkip[s]){
+                    shouldSkip = true;
+                    break;
+                }
+            }
+            if (!shouldSkip){
                 filteredKeywords.push(keywords[k]);
             }
         }
         keywords = filteredKeywords;
+
+        // Add required keywords from firstItem
         keywords.push(new FITSKeyword("IMAGETYP", "'MasterFlat'", "Type of integrated image"));
+        keywords.push(new FITSKeyword("TELESCOP", "'" + firstItem.telescop + "'", "Telescope name"));
+        keywords.push(new FITSKeyword("INSTRUME", "'" + firstItem.instrume + "'", "Camera/Instrument name"));
+
+        // Add BAYERPAT for CFA cameras (TODO-32)
+        if (firstItem.bayerPattern){
+            keywords.push(new FITSKeyword("BAYERPAT", "'" + firstItem.bayerPattern + "'", "Bayer color filter array pattern"));
+        }
+
+        // Add FILTER
+        if (firstItem.filter){
+            keywords.push(new FITSKeyword("FILTER", "'" + firstItem.filter + "'", "Filter name"));
+        }
+
+        // Add camera parameters
+        keywords.push(new FITSKeyword("GAIN", String(firstItem.gain), "Sensor gain"));
+        keywords.push(new FITSKeyword("OFFSET", String(firstItem.offset), "Sensor gain offset"));
+        if (firstItem.usb != null){
+            keywords.push(new FITSKeyword("USBLIMIT", String(firstItem.usb), "Camera-specific USB setting"));
+        }
+        keywords.push(new FITSKeyword("READOUTM", "'" + firstItem.readout + "'", "Sensor readout mode"));
+        keywords.push(new FITSKeyword("SET-TEMP", String(firstItem.setTemp), "[degC] CCD temperature setpoint"));
+
+        // Add binning
+        var binParts = firstItem.binning.split("x");
+        if (binParts.length == 2){
+            keywords.push(new FITSKeyword("XBINNING", binParts[0], "Binning factor (X axis)"));
+            keywords.push(new FITSKeyword("YBINNING", binParts[1], "Binning factor (Y axis)"));
+        }
+
         intWindow.keywords = keywords;
 
         // Create output directory if it doesn't exist
@@ -1415,6 +1529,18 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     var rawIndex = MC_indexRawFiles(rawPath);
     if (!rawIndex || rawIndex.length == 0){
         throw new Error("No valid calibration files found");
+    }
+    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+
+    // 1.5. Save calibration_frames_index.json (for debugging/analysis)
+    try {
+        if (typeof FI_indexCalibration == "function") {
+            var calibIndexPath = rawPath + "/calibration_frames_index.json";
+            Console.noteln("[mc] Saving calibration frames index to: " + calibIndexPath);
+            FI_indexCalibration(rawPath, calibIndexPath);
+        }
+    } catch(e){
+        Console.warningln("[mc] Failed to save calibration_frames_index.json: " + e);
     }
     try { if (typeof processEvents == "function") processEvents(); } catch(_){}
 

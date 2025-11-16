@@ -118,4 +118,48 @@ function NOTIF_sendStageTelegram(params){
     return NOTIF_sendTelegram(botToken, chatId, message);
 }
 
+/**
+ * Sends module completion notification with group details
+ * @param {object} params - { botToken, chatId, moduleName, groupNames, processedFiles, skippedFiles, elapsedTime }
+ * @returns {boolean} success
+ */
+function NOTIF_sendModuleCompletionTelegram(params){
+    var botToken = params.botToken;
+    var chatId = params.chatId;
+    var moduleName = params.moduleName || "Module";
+    var groupNames = params.groupNames || [];
+    var processedFiles = params.processedFiles || 0;
+    var skippedFiles = params.skippedFiles || 0;
+    var elapsedTime = params.elapsedTime || 0;
+
+    if (!botToken || !chatId){
+        return false;
+    }
+
+    // Format time
+    var timeStr = CU_fmtElapsedMS(elapsedTime);
+
+    // Build message
+    var message = "🔭 ANAWBPPS - " + moduleName + " Complete\n\n";
+    message += "✅ Processed: " + processedFiles + " files\n";
+    if (skippedFiles > 0){
+        message += "⊘ Skipped: " + skippedFiles + " files\n";
+    }
+    message += "⏱ Time: " + timeStr + "\n";
+
+    // Add group names (limit to 10 groups to avoid long messages)
+    if (groupNames.length > 0){
+        message += "\n📂 Groups:\n";
+        var maxGroups = Math.min(groupNames.length, 10);
+        for (var i=0; i<maxGroups; i++){
+            message += "  • " + groupNames[i] + "\n";
+        }
+        if (groupNames.length > 10){
+            message += "  ... and " + (groupNames.length - 10) + " more";
+        }
+    }
+
+    return NOTIF_sendTelegram(botToken, chatId, message);
+}
+
 #endif // __ANAWBPPS_NOTIFICATIONS_MODULE__

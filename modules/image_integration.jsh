@@ -291,16 +291,27 @@ function II_collectAndGroupFiles(PLAN, workFolders){
         
         // Collect files from this IC group
         var bases = G.lights || [];
-        
+
+        // TODO-32: Check if group is CFA
+        var isCFA = !!(G.bayerPattern);
+
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
             var stem = CU_noext(CU_basename(basePath));
-            var rFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xisf";
-            
+
+            // TODO-32: CFA files have _d suffix after debayer
+            var rFile;
+            if (isCFA){
+                rFile = workFolders.approvedSet + "/" + stem + "_c_cc_d_a_r.xisf";
+            } else {
+                rFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xisf";
+            }
+
             if (File.exists(rFile)){
                 iiGroups[simpleSSKey].files.push(rFile);
             } else {
-                Console.warningln("[ii]     File not found (SA rejected): " + stem + "_c_cc_a_r.xisf");
+                var suffix = isCFA ? "_c_cc_d_a_r.xisf" : "_c_cc_a_r.xisf";
+                Console.warningln("[ii]     File not found (SA rejected): " + stem + suffix);
             }
         }
     }
@@ -663,7 +674,7 @@ function II_runForAllGroups(params){
 
     if (!iiGroups || Object.keys(iiGroups).length === 0){
         Console.warningln("[ii] No groups found");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     // Step 2: Get group keys
@@ -731,4 +742,22 @@ function II_runForAllGroups(params){
     Console.writeln("[ii] ========================================");
     Console.writeln("[ii] ImageIntegration complete");
     Console.writeln("[ii] ========================================");
+
+    // Return statistics for notifications
+    var totalProcessed = 0;
+    var totalSkipped = 0;
+    var groupNames = [];
+
+    for (var i=0; i<groupKeys.length; ++i){
+        var ssKey = groupKeys[i];
+        var iiGroup = iiGroups[ssKey];
+        totalProcessed += iiGroup.files.length;
+        groupNames.push(ssKey);
+    }
+
+    return {
+        totalProcessed: totalProcessed,
+        totalSkipped: totalSkipped,
+        groupNames: groupNames
+    };
 }

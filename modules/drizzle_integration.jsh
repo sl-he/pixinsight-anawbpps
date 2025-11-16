@@ -72,25 +72,37 @@ function DI_collectAndGroupFiles(PLAN, workFolders){
             diGroups[simpleSSKey] = {
                 key: simpleSSKey,
                 files: [],
-                icGroups: []
+                icGroups: [],
+                bayerPattern: G.bayerPattern || null  // TODO-32: Store bayer pattern for CFA
             };
         }
-        
+
         // Store IC group reference
         diGroups[simpleSSKey].icGroups.push(G);
         
         // Collect files from this IC group
         var bases = G.lights || [];
 
+        // TODO-32: Check if group is CFA
+        var isCFA = !!(G.bayerPattern);
+
         for (var i=0; i<bases.length; ++i){
             var basePath = bases[i];
             var stem = CU_noext(CU_basename(basePath));
-            var xdrzFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xdrz";
+
+            // TODO-32: CFA files have _d suffix after debayer
+            var xdrzFile;
+            if (isCFA){
+                xdrzFile = workFolders.approvedSet + "/" + stem + "_c_cc_d_a_r.xdrz";
+            } else {
+                xdrzFile = workFolders.approvedSet + "/" + stem + "_c_cc_a_r.xdrz";
+            }
 
             if (File.exists(xdrzFile)){
                 diGroups[simpleSSKey].files.push(xdrzFile);
             } else {
-                Console.warningln("[di]     File not found: " + stem + "_c_cc_a_r.xdrz");
+                var suffix = isCFA ? "_c_cc_d_a_r.xdrz" : "_c_cc_a_r.xdrz";
+                Console.warningln("[di]     File not found: " + stem + suffix);
             }
         }
     }
@@ -195,12 +207,12 @@ function DI_buildInputDataArray(files, useLN, workFolders){
 // Configure DrizzleIntegration Instance
 // ============================================================================
 
-function DI_configureInstance(P, inputData, useLN, scale){
+function DI_configureInstance(P, inputData, useLN, scale, bayerPattern){
     // Set input data
     P.inputData = inputData;
     P.inputHints = "";
     P.inputDirectory = "";
-    
+
     // Scale and kernel
     P.scale = scale;                                            // 1.0, 2.0, 3.0
     P.dropShrink = 0.90;                                        // Fixed
@@ -208,10 +220,16 @@ function DI_configureInstance(P, inputData, useLN, scale){
     P.kernelGridSize = 16;
     P.originX = 0.50;
     P.originY = 0.50;
-    
-    // CFA
-    P.enableCFA = false;
-    P.cfaPattern = "";
+
+    // CFA (TODO-32: Enable for CFA groups)
+    if (bayerPattern){
+        P.enableCFA = true;
+        P.cfaPattern = bayerPattern;  // "RGGB", "BGGR", "GBRG", "GRBG"
+        Console.writeln("[di]   CFA enabled: " + bayerPattern);
+    } else {
+        P.enableCFA = false;
+        P.cfaPattern = "";
+    }
     
     // Main features
     P.enableRejection = true;
@@ -364,7 +382,8 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
     Console.writeln("[di]   Files: " + diGroup.files.length);
     Console.writeln("[di]   Scale: " + scale + "x");
     Console.writeln("[di]   LocalNormalization: " + (useLN ? "ENABLED" : "DISABLED"));
-    
+    Console.writeln("[di]   BayerPattern: " + (diGroup.bayerPattern || "none (mono)"));
+
     // Update UI - Running
     if (node){
         try{
@@ -373,17 +392,17 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
             if (typeof processEvents === "function") processEvents();
         }catch(_){}
     }
-    
+
     // Build inputData array
     var inputData = DI_buildInputDataArray(diGroup.files, useLN, workFolders);
-    
+
     if (inputData.length === 0){
         throw new Error("No valid files for drizzle integration: " + ssKey);
     }
-    
+
     // Create DrizzleIntegration instance
     var P = new DrizzleIntegration;
-    DI_configureInstance(P, inputData, useLN, scale);
+    DI_configureInstance(P, inputData, useLN, scale, diGroup.bayerPattern);
     
     Console.writeln("[di]   Running DrizzleIntegration...");
     
@@ -482,7 +501,7 @@ function DI_runForAllGroups(params){
 
     if (!diGroups || Object.keys(diGroups).length === 0){
         Console.warningln("[di] No groups found");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     // Step 2: Get group keys
@@ -551,4 +570,22 @@ function DI_runForAllGroups(params){
     Console.writeln("[di] ========================================");
     Console.writeln("[di] DrizzleIntegration complete");
     Console.writeln("[di] ========================================");
+
+    // Return statistics for notifications
+    var totalProcessed = 0;
+    var totalSkipped = 0;
+    var groupNames = [];
+
+    for (var i=0; i<groupKeys.length; ++i){
+        var ssKey = groupKeys[i];
+        var diGroup = diGroups[ssKey];
+        totalProcessed += diGroup.files.length;
+        groupNames.push(ssKey);
+    }
+
+    return {
+        totalProcessed: totalProcessed,
+        totalSkipped: totalSkipped,
+        groupNames: groupNames
+    };
 }
