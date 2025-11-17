@@ -24,6 +24,30 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 - ✅ **Progress tracking** with detailed UI
 - ✅ **Flexible configuration** (enable/disable any stage)
 - ✅ **Batch processing** multiple nights/objects/setups/filters simultaneously
+- ✅ **CFA/OSC camera support** with automatic debayering and Bayer pattern detection
+
+---
+
+## 🎨 CFA/OSC Camera Support (One-Shot-Color)
+
+ANAWBPPS v0.9.7+ fully supports color cameras with automatic Bayer pattern detection and debayering.
+
+**Features:**
+- ✅ **Automatic Bayer pattern detection** (RGGB, BGGR, GBRG, GRBG)
+- ✅ **Automatic debayering stage** (RAW → RGB conversion)
+- ✅ **CFA-aware master matching** (by Bayer pattern)
+- ✅ **DrizzleIntegration with CFA** (automatic pattern configuration)
+- ✅ **SubframeSelector RGB weights** (separate weights per channel)
+
+**Processing differences:**
+- **CFA workflow** adds debayering stage (~10-15% extra processing time)
+- **Output files** are RGB color images (vs mono grayscale)
+- **File naming** includes `_d` suffix after debayering: `_c_cc_d.xisf`
+- **Master calibration** automatically detects and matches by Bayer pattern
+
+**Supported cameras:**
+- Any One-Shot-Color (OSC) camera with BAYERPAT keyword in FITS headers
+- Examples: QHY600C, ASI2600MC, ASI294MC Pro, ZWO ASI533MC, etc.
 
 ---
 
@@ -267,6 +291,27 @@ Light Frames ──────────────────────�
 
 ## ⚠️ Important Notes
 
+### Master Calibration Matching
+
+**Flat Exposure Tolerance:** ±0.3 seconds
+
+Flat frame exposure times often vary slightly between filters due to:
+- Different filter transmission
+- Sky brightness changes during twilight
+- Manual ADU level adjustments
+
+**Example matching:**
+- Light frames: 120s exposure
+- Flat B: 1.5s
+- Flat G: 1.8s ← Matches (within ±0.3s tolerance)
+- Flat Ha: 2.1s ← Matches (within ±0.3s tolerance)
+
+**Important:** Dark frames require **EXACT** exposure match (no tolerance).
+
+**Temperature tolerance:**
+- Dark frames: ±1°C
+- Flat frames: temperature not critical
+
 ### Reference Selection (Automatic or Manual)
 
 **Default mode: Automatic (recommended)**
@@ -340,6 +385,34 @@ Uncheck "Automatic reference selection (TOP-1 only)" to enable manual selection:
 - Verify files are not corrupted
 - Ensure FITS keywords are correct
 - Some files may be automatically rejected by quality
+
+### "Light frames skipped - no master match"
+
+**Cause:** Missing master calibration file for specific parameters combination
+
+**Solution:**
+1. **Check console logs** to identify which master is missing (Bias/Dark/Flat)
+2. Verify master exists with matching parameters:
+   - **Setup:** TELESCOP + INSTRUME (e.g., `200_1000_ASI2600MC`)
+   - **Filter:** Exact match for flats (e.g., `Ha`, `OIII`)
+   - **Exposure:** Exact match for darks, ±0.3s for flats
+   - **Gain/Offset/USB:** Exact match
+   - **Binning:** Exact match (e.g., `1x1`, `2x2`)
+   - **Temperature:** ±1°C for darks, any for flats
+3. Create missing masters using **"Create Masters"** button
+4. Re-run indexing and calibration plan
+
+**Common scenarios:**
+- ❌ Missing flat for specific filter (have L, R, G but no B)
+- ❌ Dark exposure mismatch (have 120s darks, lights are 180s)
+- ❌ Temperature too different (darks at -5°C, lights at -15°C)
+- ❌ Gain/Offset changed between sessions
+- ❌ Special characters in TELESCOP/INSTRUME (e.g., `200/1000` vs `200_1000`)
+
+**Note:** Special characters in FITS keywords are automatically sanitized:
+- Slashes: `200/1000` → `200_1000`
+- Spaces: `High Gain Mode` → `High_Gain_Mode`
+- This applies to both lights and masters for consistent matching
 
 ---
 

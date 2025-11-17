@@ -218,6 +218,17 @@ E:/Masters_Library/
 - Used during flat calibration, not light calibration
 - Script automatically matches DarkFlat to Flat by exposure time (±3 hours)
 
+**DarkFlat optional behavior:**
+- **If DarkFlat not found:** Script will use regular Dark with matching exposure time
+- **This is acceptable** but less optimal (darks may have different temperature)
+- **Flat calibration still works** without dedicated DarkFlats
+- **Best practice:** Always create DarkFlats when shooting flats (within ±3 hours)
+
+**When DarkFlat is critical:**
+- Long flat exposures (>2s) - more thermal noise accumulation
+- Warm sensor temperatures - higher thermal noise levels
+- High thermal noise cameras - visible hot pixels in flats
+
 **Created from:** Files with `IMAGETYP = 'DARK'` where exposure matches flat exposure
 
 ---

@@ -632,6 +632,9 @@ function IC_runCalibration(plan, workFolders, useBias){
         }
 
         Console.noteln("\n[cal] Done.");
+
+        // Return empty statistics (processed count unknown in batch mode)
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: gkeys};
     } catch(e){
         Console.criticalln(String(e));
         throw e;
@@ -675,7 +678,7 @@ function IC_runForAllGroups(params){
         } else {
             IC_runCalibration(plan, workFolders, useBias);
         }
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     // Extract group keys
@@ -687,7 +690,7 @@ function IC_runForAllGroups(params){
 
     if (keys.length === 0){
         Console.warningln("[cal] No groups found in plan");
-        return;
+        return {totalProcessed: 0, totalSkipped: 0, groupNames: []};
     }
 
     Console.noteln("[cal] ImageCalibration for " + keys.length + " group(s)" + (useBias ? " (with Bias)" : " (without Bias)"));
