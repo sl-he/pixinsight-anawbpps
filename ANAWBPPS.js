@@ -1605,10 +1605,6 @@ function ANAWBPPSDialog(){
                 });
             }
 
-//            if (self.cbCC && self.cbCC.checked){
-//                var CC_PLAN = CC_makeCosmeticPlan(PLAN, wf);
-//                PP_runCosmeticCorrection_UI(ppDlg, CC_PLAN, wf);
-//            }
             if (self.cbCC && self.cbCC.checked){
                 Console.noteln("[cc] Running CosmeticCorrection...");
                 CC_runForAllGroups({

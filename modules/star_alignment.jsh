@@ -226,24 +226,6 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
     var approvedDir = workFolders.approved;
     var targetFiles = [];
 
-    // DEBUG: Show what we're searching
-    Console.writeln("[sa]   DEBUG: Approved directory: " + approvedDir);
-    Console.writeln("[sa]   DEBUG: Directory exists: " + File.directoryExists(approvedDir));
-
-    // DEBUG: List first 5 actual files in approved directory
-    Console.writeln("[sa]   DEBUG: Sampling approved directory contents...");
-    var fileFind = new FileFind;
-    var sampleCount = 0;
-    if (fileFind.begin(approvedDir + "/*_c_cc_a.xisf")){
-        do {
-            if (!fileFind.isDirectory && sampleCount < 5){
-                Console.writeln("[sa]   DEBUG:   Found: " + fileFind.name);
-                sampleCount++;
-            }
-        } while (fileFind.next() && sampleCount < 5);
-    }
-    Console.writeln("[sa]   DEBUG: Sample complete (" + sampleCount + " files shown)");
-
     // ================================================================
     // Track processed TOP-5 folders to avoid duplicates
     // (multiple IC groups can point to same SS group)
@@ -297,23 +279,6 @@ function SA_collectTargetFiles(targetGroups, workFolders, refGroup){
 
         // TODO-32: Check if group is CFA (check G.bayerPattern, not tg.bayerPattern!)
         var isCFA = !!(G.bayerPattern);
-
-        // DEBUG: Show group structure
-        Console.writeln("[sa]     DEBUG: Group fields: " + Object.keys(G).join(", "));
-        Console.writeln("[sa]     DEBUG: G.bayerPattern: " + (G.bayerPattern || "undefined"));
-        Console.writeln("[sa]     DEBUG: G.filter: " + (G.filter || "undefined"));
-        Console.writeln("[sa]     DEBUG: tg.filter: " + (tg.filter || "undefined"));
-        Console.writeln("[sa]     DEBUG: Is CFA: " + isCFA);
-
-        // DEBUG: Show first file from group
-        if (bases.length > 0){
-            Console.writeln("[sa]     DEBUG: First base path: " + bases[0]);
-            Console.writeln("[sa]     DEBUG: Extracted stem: " + CU_noext(CU_basename(bases[0])));
-            var testSuffix = isCFA ? "_c_cc_d_a.xisf" : "_c_cc_a.xisf";
-            var testPath = CU_norm(approvedDir + "/" + CU_noext(CU_basename(bases[0])) + testSuffix);
-            Console.writeln("[sa]     DEBUG: Looking for: " + testPath);
-            Console.writeln("[sa]     DEBUG: File exists: " + File.exists(testPath));
-        }
 
         // Build approved file paths
         for (var j=0; j<bases.length; ++j){
@@ -458,7 +423,6 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
     
     // Step 3: Collect all target files from !Approved
     var targetFiles = SA_collectTargetFiles(targetGroups, workFolders, refGroup);
-    Console.writeln("[sa]   DEBUG after collect: targetFiles type=" + typeof targetFiles + ", length=" + (targetFiles ? targetFiles.length : "null"));
 
     // Step 4: Update pre-created UI row with actual file count
     if (node){
@@ -502,15 +466,10 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
     
     // Set targets
     var targetsArray = [];
-    Console.writeln("[sa]   DEBUG before loop: targetFiles length=" + targetFiles.length);
     for (var i=0; i<targetFiles.length; ++i){
         targetsArray.push([true, true, targetFiles[i]]);
-        if (i < 3) Console.writeln("[sa]   DEBUG after push i=" + i + ", P.targets.length=" + P.targets.length);
-        if (i < 3) Console.writeln("[sa]   DEBUG loop i=" + i + ", pushed: " + targetFiles[i]);
     }
-    Console.writeln("[sa]   DEBUG after loop: P.targets.length=" + P.targets.length);
-    P.targets = targetsArray;  // Присваиваем весь массив целиком!
-    Console.writeln("[sa]   DEBUG after assign: P.targets.length=" + P.targets.length);
+    P.targets = targetsArray;
     Console.writeln("[sa]   Reference: " + CU_basename(referenceFile));
     Console.writeln("[sa]   Targets: " + P.targets.length + " files");
     Console.writeln("[sa]   Output: " + P.outputDirectory);
