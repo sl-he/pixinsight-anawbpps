@@ -1,5 +1,6 @@
 /*
  * ANAWBPPS - Constants and configuration
+ * Version 1.0.0
  *
  * Copyright (C) 2024-2025 sl-he
  *
@@ -10,6 +11,11 @@
  *
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
+
+// ============================================================================
+// Script version
+// ============================================================================
+var ANAWBPPS_VERSION = "1.0.0";
 
 // ============================================================================
 // Hardcoded defaults (used only on first run, before settings.json exists)

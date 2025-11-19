@@ -5,7 +5,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PixInsight](https://img.shields.io/badge/PixInsight-1.8.9+-green.svg)](https://pixinsight.com/)
-[![Version](https://img.shields.io/badge/version-0.9.7-blue.svg)](https://github.com/sl-he/pixinsight-anawbpps/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/sl-he/pixinsight-anawbpps/releases)
 [![GitHub stars](https://img.shields.io/github/stars/sl-he/pixinsight-anawbpps.svg)](https://github.com/sl-he/pixinsight-anawbpps/stargazers)
 
 ---
@@ -17,7 +17,9 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 - ✅ **Flexible Bias usage** (optional, can be disabled for Dark Library workflow)
 - ✅ **Automatic reference selection** (best subframe per group, manual mode available)
 - ✅ **Intelligent grouping** by camera, target, filter, binning, exposure
-- ✅ **Quality-based selection** via SubframeSelector with approval
+- ✅ **Quality-based selection** via SubframeSelector with configurable thresholds
+- ✅ **Configurable reject criteria** (FWHM Min/Max, PSF threshold) with Save/Load
+- ✅ **Auto-detect timezone** from FITS headers (per-group support)
 - ✅ **Smart calibration matching** (optimal master frame selection)
 - ✅ **Auto hot/cold pixel detection** (no master dark required for cosmetic correction)
 - ✅ **32-bit Float output** for maximum dynamic range
@@ -57,7 +59,7 @@ ANAWBPPS v0.9.7+ fully supports color cameras with automatic Bayer pattern detec
 |---|-------|-------------|---------|
 | 1 | **ImageCalibration** | Apply master calibration frames (Bias optional) | ✅ ON |
 | 2 | **CosmeticCorrection** | Auto-detect and remove hot/cold pixels | ✅ ON |
-| 3 | **SubframeSelector** | Measure quality, select best subframes | ✅ ON |
+| 3 | **SubframeSelector** | Measure quality, select best subframes (configurable thresholds) | ✅ ON |
 | 4 | **StarAlignment** | Register all frames to reference (Auto TOP-1 or Manual TOP-5) | ✅ ON |
 | 5 | **LocalNormalization** | Normalize gradients (optional) | ☐ OFF |
 | 6 | **ImageIntegration** | Stack approved frames | ✅ ON |
@@ -66,6 +68,48 @@ ANAWBPPS v0.9.7+ fully supports color cameras with automatic Bayer pattern detec
 **Processing time (standard workflow):** ~0.65-0.7 hours for 300 subframes **(AMD Ryzen 7950X/192GB RAM/4x4TB NVMe Seagate Firecuda 530)**
 
 **Processing time (full workflow):** ~1.4-1.5 hours for 300 subframes **(AMD Ryzen 7950X/192GB RAM/4x4TB NVMe Seagate Firecuda 530)**
+
+---
+
+## ⚙️ SubframeSelector Configuration
+
+**Configurable Reject Thresholds (v1.0+):**
+
+Customize quality thresholds directly in the UI for fine-tuned subframe selection:
+
+| Parameter | Default | Description | Typical Range |
+|-----------|---------|-------------|---------------|
+| **FWHM Min** | 0.5 px | Minimum FWHM - reject if smaller (out of focus) | 0.1 - 2.0 px |
+| **FWHM Max** | 6.0 px | Maximum FWHM - reject if larger (bad seeing/tracking) | 2.0 - 10.0 px |
+| **PSF Threshold** | 4.0 | PSF Signal divisor - reject if signal too weak | 2.0 - 10.0 |
+
+**PSF Threshold explanation:**
+- **4.0** (default) = reject if PSF < 25% of maximum signal (recommended for most cases)
+- **2.0** = reject if PSF < 50% of maximum signal (stricter - fewer frames pass)
+- **10.0** = reject if PSF < 10% of maximum signal (more lenient - more frames pass)
+
+**Settings persistence:**
+- All thresholds are saved/loaded with your configuration
+- Separate settings per project possible
+- Can be adjusted per session for different targets/conditions
+
+**Auto-Timezone Detection (v1.0+):**
+
+Timezone is automatically detected from FITS headers for accurate session grouping:
+- Uses `DATE-OBS` (UTC) and `DATE-LOC` (Local time) FITS keywords
+- Calculated independently for each group (supports multi-location sessions)
+- Rounded to nearest 0.25 hours (15-minute precision)
+- Fallback to UTC (0) if headers missing or invalid
+
+**Example console output:**
+```
+[ss]   Timezone: UTC+3.00
+```
+
+**Why it matters:**
+- Correct session grouping (important for PixInsight's SubframeSelector)
+- Handles imaging sessions across different timezones
+- No manual configuration needed
 
 ---
 
@@ -181,34 +225,6 @@ WORK2/!Integrated/
 ---
 
 ## ⚙️ Configuration
-
-### Camera & Optics Settings
-
-#### **Camera Gain (e-/ADU)**
-
-Camera gain coefficient. Examples:
-- **QHY600M @ Gain 56:** 0.333 e-/ADU
-- **ASI2600MM @ Gain 100:** 0.158 e-/ADU
-- **ASI294MM Pro @ Gain 120:** 0.29 e-/ADU
-
-Find in camera specifications or manufacturer documentation.
-
-#### **Subframe Scale (arcsec/pixel)**
-
-Angular size of pixel on sky. Formula:
-```
-scale = (pixel_size_µm / focal_length_mm) × 206.265
-```
-
-**Examples:**
-
-| Camera | Pixel | Telescope | Focal | Scale |
-|--------|-------|-----------|-------|-------|
-| QHY600M | 3.76µm | Esprit 150 | 1050mm | 0.721" |
-| ASI2600MM | 3.76µm | Newt 200/800 | 800mm | 0.970" |
-| ASI2600MM | 3.76µm | RC 8" F8 | 1600mm | 0.485" |
-
-**Online calculator:** [Astronomy Tools Online Calculator](https://astronomy.tools/calculators/ccd)
 
 ### Workflow Options
 
@@ -434,13 +450,11 @@ Contributions are welcome! Process:
 - [x] ✅ Optional Bias usage (Dark Library workflow support)
 - [x] ✅ Master calibration creation tool
 - [x] ✅ Code quality improvements (centralized utilities, ~500 lines refactored)
+- [x] ✅ Save/load configuration profiles
 
 **Planned:**
-- [ ] Auto-detect Scale from FITS keywords (XPIXSZ, FOCALLEN)
-- [ ] Camera Gain lookup table by camera model
-- [ ] UI for Camera Gain and Subframe Scale configuration
-- [ ] Presets for popular cameras/telescopes
-- [ ] Save/load configuration profiles
+to be continued
+
 
 ---
 
