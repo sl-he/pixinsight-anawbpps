@@ -455,7 +455,11 @@ function PP_collectSettings(dlg){
             doII: !!dlg.cbII.checked,
             doDrizzle: !!dlg.cbDrz.checked,
             drizzleScale: (dlg.comboDrzScale.currentItem + 1), // 0=1x, 1=2x -> 1, 2
-            saveLog: !!dlg.cbSaveLog.checked
+            saveLog: !!dlg.cbSaveLog.checked,
+            // SubframeSelector reject thresholds
+            ssFwhmMin: parseFloat(dlg.editSSFwhmMin.text) || 0.5,
+            ssFwhmMax: parseFloat(dlg.editSSFwhmMax.text) || 6.0,
+            ssPsfThreshold: parseFloat(dlg.editSSPsfThreshold.text) || 4.0
         },
         notifications: {
             telegramEnabled: !!dlg.telegramEnabled,
@@ -497,6 +501,10 @@ function PP_applySettings(dlg, settings){
             if (scaleIdx >= 0 && scaleIdx <= 1) dlg.comboDrzScale.currentItem = scaleIdx;
         }
         if (settings.options.saveLog !== undefined) dlg.cbSaveLog.checked = !!settings.options.saveLog;
+        // SubframeSelector reject thresholds
+        if (settings.options.ssFwhmMin !== undefined) dlg.editSSFwhmMin.text = String(settings.options.ssFwhmMin);
+        if (settings.options.ssFwhmMax !== undefined) dlg.editSSFwhmMax.text = String(settings.options.ssFwhmMax);
+        if (settings.options.ssPsfThreshold !== undefined) dlg.editSSPsfThreshold.text = String(settings.options.ssPsfThreshold);
     }
 
     // Apply notifications
@@ -739,8 +747,16 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     var preferCC = (options && options.preferCC !== false);
     var autoReference = (options && options.autoReference !== false);
 
+    // Extract SS threshold parameters
+    var ssFwhmMin = (options && options.ssFwhmMin) || 0.5;
+    var ssFwhmMax = (options && options.ssFwhmMax) || 6.0;
+    var ssPsfThreshold = (options && options.ssPsfThreshold) || 4.0;
+
     Console.noteln("[ss] Running SubframeSelector (Measure+Output) for all groups...");
     Console.noteln("[ss]   Scale: " + scale + " arcsec/px, Gain: " + cameraGain);
+    Console.noteln("[ss]   FWHM Thresholds: " + ssFwhmMin.toFixed(2) + " - " + ssFwhmMax.toFixed(2) + " px");
+    Console.noteln("[ss]   PSF Threshold: " + ssPsfThreshold.toFixed(2) + " (" + (100/ssPsfThreshold).toFixed(1) + "% of max)");
+
     var result = SS_runForAllGroups({
         PLAN: PLAN,
         workFolders: workFolders,
@@ -748,6 +764,9 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
         autoReference: autoReference,
         cameraGain: cameraGain,
         subframeScale: scale,
+        ssFwhmMin: ssFwhmMin,
+        ssFwhmMax: ssFwhmMax,
+        ssPsfThreshold: ssPsfThreshold,
         dlg: dlg
     });
 
@@ -1281,7 +1300,53 @@ function ANAWBPPSDialog(){
     this.calRowSizer.add(this.cbUseBias);
     this.calRowSizer.addStretch();
     this.cbCC  = new CheckBox(this); this.cbCC.text  = "CosmeticCorrection";   this.cbCC.checked  = !!HARDCODED_DEFAULTS.doCC;
-    this.cbSS  = new CheckBox(this); this.cbSS.text  = "SubframeSelector";     this.cbSS.checked  = !!HARDCODED_DEFAULTS.doSS;
+
+    // SubframeSelector with reject thresholds in same row
+    this.cbSS  = new CheckBox(this);
+    this.cbSS.text  = "SubframeSelector";
+    this.cbSS.checked  = !!HARDCODED_DEFAULTS.doSS;
+
+    this.lblSSFwhmMin = new Label(this);
+    this.lblSSFwhmMin.text = "  FWHM Min:";
+    this.lblSSFwhmMin.setFixedWidth(110);
+    this.lblSSFwhmMin.styleSheet = "QLabel { padding-top: 2px; }";
+
+    this.editSSFwhmMin = new Edit(this);
+    this.editSSFwhmMin.text = String(HARDCODED_DEFAULTS.ssFwhmMin || 0.5);
+    this.editSSFwhmMin.setFixedWidth(50);
+    this.editSSFwhmMin.toolTip = "Minimum FWHM in pixels (reject if FWHM < this value). Default: 0.5";
+
+    this.lblSSFwhmMax = new Label(this);
+    this.lblSSFwhmMax.text = "  FWHM Max:";
+    this.lblSSFwhmMax.setFixedWidth(115);
+    this.lblSSFwhmMax.styleSheet = "QLabel { padding-top: 2px; }";
+
+    this.editSSFwhmMax = new Edit(this);
+    this.editSSFwhmMax.text = String(HARDCODED_DEFAULTS.ssFwhmMax || 6.0);
+    this.editSSFwhmMax.setFixedWidth(50);
+    this.editSSFwhmMax.toolTip = "Maximum FWHM in pixels (reject if FWHM > this value). Default: 6.0";
+
+    this.lblSSPsfThreshold = new Label(this);
+    this.lblSSPsfThreshold.text = "  PSF:";
+    this.lblSSPsfThreshold.setFixedWidth(55);
+    this.lblSSPsfThreshold.styleSheet = "QLabel { padding-top: 2px; }";
+
+    this.editSSPsfThreshold = new Edit(this);
+    this.editSSPsfThreshold.text = String(HARDCODED_DEFAULTS.ssPsfThreshold || 4.0);
+    this.editSSPsfThreshold.setFixedWidth(50);
+    this.editSSPsfThreshold.toolTip = "PSF Signal threshold divisor (reject if PSF < max/N). 4.0 = 25%, 2.0 = 50%, 10.0 = 10%. Default: 4.0";
+
+    this.ssRowSizer = new HorizontalSizer;
+    this.ssRowSizer.spacing = 4;
+    this.ssRowSizer.add(this.cbSS);
+    this.ssRowSizer.add(this.lblSSFwhmMin);
+    this.ssRowSizer.add(this.editSSFwhmMin);
+    this.ssRowSizer.add(this.lblSSFwhmMax);
+    this.ssRowSizer.add(this.editSSFwhmMax);
+    this.ssRowSizer.add(this.lblSSPsfThreshold);
+    this.ssRowSizer.add(this.editSSPsfThreshold);
+    this.ssRowSizer.addStretch();
+
     // Auto reference selection (nested under SS)
     this.cbAutoRef = new CheckBox(this);
     this.cbAutoRef.text = "Automatic reference selection (TOP-1 only)";
@@ -1318,9 +1383,9 @@ function ANAWBPPSDialog(){
 
     this.gbOptions.sizer.add(this.calRowSizer);
     this.gbOptions.sizer.add(this.cbCC);
-    this.gbOptions.sizer.add(this.cbSS);
-    this.gbOptions.sizer.add(this.lblRefInfo);
+    this.gbOptions.sizer.add(this.ssRowSizer);
     this.gbOptions.sizer.add(this.cbAutoRef);
+    this.gbOptions.sizer.add(this.lblRefInfo);
     this.gbOptions.sizer.add(this.cbSA);
     this.gbOptions.sizer.add(this.cbLN);
     this.gbOptions.sizer.add(this.cbII);
@@ -1560,11 +1625,19 @@ function ANAWBPPSDialog(){
             }
 
             if (self.cbSS && self.cbSS.checked){
+                // Read SS threshold values from UI
+                var ssFwhmMin = parseFloat(self.editSSFwhmMin.text) || 0.5;
+                var ssFwhmMax = parseFloat(self.editSSFwhmMax.text) || 6.0;
+                var ssPsfThreshold = parseFloat(self.editSSPsfThreshold.text) || 4.0;
+
                 PP_runSubframeSelector_UI(ppDlg, PLAN, wf, {
                     preferCC: (self.cbCC && self.cbCC.checked),
                     autoReference: (self.cbAutoRef && self.cbAutoRef.checked),
                     cameraGain: 0.3330,
-                    subframeScale: 0.7210 //ES150_F7
+                    subframeScale: 0.7210, //ES150_F7
+                    ssFwhmMin: ssFwhmMin,
+                    ssFwhmMax: ssFwhmMax,
+                    ssPsfThreshold: ssPsfThreshold
                 });
             }
 

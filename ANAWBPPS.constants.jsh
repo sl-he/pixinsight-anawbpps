@@ -29,7 +29,11 @@ var HARDCODED_DEFAULTS = {
     doLN:  false,
     doII:  true,
     doDrizzle: false,
-    drizzleScale: 1  // 1x or 2x
+    drizzleScale: 1,  // 1x or 2x
+    // SubframeSelector reject thresholds
+    ssFwhmMin: 0.5,   // Minimum FWHM (pixels)
+    ssFwhmMax: 6.0,   // Maximum FWHM (pixels)
+    ssPsfThreshold: 4.0  // PSF Signal threshold divisor (4.0 = 25% of max, 2.0 = 50%, 10.0 = 10%)
 };
 
 // --- project defaults (stored inside Work1)

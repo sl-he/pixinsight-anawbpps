@@ -131,64 +131,9 @@ function SS_readKeywordMap(path){
     }
 }
 
-// CU_toFloat → CU_toFloat (with null default)
-
-function SS_guessPixelSizeUm(hdr){
-    if (!hdr) return null;
-    var cands = ["XPIXSZ", "PIXSIZE", "PIXSZ", "XPIXSIZE", "PIXSCALE"]; // PS: PI XSCALE is arcsec/px sometimes
-    for (var i=0;i<cands.length;++i){
-        var k = cands[i];
-        if (typeof hdr[k] !== "undefined"){
-            var v = CU_toFloat(hdr[k], null);
-            if (v!==null){
-                // If header has PI XSCALE (arcsec/px), skip: we'll compute from pixel size only
-                if (k==="PIXSCALE" && v>0 && v<100) continue;
-                return v;
-            }
-        }
-    }
-    return null;
-}
-
-function SS_guessFocalLenMm(hdr){
-    if (!hdr) return null;
-    var cands = ["FOCALLEN", "FOCAL", "FOCLEN", "FOCALLENGTH"];
-    for (var i=0;i<cands.length;++i){
-        var k = cands[i];
-        if (typeof hdr[k] !== "undefined"){
-            var v = CU_toFloat(hdr[k], null);
-            if (v!==null) return v;
-        }
-    }
-    return null;
-}
-
-function SS_parseBinning(str){
-    var s = String(str||"");
-    var x = s.indexOf("x");
-    if (x<0) x = s.indexOf("X");
-    if (x>0){
-        var a = parseInt(s.substring(0,x),10);
-        if (a>0) return a;
-    }
-    return 1;
-}
-
-function SS_arcsecPerPixel(pixel_um, focal_mm, binFactor){
-    if (!(pixel_um>0) || !(focal_mm>0)) return null;
-    var scale1 = 206.265 * pixel_um / focal_mm;
-    var bf = (binFactor>0) ? binFactor : 1;
-    return scale1 * bf;
-}
-
-function SS_computeScaleFromFile(samplePath, binningStr){
-    var hdr = SS_readKeywordMap(samplePath);
-    var px = SS_guessPixelSizeUm(hdr);
-    var fl = SS_guessFocalLenMm(hdr);
-    var bf = SS_parseBinning(binningStr);
-    var sc = SS_arcsecPerPixel(px, fl, bf);
-    return {scale: sc, pixelUm: px, focalMm: fl};
-}
+// NOTE: Scale computation functions removed (not needed - scale doesn't affect measurements)
+// FWHM in measurements array is in pixels regardless of P.subframeScale value
+// Scale/Gain parameters only affect CSV output and SS UI display
 
 function SS_applyTemplateDefaults(P){
     // Instances supplied by user
@@ -345,7 +290,7 @@ function SS_getMinMaxForGroup(measurements){
  * SS_computeWeight - Compute weight for one measurement
  * Returns { weight: Number, approved: Boolean, reason: String }
  */
-function SS_computeWeight(measurement, minMax, scale){
+function SS_computeWeight(measurement, minMax, scale, fwhmMin, fwhmMax, psfThreshold){
     // measurement: [index, enabled, locked, path, weight(ignore), FWHM, Eccentricity, PSFSignalWeight, ...]
     if (!measurement || measurement.length < 8){
         return { weight: 0, approved: false, reason: "Invalid measurement" };
@@ -354,11 +299,10 @@ function SS_computeWeight(measurement, minMax, scale){
     var Eccentricity = measurement[6];
     var PSFSignalWeight = measurement[7];
 
-    // Approval thresholds
-//    var low = 0.5 * scale;
-//    var high = 6.0 * scale;
-    var low = 0.5;
-    var high = 6.0;
+    // Approval thresholds (configurable from UI)
+    var low = fwhmMin || 0.5;
+    var high = fwhmMax || 6.0;
+    var psfDiv = psfThreshold || 4.0;
 
     // Check approval
     var approved = true;
@@ -373,11 +317,13 @@ function SS_computeWeight(measurement, minMax, scale){
     } else if (Eccentricity > 0.70){
         approved = false;
         reason = "Eccentricity=" + Eccentricity.toFixed(2) + " > 0.70";
-    } else if (PSFSignalWeight * 4 <= minMax.PSFSignalWeightMax){
-        // NEW: Reject files with PSFSignalWeight < 25% of maximum
+    } else if (PSFSignalWeight * psfDiv <= minMax.PSFSignalWeightMax){
+        // Reject files with PSFSignalWeight < (1/psfDiv) of maximum
+        // psfDiv=4.0 → 25%, psfDiv=2.0 → 50%, psfDiv=10.0 → 10%
         // This catches clouds, closed roof, heavy light pollution, etc.
         approved = false;
-        reason = "PSFSignal=" + PSFSignalWeight.toFixed(6) + " < 25% of max (" + minMax.PSFSignalWeightMax.toFixed(6) + ")";
+        var pct = (100 / psfDiv).toFixed(1);
+        reason = "PSFSignal=" + PSFSignalWeight.toFixed(6) + " < " + pct + "% of max (" + minMax.PSFSignalWeightMax.toFixed(6) + ")";
     }
 
     if (!approved){
@@ -536,12 +482,17 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir, auto
     }
 }
 
-function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node, bayerPattern){
+function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node, bayerPattern, ssFwhmMin, ssFwhmMax, ssPsfThreshold){
     Console.writeln("[ss] Processing group: " + gkey);
     Console.writeln("[ss]   Files: " + groupFiles.length);
 
     // TODO-32: Detect CFA for CSV output format
     var isCFA = !!(bayerPattern);
+
+    // Extract threshold params with defaults
+    var fwhmMin = ssFwhmMin || 0.5;
+    var fwhmMax = ssFwhmMax || 6.0;
+    var psfThreshold = ssPsfThreshold || 4.0;
     if (isCFA){
         Console.writeln("[ss]   CFA detected: " + bayerPattern + " (CSV will use 4 columns)");
     }
@@ -587,7 +538,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         var basename = CU_basename(srcPath);
 
         // Compute weight
-        var result = SS_computeWeight(m, minMax, scale);
+        var result = SS_computeWeight(m, minMax, scale, fwhmMin, fwhmMax, psfThreshold);
 
         // Substitute weight in measurement
         m[4] = result.weight;
@@ -851,18 +802,23 @@ function SS_collectGroupFiles(PLAN, wf, preferCC){
 
 /* Public API */
 function SS_runForAllGroups(params){
-    // params: { PLAN, workFolders, preferCC, autoReference, cameraGain, subframeScale, dlg }
+    // params: { PLAN, workFolders, preferCC, autoReference, cameraGain, subframeScale, ssFwhmMin, ssFwhmMax, ssPsfThreshold, dlg }
     var PLAN = params.PLAN, wf = params.workFolders, LI = params.LI;
     var preferCC = !!params.preferCC;
     var autoReference = (params.autoReference !== false); // default true
     var cameraGain = params.cameraGain || 0.333;
     var scale = params.subframeScale || 0.7210;
+    var ssFwhmMin = params.ssFwhmMin || 0.5;
+    var ssFwhmMax = params.ssFwhmMax || 6.0;
+    var ssPsfThreshold = params.ssPsfThreshold || 4.0;
     var dlg = params.dlg || null;
 // Log parameters
     Console.writeln("[ss] SubframeSelector: Manual weight computation");
     Console.writeln("[ss]   Scale: " + scale.toFixed(4) + " arcsec/px");
     Console.writeln("[ss]   Camera gain: " + cameraGain);
     Console.writeln("[ss]   Auto reference: " + (autoReference ? "ON (TOP-1)" : "OFF (TOP-5)"));
+    Console.writeln("[ss]   FWHM: " + ssFwhmMin.toFixed(2) + " - " + ssFwhmMax.toFixed(2) + " px");
+    Console.writeln("[ss]   PSF: < 1/" + ssPsfThreshold.toFixed(2) + " of max (" + (100/ssPsfThreshold).toFixed(1) + "%)");
 
     // Step 1: Collect and regroup files
     var groups = SS_collectGroupFiles(PLAN, wf, preferCC);
@@ -993,7 +949,10 @@ function SS_runForAllGroups(params){
             autoReference,
             dlg,
             outputNode,
-            g.bayerPattern || null  // TODO-32: Pass bayerPattern for CFA detection
+            g.bayerPattern || null,  // TODO-32: Pass bayerPattern for CFA detection
+            ssFwhmMin,
+            ssFwhmMax,
+            ssPsfThreshold
         );
         var elapsedO = (Date.now() - t0O) / 1000;
 
