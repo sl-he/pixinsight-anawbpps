@@ -738,7 +738,7 @@ function NotificationsSettingsDialog(parentDlg){
 
 NotificationsSettingsDialog.prototype = new Dialog;
 
-function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
+function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, LI, options){
     if (!dlg) throw new Error("Progress dialog is not provided.");
     if (!PLAN || !PLAN.groups) throw new Error("Plan is empty (no groups).");
     var cameraGain = (options && options.cameraGain) || 0.3330;
@@ -757,9 +757,13 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, options){
     Console.noteln("[ss]   FWHM Thresholds: " + ssFwhmMin.toFixed(2) + " - " + ssFwhmMax.toFixed(2) + " px");
     Console.noteln("[ss]   PSF Threshold: " + ssPsfThreshold.toFixed(2) + " (" + (100/ssPsfThreshold).toFixed(1) + "% of max)");
 
+    // Convert LI to items array if needed
+    var lightsIndex = (LI && LI.items) ? LI.items : LI;
+
     var result = SS_runForAllGroups({
         PLAN: PLAN,
         workFolders: workFolders,
+        LI: lightsIndex,
         preferCC: preferCC,
         autoReference: autoReference,
         cameraGain: cameraGain,
@@ -1630,7 +1634,7 @@ function ANAWBPPSDialog(){
                 var ssFwhmMax = parseFloat(self.editSSFwhmMax.text) || 6.0;
                 var ssPsfThreshold = parseFloat(self.editSSPsfThreshold.text) || 4.0;
 
-                PP_runSubframeSelector_UI(ppDlg, PLAN, wf, {
+                PP_runSubframeSelector_UI(ppDlg, PLAN, wf, LI, {
                     preferCC: (self.cbCC && self.cbCC.checked),
                     autoReference: (self.cbAutoRef && self.cbAutoRef.checked),
                     cameraGain: 0.3330,

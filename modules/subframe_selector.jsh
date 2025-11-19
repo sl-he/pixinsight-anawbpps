@@ -135,11 +135,82 @@ function SS_readKeywordMap(path){
 // FWHM in measurements array is in pixels regardless of P.subframeScale value
 // Scale/Gain parameters only affect CSV output and SS UI display
 
-function SS_applyTemplateDefaults(P){
+/**
+ * SS_computeTimezone - Compute timezone offset from DATE-OBS (UTC) and DATE-LOC (Local)
+ * @param {string} dateObsISO - DATE-OBS value (UTC time), e.g. '2024-08-31T01:13:09.381'
+ * @param {string} dateLocISO - DATE-LOC value (Local time), e.g. '2024-08-31T04:13:09.381'
+ * @returns {number} Timezone offset in hours (rounded to 0.25), e.g. 3.0 for UTC+3
+ */
+function SS_computeTimezone(dateObsISO, dateLocISO){
+    if (!dateObsISO || !dateLocISO) return 0;
+
+    function parseISO(s){
+        // Parse "YYYY-MM-DDTHH:MM:SS" to Date object (ES3 compatible)
+        // Extract first 19 chars minimum
+        var str = String(s).trim();
+        if (str.length < 19) return null;
+
+        var y = parseInt(str.substring(0, 4), 10);
+        var m = parseInt(str.substring(5, 7), 10);
+        var d = parseInt(str.substring(8, 10), 10);
+        var h = parseInt(str.substring(11, 13), 10);
+        var min = parseInt(str.substring(14, 16), 10);
+        var sec = parseInt(str.substring(17, 19), 10);
+
+        // Basic validation
+        if (isNaN(y) || isNaN(m) || isNaN(d) || isNaN(h) || isNaN(min) || isNaN(sec)) return null;
+        if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+        if (h < 0 || h > 23 || min < 0 || min > 59 || sec < 0 || sec > 59) return null;
+
+        // Create Date object (month is 0-indexed in JS)
+        return new Date(y, m - 1, d, h, min, sec);
+    }
+
+    var dateObs = parseISO(dateObsISO);
+    var dateLoc = parseISO(dateLocISO);
+
+    if (!dateObs || !dateLoc) return 0;
+
+    // Compute difference: Local - UTC (with sign)
+    var diffMs = dateLoc.getTime() - dateObs.getTime();
+    var diffHours = diffMs / (1000 * 60 * 60);
+
+    // Round to nearest 0.25 hours
+    var rounded = Math.round(diffHours * 4) / 4;
+
+    return rounded;
+}
+
+/**
+ * SS_detectTimezoneFromGroup - Detect timezone from group's dateTime fields
+ * @param {Object} group - SS group object with dateTime and dateTimeLoc
+ * @returns {number} Timezone offset in hours, or 0 (UTC) if detection fails
+ */
+function SS_detectTimezoneFromGroup(group){
+    if (!group) return 0;
+
+    var dateTime = group.dateTime;
+    var dateTimeLoc = group.dateTimeLoc;
+
+    if (!dateTime || !dateTimeLoc) {
+        Console.warningln("[ss] Timezone: dateTime or dateTimeLoc missing in group, using UTC");
+        return 0;
+    }
+
+    try {
+        var tz = SS_computeTimezone(dateTime, dateTimeLoc);
+        return tz;
+    } catch(e) {
+        Console.warningln("[ss] Timezone detection failed: " + e);
+        return 0;
+    }
+}
+
+function SS_applyTemplateDefaults(P, timezone){
     // Instances supplied by user
     P.fileCache = true;
     P.cameraResolution = SubframeSelector.prototype.Bits16;
-    P.siteLocalMidnight = 3;
+    P.siteLocalMidnight = (timezone !== undefined && timezone !== null) ? timezone : 0;
     P.scaleUnit = SubframeSelector.prototype.ArcSeconds;
     P.dataUnit = SubframeSelector.prototype.Electron;
     P.trimmingFactor = 0.10;
@@ -200,15 +271,19 @@ function SS_makeGroupLabel(PLAN, gkey, total){
  * SS_measureAllFiles - Run ONE Measure for all files from all groups
  * Returns P.measurements array
  */
-function SS_measureAllFiles(allFiles, scale, cameraGain){
+function SS_measureAllFiles(allFiles, scale, cameraGain, timezone){
     if (!allFiles || !allFiles.length){
         Console.warningln("[ss] No files to measure");
         return [];
     }
 
+    var tz = (timezone !== undefined && timezone !== null) ? timezone : 0;
+    var tzStr = (tz >= 0 ? "+" : "") + tz.toFixed(2);
+
     Console.writeln("[ss] Measuring " + allFiles.length + " files...");
     Console.writeln("[ss]   Scale: " + scale.toFixed(4) + " arcsec/px");
     Console.writeln("[ss]   Camera gain: " + cameraGain);
+    Console.writeln("[ss]   Timezone: UTC" + tzStr);
 
     // Build subframes array
     var subs = [];
@@ -218,7 +293,7 @@ function SS_measureAllFiles(allFiles, scale, cameraGain){
 
     // Create SS process
     var P = new SubframeSelector;
-    SS_applyTemplateDefaults(P);
+    SS_applyTemplateDefaults(P, tz);
     P.subframes = subs;
     P.subframeScale = scale;
     P.cameraGain = cameraGain;
@@ -683,11 +758,11 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
     return { approved: approved, rejected: rejected };
 }
 
-function SS_collectGroupFiles(PLAN, wf, preferCC){
+function SS_collectGroupFiles(PLAN, wf, preferCC, LI){
     if (!PLAN || !PLAN.groups) return [];
 
     var root = String(wf && wf.cosmetic || "");
-    var ssGroups = {}; // Упрощённая группировка: ssKey -> {key, files, binning}
+    var ssGroups = {}; // Упрощённая группировка: ssKey -> {key, files, binning, dateTime, dateTimeLoc}
 
     // Проходим все IC-группы
     for (var icKey in PLAN.groups){
@@ -711,13 +786,28 @@ function SS_collectGroupFiles(PLAN, wf, preferCC){
                 key: ssKey,
                 files: [],
                 binning: binning,
-                bayerPattern: null  // TODO-32: Will be set from first CFA group
+                bayerPattern: null,  // TODO-32: Will be set from first CFA group
+                dateTime: null,      // TODO-40: Will be set from first light file
+                dateTimeLoc: null    // TODO-40: Will be set from first light file
             };
         }
 
         // TODO-32: Store bayerPattern from first CFA IC-group
         if (G.bayerPattern && !ssGroups[ssKey].bayerPattern){
             ssGroups[ssKey].bayerPattern = G.bayerPattern;
+        }
+
+        // TODO-40: Store dateTime and dateTimeLoc from first light file in group
+        if (LI && G.lights && G.lights.length > 0 && !ssGroups[ssKey].dateTime){
+            var firstLightPath = CU_norm(String(G.lights[0] || ""));
+            for (var li=0; li<LI.length; ++li){
+                var liPath = CU_norm(String(LI[li].path || ""));
+                if (liPath === firstLightPath){
+                    ssGroups[ssKey].dateTime = LI[li].dateTime || null;
+                    ssGroups[ssKey].dateTimeLoc = LI[li].dateTimeLoc || null;
+                    break;
+                }
+            }
         }
 
         // Собрать CC файлы из этой IC-группы
@@ -821,7 +911,7 @@ function SS_runForAllGroups(params){
     Console.writeln("[ss]   PSF: < 1/" + ssPsfThreshold.toFixed(2) + " of max (" + (100/ssPsfThreshold).toFixed(1) + "%)");
 
     // Step 1: Collect and regroup files
-    var groups = SS_collectGroupFiles(PLAN, wf, preferCC);
+    var groups = SS_collectGroupFiles(PLAN, wf, preferCC, LI);
 
     if (!groups || groups.length === 0){
         Console.warningln("[ss] No groups with files found");
@@ -909,8 +999,11 @@ function SS_runForAllGroups(params){
             if (typeof processEvents === "function") processEvents();
         }catch(_){}
 
+        // Detect timezone from group's dateTime fields (from lights index)
+        var timezone = SS_detectTimezoneFromGroup(g);
+
         var t0M = Date.now();
-        var measurements = SS_measureAllFiles(g.files, scale, cameraGain);
+        var measurements = SS_measureAllFiles(g.files, scale, cameraGain, timezone);
         var elapsedM = (Date.now() - t0M) / 1000;
 
         try{
