@@ -743,6 +743,13 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
     // Copy rejected to trash
     if (rejected > 0 && trashDir){
         Console.writeln("[ss]   Copying " + rejected + " rejected files to trash...");
+        // Update UI: trash copying phase started
+        try{
+            if (node) node.setText(4, "0/" + rejected + " copying to trash");
+            if (typeof processEvents === "function") processEvents();
+        }catch(_){}
+
+        var copiedCount = 0;
         for (var r=0; r<groupMeasurements.length; ++r){
             var m = groupMeasurements[r];
             if (!m[1]){ // disabled = rejected
@@ -750,7 +757,17 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
                 var basename = CU_basename(srcPath);
                 var stem = CU_noext(basename);
                 var trashPath = CU_norm(trashDir + "/" + stem + "_cc.xisf");
-                SS_copyRejectedFile(srcPath, trashPath);
+                if (SS_copyRejectedFile(srcPath, trashPath)){
+                    copiedCount++;
+                    Console.writeln("[ss]     ✓ " + basename + " → Trash");
+                    // Update UI progress during trash copying
+                    if (copiedCount % 5 === 0){
+                        try{
+                            if (node) node.setText(4, copiedCount + "/" + rejected + " copying to trash");
+                            if (typeof processEvents === "function") processEvents();
+                        }catch(_){}
+                    }
+                }
             }
         }
     }
