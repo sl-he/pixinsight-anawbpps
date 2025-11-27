@@ -4,7 +4,7 @@
 <p> PixInsight sl-he/pixinsight-anawbpps Scripts — Automated Night Astrophotography Workflow Based on PixInsight Processing Scripts. </p>
 </description>
 <platform os="all" arch="noarch" version="1.8.0:1.9.99">
-<package fileName="packages/pixinsight-anawbpps-main_v1.0.0.1.zip" sha1="5be16f7031c5ddec091dea88f205d78922fdbd31" type="script" releaseDate="20251127">
+<package fileName="packages/pixinsight-anawbpps-main_v1.0.0.1.zip" sha1="0e394bd95480d9d4968c6ac84064c66a5ede345b" type="script" releaseDate="20251127">
 <title> ANAWBPPS </title>
 <description>
 <p> Install or update the ANAWBPPS scripts in a PixInsight environment. </p>
