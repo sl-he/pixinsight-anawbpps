@@ -25,7 +25,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "1.0.0.1"
+#define VERSION "1.0.0.2"
 
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
@@ -1337,12 +1337,12 @@ function ANAWBPPSDialog(){
 
     this.lblSSEccentricity = new Label(this);
     this.lblSSEccentricity.text = "  Ecc Max:";
-    this.lblSSEccentricity.setFixedWidth(85);
+    this.lblSSEccentricity.setFixedWidth(90);
     this.lblSSEccentricity.styleSheet = "QLabel { padding-top: 2px; }";
 
     this.editSSEccentricity = new Edit(this);
     this.editSSEccentricity.text = String(HARDCODED_DEFAULTS.ssEccentricityMax || 0.70);
-    this.editSSEccentricity.setFixedWidth(50);
+    this.editSSEccentricity.setFixedWidth(55);
     this.editSSEccentricity.toolTip = "Maximum Eccentricity (reject if Eccentricity > this value). 0=round, 1=elongated. Default: 0.70";
 
     this.lblSSPsfThreshold = new Label(this);
