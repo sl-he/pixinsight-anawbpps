@@ -759,7 +759,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
                 var trashPath = CU_norm(trashDir + "/" + stem + "_cc.xisf");
                 if (SS_copyRejectedFile(srcPath, trashPath)){
                     copiedCount++;
-                    Console.writeln("[ss]     ✓ " + basename + " → Trash");
+                    Console.writeln("[ss]     ✖ " + basename + " → Trash");
                     // Update UI progress during trash copying
                     if (copiedCount % 5 === 0){
                         try{
