@@ -81,7 +81,14 @@ Customize quality thresholds directly in the UI for fine-tuned subframe selectio
 |-----------|---------|-------------|---------------|
 | **FWHM Min** | 0.5 px | Minimum FWHM - reject if smaller (out of focus) | 0.1 - 2.0 px |
 | **FWHM Max** | 6.0 px | Maximum FWHM - reject if larger (bad seeing/tracking) | 2.0 - 10.0 px |
+| **Eccentricity Max** | 0.70 | Maximum Eccentricity - reject if larger (elongated stars) | 0.5 - 0.9 |
 | **PSF Threshold** | 4.0 | PSF Signal divisor - reject if signal too weak | 2.0 - 10.0 |
+
+**Eccentricity explanation:**
+- **0.70** (default) = reject stars with eccentricity > 0.70 (recommended for most cases)
+- **0.50** = stricter - reject more elongated stars (better tracking required)
+- **0.85** = more lenient - accept more elongated stars (allows worse tracking)
+- **Range:** 0.0 (perfect circle) to 1.0 (completely elongated)
 
 **PSF Threshold explanation:**
 - **4.0** (default) = reject if PSF < 25% of maximum signal (recommended for most cases)
