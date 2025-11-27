@@ -25,7 +25,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "1.0.0"
+#define VERSION "1.0.1"
 
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
@@ -459,6 +459,7 @@ function PP_collectSettings(dlg){
             // SubframeSelector reject thresholds
             ssFwhmMin: parseFloat(dlg.editSSFwhmMin.text) || 0.5,
             ssFwhmMax: parseFloat(dlg.editSSFwhmMax.text) || 6.0,
+            ssEccentricityMax: parseFloat(dlg.editSSEccentricity.text) || 0.70,
             ssPsfThreshold: parseFloat(dlg.editSSPsfThreshold.text) || 4.0
         },
         notifications: {
@@ -504,6 +505,7 @@ function PP_applySettings(dlg, settings){
         // SubframeSelector reject thresholds
         if (settings.options.ssFwhmMin !== undefined) dlg.editSSFwhmMin.text = String(settings.options.ssFwhmMin);
         if (settings.options.ssFwhmMax !== undefined) dlg.editSSFwhmMax.text = String(settings.options.ssFwhmMax);
+        if (settings.options.ssEccentricityMax !== undefined) dlg.editSSEccentricity.text = String(settings.options.ssEccentricityMax);
         if (settings.options.ssPsfThreshold !== undefined) dlg.editSSPsfThreshold.text = String(settings.options.ssPsfThreshold);
     }
 
@@ -750,11 +752,13 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, LI, options){
     // Extract SS threshold parameters
     var ssFwhmMin = (options && options.ssFwhmMin) || 0.5;
     var ssFwhmMax = (options && options.ssFwhmMax) || 6.0;
+    var ssEccentricityMax = (options && options.ssEccentricityMax) || 0.70;
     var ssPsfThreshold = (options && options.ssPsfThreshold) || 4.0;
 
     Console.noteln("[ss] Running SubframeSelector (Measure+Output) for all groups...");
     Console.noteln("[ss]   Scale: " + scale + " arcsec/px, Gain: " + cameraGain);
     Console.noteln("[ss]   FWHM Thresholds: " + ssFwhmMin.toFixed(2) + " - " + ssFwhmMax.toFixed(2) + " px");
+    Console.noteln("[ss]   Eccentricity Max: " + ssEccentricityMax.toFixed(2));
     Console.noteln("[ss]   PSF Threshold: " + ssPsfThreshold.toFixed(2) + " (" + (100/ssPsfThreshold).toFixed(1) + "% of max)");
 
     // Convert LI to items array if needed
@@ -770,6 +774,7 @@ function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, LI, options){
         subframeScale: scale,
         ssFwhmMin: ssFwhmMin,
         ssFwhmMax: ssFwhmMax,
+        ssEccentricityMax: ssEccentricityMax,
         ssPsfThreshold: ssPsfThreshold,
         dlg: dlg
     });
@@ -1330,6 +1335,16 @@ function ANAWBPPSDialog(){
     this.editSSFwhmMax.setFixedWidth(50);
     this.editSSFwhmMax.toolTip = "Maximum FWHM in pixels (reject if FWHM > this value). Default: 6.0";
 
+    this.lblSSEccentricity = new Label(this);
+    this.lblSSEccentricity.text = "  Ecc Max:";
+    this.lblSSEccentricity.setFixedWidth(85);
+    this.lblSSEccentricity.styleSheet = "QLabel { padding-top: 2px; }";
+
+    this.editSSEccentricity = new Edit(this);
+    this.editSSEccentricity.text = String(HARDCODED_DEFAULTS.ssEccentricityMax || 0.70);
+    this.editSSEccentricity.setFixedWidth(50);
+    this.editSSEccentricity.toolTip = "Maximum Eccentricity (reject if Eccentricity > this value). 0=round, 1=elongated. Default: 0.70";
+
     this.lblSSPsfThreshold = new Label(this);
     this.lblSSPsfThreshold.text = "  PSF:";
     this.lblSSPsfThreshold.setFixedWidth(55);
@@ -1347,6 +1362,8 @@ function ANAWBPPSDialog(){
     this.ssRowSizer.add(this.editSSFwhmMin);
     this.ssRowSizer.add(this.lblSSFwhmMax);
     this.ssRowSizer.add(this.editSSFwhmMax);
+    this.ssRowSizer.add(this.lblSSEccentricity);
+    this.ssRowSizer.add(this.editSSEccentricity);
     this.ssRowSizer.add(this.lblSSPsfThreshold);
     this.ssRowSizer.add(this.editSSPsfThreshold);
     this.ssRowSizer.addStretch();
@@ -1628,6 +1645,7 @@ function ANAWBPPSDialog(){
                 // Read SS threshold values from UI
                 var ssFwhmMin = parseFloat(self.editSSFwhmMin.text) || 0.5;
                 var ssFwhmMax = parseFloat(self.editSSFwhmMax.text) || 6.0;
+                var ssEccentricityMax = parseFloat(self.editSSEccentricity.text) || 0.70;
                 var ssPsfThreshold = parseFloat(self.editSSPsfThreshold.text) || 4.0;
 
                 PP_runSubframeSelector_UI(ppDlg, PLAN, wf, LI, {
@@ -1637,6 +1655,7 @@ function ANAWBPPSDialog(){
                     subframeScale: 0.7210, //ES150_F7
                     ssFwhmMin: ssFwhmMin,
                     ssFwhmMax: ssFwhmMax,
+                    ssEccentricityMax: ssEccentricityMax,
                     ssPsfThreshold: ssPsfThreshold
                 });
             }

@@ -39,6 +39,7 @@ var HARDCODED_DEFAULTS = {
     // SubframeSelector reject thresholds
     ssFwhmMin: 0.5,   // Minimum FWHM (pixels)
     ssFwhmMax: 6.0,   // Maximum FWHM (pixels)
+    ssEccentricityMax: 0.70,  // Maximum Eccentricity (0=round, 1=elongated)
     ssPsfThreshold: 4.0  // PSF Signal threshold divisor (4.0 = 25% of max, 2.0 = 50%, 10.0 = 10%)
 };
 

@@ -365,7 +365,7 @@ function SS_getMinMaxForGroup(measurements){
  * SS_computeWeight - Compute weight for one measurement
  * Returns { weight: Number, approved: Boolean, reason: String }
  */
-function SS_computeWeight(measurement, minMax, scale, fwhmMin, fwhmMax, psfThreshold){
+function SS_computeWeight(measurement, minMax, scale, fwhmMin, fwhmMax, eccentricityMax, psfThreshold){
     // measurement: [index, enabled, locked, path, weight(ignore), FWHM, Eccentricity, PSFSignalWeight, ...]
     if (!measurement || measurement.length < 8){
         return { weight: 0, approved: false, reason: "Invalid measurement" };
@@ -377,6 +377,7 @@ function SS_computeWeight(measurement, minMax, scale, fwhmMin, fwhmMax, psfThres
     // Approval thresholds (configurable from UI)
     var low = fwhmMin || 0.5;
     var high = fwhmMax || 6.0;
+    var eccMax = eccentricityMax || 0.70;
     var psfDiv = psfThreshold || 4.0;
 
     // Check approval
@@ -389,9 +390,9 @@ function SS_computeWeight(measurement, minMax, scale, fwhmMin, fwhmMax, psfThres
     } else if (FWHM > high){
         approved = false;
         reason = "FWHM=" + FWHM.toFixed(2) + " > " + high.toFixed(2);
-    } else if (Eccentricity > 0.70){
+    } else if (Eccentricity > eccMax){
         approved = false;
-        reason = "Eccentricity=" + Eccentricity.toFixed(2) + " > 0.70";
+        reason = "Eccentricity=" + Eccentricity.toFixed(2) + " > " + eccMax.toFixed(2);
     } else if (PSFSignalWeight * psfDiv <= minMax.PSFSignalWeightMax){
         // Reject files with PSFSignalWeight < (1/psfDiv) of maximum
         // psfDiv=4.0 → 25%, psfDiv=2.0 → 50%, psfDiv=10.0 → 10%
@@ -557,7 +558,7 @@ function SS_copyTop5(gkey, approvedMeasurements, approvedDir, best5BaseDir, auto
     }
 }
 
-function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node, bayerPattern, ssFwhmMin, ssFwhmMax, ssPsfThreshold){
+function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, approvedDir, trashDir, best5BaseDir, autoReference, dlg, node, bayerPattern, ssFwhmMin, ssFwhmMax, ssEccentricityMax, ssPsfThreshold){
     Console.writeln("[ss] Processing group: " + gkey);
     Console.writeln("[ss]   Files: " + groupFiles.length);
 
@@ -567,6 +568,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
     // Extract threshold params with defaults
     var fwhmMin = ssFwhmMin || 0.5;
     var fwhmMax = ssFwhmMax || 6.0;
+    var eccentricityMax = ssEccentricityMax || 0.70;
     var psfThreshold = ssPsfThreshold || 4.0;
     if (isCFA){
         Console.writeln("[ss]   CFA detected: " + bayerPattern + " (CSV will use 4 columns)");
@@ -613,7 +615,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         var basename = CU_basename(srcPath);
 
         // Compute weight
-        var result = SS_computeWeight(m, minMax, scale, fwhmMin, fwhmMax, psfThreshold);
+        var result = SS_computeWeight(m, minMax, scale, fwhmMin, fwhmMax, eccentricityMax, psfThreshold);
 
         // Substitute weight in measurement
         m[4] = result.weight;
@@ -900,6 +902,7 @@ function SS_runForAllGroups(params){
     var scale = params.subframeScale || 0.7210;
     var ssFwhmMin = params.ssFwhmMin || 0.5;
     var ssFwhmMax = params.ssFwhmMax || 6.0;
+    var ssEccentricityMax = params.ssEccentricityMax || 0.70;
     var ssPsfThreshold = params.ssPsfThreshold || 4.0;
     var dlg = params.dlg || null;
 // Log parameters
@@ -908,6 +911,7 @@ function SS_runForAllGroups(params){
     Console.writeln("[ss]   Camera gain: " + cameraGain);
     Console.writeln("[ss]   Auto reference: " + (autoReference ? "ON (TOP-1)" : "OFF (TOP-5)"));
     Console.writeln("[ss]   FWHM: " + ssFwhmMin.toFixed(2) + " - " + ssFwhmMax.toFixed(2) + " px");
+    Console.writeln("[ss]   Eccentricity: <= " + ssEccentricityMax.toFixed(2));
     Console.writeln("[ss]   PSF: < 1/" + ssPsfThreshold.toFixed(2) + " of max (" + (100/ssPsfThreshold).toFixed(1) + "%)");
 
     // Step 1: Collect and regroup files
@@ -1045,6 +1049,7 @@ function SS_runForAllGroups(params){
             g.bayerPattern || null,  // TODO-32: Pass bayerPattern for CFA detection
             ssFwhmMin,
             ssFwhmMax,
+            ssEccentricityMax,
             ssPsfThreshold
         );
         var elapsedO = (Date.now() - t0O) / 1000;
