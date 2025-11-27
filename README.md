@@ -5,7 +5,7 @@ Fully automated PixInsight script for batch preprocessing of deep-sky astrophoto
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![PixInsight](https://img.shields.io/badge/PixInsight-1.8.9+-green.svg)](https://pixinsight.com/)
-[![Version](https://img.shields.io/badge/version-1.0.0.1-blue.svg)](https://github.com/sl-he/pixinsight-anawbpps/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0.2-blue.svg)](https://github.com/sl-he/pixinsight-anawbpps/releases)
 [![GitHub stars](https://img.shields.io/github/stars/sl-he/pixinsight-anawbpps.svg)](https://github.com/sl-he/pixinsight-anawbpps/stargazers)
 
 ---
