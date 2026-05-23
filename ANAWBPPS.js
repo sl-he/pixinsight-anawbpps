@@ -25,7 +25,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "1.0.0.1"
+#define VERSION "1.0.0.2"
 
 #include <pjsr/StdDialogCode.jsh>
 #include <pjsr/Sizer.jsh>
@@ -1265,13 +1265,13 @@ function ANAWBPPSDialog(){
             Console.noteln("========================================");
             Console.noteln("Master calibration files created successfully!");
             Console.noteln("========================================");
-            ppDlg.setDone();
+            PP_finalizeProgress(ppDlg); // Stop timer and set done
             showDialogBox("ANAWBPPS", "Master calibration files created successfully!\n\nCheck Console for details.");
         } catch(e){
             Console.criticalln("========================================");
             Console.criticalln("ERROR: " + e);
             Console.criticalln("========================================");
-            ppDlg.setDone();
+            PP_finalizeProgress(ppDlg); // Stop timer and set done
             showDialogBox("ANAWBPPS", "Error creating master calibration files:\n\n" + e + "\n\nCheck Console for details.");
         }
     };

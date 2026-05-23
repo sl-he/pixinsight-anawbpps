@@ -231,8 +231,9 @@ function SS_applyTemplateDefaults(P, timezone){
     P.roiX0 = P.roiY0 = P.roiX1 = P.roiY1 = 0;
     P.noNoiseAndSignalWarnings = false;
     // CRITICAL: Enable weight computation
-    P.sortingProperty = SubframeSelector.prototype.Weight;
-    P.sortProperty = SubframeSelector.prototype.Weight;
+    // Note: sortingProperty expects integer enum: 0=Index, 1=Weight, 2=FWHM, etc.
+    P.sortingProperty = 1; // Weight
+    // sortProperty is deprecated, removed to avoid errors with newer PixInsight versions
     P.pedestalMode = SubframeSelector.prototype.Pedestal_Keyword;
     P.pedestal = 0;
     P.pedestalKeyword = "";
@@ -245,9 +246,9 @@ function SS_applyTemplateDefaults(P, timezone){
     P.generateHistoryProperties = true;
     P.overwriteExistingFiles = true;
     P.onError = SubframeSelector.prototype.Continue;
-//    P.sortProperty = SubframeSelector.prototype.Weight;
-    P.graphProperty = SubframeSelector.prototype.FWHM;
-    P.auxGraphProperty = SubframeSelector.prototype.Weight;
+    // Note: graphProperty expects integer enum: 0=Index, 1=Weight, 2=FWHM, etc.
+    P.graphProperty = 2; // FWHM
+    P.auxGraphProperty = 1; // Weight
     P.useFileThreads = true;
     P.fileThreadOverload = 1.00;
     P.maxFileReadThreads = 0;
