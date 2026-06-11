@@ -453,10 +453,10 @@ function II_configureInstance(P, imagesArray, csvPath, useLN){
     P.images = imagesArray;
     
     // Weights from CSV
-    P.weightMode = ImageIntegration.prototype.CSVWeightsFile;
+    P.weightMode = ImageIntegration.CSVWeightsFile;
     P.weightKeyword = "SSWEIGHT";
     P.csvWeightsFilePath = CU_norm(csvPath);
-    P.weightScale = ImageIntegration.prototype.WeightScale_BWMV;
+    P.weightScale = ImageIntegration.WeightScale_BWMV;
     P.minWeight = 0.005000;
     P.csvWeights = "";
     P.adaptiveGridSize = 16;
@@ -466,16 +466,16 @@ function II_configureInstance(P, imagesArray, csvPath, useLN){
 // Normalization
     if (useLN){
         // Use LocalNormalization with .xnml data
-        P.normalization = ImageIntegration.prototype.LocalNormalization;
-        P.rejectionNormalization = ImageIntegration.prototype.LocalRejectionNormalization;
+        P.normalization = ImageIntegration.LocalNormalization;
+        P.rejectionNormalization = ImageIntegration.LocalRejectionNormalization;
     } else {
         // Use standard additive normalization
-        P.normalization = ImageIntegration.prototype.AdditiveWithScaling;
-        P.rejectionNormalization = ImageIntegration.prototype.Scale;
+        P.normalization = ImageIntegration.AdditiveWithScaling;
+        P.rejectionNormalization = ImageIntegration.Scale;
     }
 
 // Rejection - ESD
-    P.rejection = ImageIntegration.prototype.Rejection_ESD;
+    P.rejection = ImageIntegration.Rejection_ESD;
     P.minMaxLow = 1;
     P.minMaxHigh = 1;
     P.pcClipLow = 0.200;
@@ -527,10 +527,10 @@ function II_configureInstance(P, imagesArray, csvPath, useLN){
     
     // SNR evaluation
     P.evaluateSNR = true;
-    P.noiseEvaluationAlgorithm = ImageIntegration.prototype.NoiseEvaluation_MRS;
+    P.noiseEvaluationAlgorithm = ImageIntegration.NoiseEvaluation_MRS;
     P.mrsMinDataFraction = 0.010;
     P.psfStructureLayers = 5;
-    P.psfType = ImageIntegration.prototype.PSFType_Auto;
+    P.psfType = ImageIntegration.PSFType_Auto;
     P.generateFITSKeywords = true;
     P.subtractPedestals = true;
     P.truncateOnOutOfRange = false;
@@ -544,7 +544,7 @@ function II_configureInstance(P, imagesArray, csvPath, useLN){
     P.maxBufferThreads = 8;
     
     // Combination
-    P.combination = ImageIntegration.prototype.Average;
+    P.combination = ImageIntegration.Average;
     P.inputHints = "";
     P.overrideImageType = false;
     P.imageType = 0;

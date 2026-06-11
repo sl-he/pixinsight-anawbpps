@@ -20,15 +20,17 @@
  * Repository: https://github.com/sl-he/pixinsight-anawbpps
  */
 
-#feature-id    sl-he > ANAWBPPS
+#engine v8
+
+#feature-id    sl-he > ANAWBPPS v8
 #feature-info  Automated Night Astrophotography Workflow Batch Pre-Processing Script. \
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "1.0.0.2"
+#define VERSION "1.0.1"
 
-#include <pjsr/StdDialogCode.jsh>
-#include <pjsr/Sizer.jsh>
+// V8 migration (TODO-43): pjsr/StdDialogCode.jsh and pjsr/Sizer.jsh are provided
+// as built-in globals by the V8 runtime; re-including them throws "already declared".
 #include "ANAWBPPS.constants.jsh"
 #include "modules/common_utils.jsh"
 #include "modules/fits_indexing.jsh"
@@ -167,10 +169,10 @@ function CP__fmtGroupForUI(gkey){
     return cam + "|" + target + "|" + filt + "|" + mode + "|" + G + "|" + OS + "|" + U + "|" + BIN + "|" + TEMP + "|" + EXP;
 }
 
-/* ProgressDialog class */
-function ProgressDialog() {
-    this.__base__ = Dialog;
-    this.__base__();
+/* ProgressDialog class (V8/TODO-43: ES6 class expression — re-runnable in a reused runtime) */
+var ProgressDialog = class extends Dialog {
+constructor() {
+    super();
     var self = this;
 
     this.windowTitle = "ANAWBPPS v" + VERSION + " — Progress";
@@ -245,9 +247,9 @@ function ProgressDialog() {
             if (!self || self._totalStopped) return;
             if (typeof self._t0 === "undefined") return;
         }catch(_){ return; }
-        
+
         if (self._totalStopped) return;
-        
+
         try{
             var ms = new Date().getTime() - self._t0;
             self.totalLabel.text = "Total: " + formatElapsedMS(ms);
@@ -292,11 +294,12 @@ function ProgressDialog() {
         this.tree.clear();
     };
 }
-ProgressDialog.prototype = new Dialog;
-// Stub for compatibility
-ProgressDialog.prototype.execute = function() {
+
+// Stub for compatibility: show non-modally instead of the inherited modal execute().
+execute() {
     try { this.show(); } catch(_){}
     return true;
+}
 };
 /* Entry points (direct delegation to modules) */
 function ReindexLights(lightsRoot, lightsJsonPath) {
@@ -533,12 +536,12 @@ function PP_saveSettings(dlg){
         var json = JSON.stringify(settings, null, 2);
 
         var f = new File();
-        f.createForWriting(sfd.fileName);
+        f.createForWriting(sfd.filePath);
         f.outTextLn(json);
         f.close();
 
-        Console.noteln("[settings] Settings saved to: " + sfd.fileName);
-        showDialogBox("ANAWBPPS Settings", "Settings saved successfully to:\n\n" + sfd.fileName);
+        Console.noteln("[settings] Settings saved to: " + sfd.filePath);
+        showDialogBox("ANAWBPPS Settings", "Settings saved successfully to:\n\n" + sfd.filePath);
     }catch(e){
         Console.criticalln("[settings] Failed to save settings: " + e);
         showDialogBox("ANAWBPPS Settings Error", "Failed to save settings:\n\n" + e.toString());
@@ -557,7 +560,7 @@ function PP_loadSettings(dlg){
 
     try{
         // Read file using File.readTextFile
-        var text = File.readTextFile(ofd.fileName);
+        var text = File.readTextFile(ofd.filePath);
         var settings = JSON.parse(text);
 
         // Validate settings structure
@@ -567,8 +570,8 @@ function PP_loadSettings(dlg){
 
         PP_applySettings(dlg, settings);
 
-        Console.noteln("[settings] Settings loaded from: " + ofd.fileName);
-        showDialogBox("ANAWBPPS Settings", "Settings loaded successfully from:\n\n" + ofd.fileName);
+        Console.noteln("[settings] Settings loaded from: " + ofd.filePath);
+        showDialogBox("ANAWBPPS Settings", "Settings loaded successfully from:\n\n" + ofd.filePath);
     }catch(e){
         Console.criticalln("[settings] Failed to load settings: " + e);
         showDialogBox("ANAWBPPS Settings Error", "Failed to load settings:\n\n" + e.toString());
@@ -608,9 +611,9 @@ function PP_autoLoadSettings(dlg){
 // Notifications Settings Dialog
 // ============================================================================
 
-function NotificationsSettingsDialog(parentDlg){
-    this.__base__ = Dialog;
-    this.__base__();
+var NotificationsSettingsDialog = class extends Dialog {
+constructor(parentDlg){
+    super();
 
     var self = this;
 
@@ -737,8 +740,7 @@ function NotificationsSettingsDialog(parentDlg){
     this.windowTitle = "ANAWBPPS - Notifications Settings";
     this.adjustToContents();
 }
-
-NotificationsSettingsDialog.prototype = new Dialog;
+};
 
 function PP_runSubframeSelector_UI(dlg, PLAN, workFolders, LI, options){
     if (!dlg) throw new Error("Progress dialog is not provided.");
@@ -1125,7 +1127,7 @@ function PathRow(parent, labelText, tooltip){
         var d = new GetDirectoryDialog;
         d.caption = labelText;
         if (d.execute())
-            self.edit.text = d.directory;
+            self.edit.text = d.directoryPath;
     };
 
     this.sizer = new HorizontalSizer;
@@ -1186,9 +1188,9 @@ function showDialogBox(title, text){
 // ============================================================================
 // Main dialog
 // ============================================================================
-function ANAWBPPSDialog(){
-    this.__base__ = Dialog;
-    this.__base__();
+var ANAWBPPSDialog = class extends Dialog {
+constructor(){
+    super();
 
     var self = this;
 
@@ -1226,7 +1228,7 @@ function ANAWBPPSDialog(){
         var d = new GetDirectoryDialog;
         d.caption = "Raw Calibration Files";
         if (d.execute())
-            self.editRaw.text = d.directory;
+            self.editRaw.text = d.directoryPath;
         // Enable/disable Create button based on path
         self.btnCreateMasters.enabled = (self.editRaw.text.trim().length > 0);
     };
@@ -1764,14 +1766,18 @@ function ANAWBPPSDialog(){
         }
     };
 }
-
-ANAWBPPSDialog.prototype = new Dialog;
+};
 
 // ============================================================================
 // Entry point
 // ============================================================================
 function main(){
     Console.show();
+
+    // V8 migration (TODO-43): require PixInsight 1.9.4+ (V8 runtime).
+    // Surfaces a clear version error instead of obscure failures on older cores.
+    CoreApplication.ensureMinimumVersion( 1, 9, 4 );
+
     var dlg = new ANAWBPPSDialog();
 
     try {

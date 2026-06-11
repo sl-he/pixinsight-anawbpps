@@ -19,13 +19,13 @@ function DEBAYER_applyUserParams(P, group){
 
     // Pattern mapping: FITS string → PixInsight enum
     var patternMap = {
-        "RGGB": Debayer.prototype.RGGB,
-        "BGGR": Debayer.prototype.BGGR,
-        "GBRG": Debayer.prototype.GBRG,
-        "GRBG": Debayer.prototype.GRBG,
-        "GBGR": Debayer.prototype.GBGR,
-        "RGBG": Debayer.prototype.RGBG,
-        "BGRG": Debayer.prototype.BGRG
+        "RGGB": Debayer.RGGB,
+        "BGGR": Debayer.BGGR,
+        "GBRG": Debayer.GBRG,
+        "GRBG": Debayer.GRBG,
+        "GBGR": Debayer.GBGR,
+        "RGBG": Debayer.RGBG,
+        "BGRG": Debayer.BGRG
     };
 
     // Validate bayerPattern
@@ -46,7 +46,7 @@ function DEBAYER_applyUserParams(P, group){
     Console.writeln("[debayer] CFA Pattern: " + pattern + " (" + P.cfaPattern + ")");
 
     // Debayer method
-    P.debayerMethod = Debayer.prototype.VNG;  // Good balance of quality/speed
+    P.debayerMethod = Debayer.VNG;  // Good balance of quality/speed
 
     // Noise reduction
     P.fbddNoiseReduction = 0;
@@ -65,7 +65,7 @@ function DEBAYER_applyUserParams(P, group){
 
     // Noise evaluation
     P.evaluateNoise = true;
-    P.noiseEvaluationAlgorithm = Debayer.prototype.NoiseEvaluation_MRS;
+    P.noiseEvaluationAlgorithm = Debayer.NoiseEvaluation_MRS;
     P.evaluateSignal = true;
     P.structureLayers = 5;
     P.saturationThreshold = 1.00;
@@ -76,7 +76,7 @@ function DEBAYER_applyUserParams(P, group){
     P.minStructureSize = 0;
 
     // PSF parameters
-    P.psfType = Debayer.prototype.PSFType_Moffat4;
+    P.psfType = Debayer.PSFType_Moffat4;
     P.psfGrowth = 1.00;
     P.maxStars = 24576;
 
@@ -98,7 +98,7 @@ function DEBAYER_applyUserParams(P, group){
 
     // File handling
     P.overwriteExistingFiles = true;
-    P.onError = Debayer.prototype.OnError_Continue;
+    P.onError = Debayer.OnError_Continue;
 
     // Threading
     P.useFileThreads = true;

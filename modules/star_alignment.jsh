@@ -337,7 +337,7 @@ function SA_applyInstanceSettings(P){
     P.distortionCorrection = true;
     P.distortionMaxIterations = 20;
     P.distortionMatcherExpansion = 1.00;
-    P.rbfType = StarAlignment.prototype.DDMThinPlateSpline;
+    P.rbfType = StarAlignment.DDMThinPlateSpline;
     P.maxSplinePoints = 4000;
     P.splineOrder = 2;
     P.splineSmoothness = 0.250;
@@ -354,7 +354,7 @@ function SA_applyInstanceSettings(P){
     P.ransacMaximizeRegularity = 1.00;
     P.ransacMinimizeError = 1.00;
     P.maxStars = 0;
-    P.fitPSF = StarAlignment.prototype.FitPSF_DistortionOnly;
+    P.fitPSF = StarAlignment.FitPSF_DistortionOnly;
     P.psfTolerance = 0.50;
     
     // Triangle matching (disabled)
@@ -364,7 +364,7 @@ function SA_applyInstanceSettings(P){
     
     // Mosaic options
     P.restrictToPreviews = true;
-    P.intersection = StarAlignment.prototype.MosaicOnly;
+    P.intersection = StarAlignment.MosaicOnly;
     P.useBrightnessRelations = false;
     P.useScaleDifferences = false;
     P.scaleTolerance = 0.100;
@@ -372,7 +372,7 @@ function SA_applyInstanceSettings(P){
     // Output settings
     P.inputHints = "";
     P.outputHints = "";
-    P.mode = StarAlignment.prototype.RegisterMatch;
+    P.mode = StarAlignment.RegisterMatch;
     P.writeKeywords = true;
     P.generateMasks = false;
     P.generateDrizzleData = true;
@@ -383,7 +383,7 @@ function SA_applyInstanceSettings(P){
     P.randomizeMosaic = false;
     
     // Pixel interpolation
-    P.pixelInterpolation = StarAlignment.prototype.CubicBSplineFilter;
+    P.pixelInterpolation = StarAlignment.CubicBSplineFilter;
     P.clampingThreshold = 0.30;
     
     // File output
@@ -392,9 +392,9 @@ function SA_applyInstanceSettings(P){
     P.outputPostfix = "_r";
     P.maskPostfix = "_m";
     P.distortionMapPostfix = "_dm";
-    P.outputSampleFormat = StarAlignment.prototype.SameAsTarget;
+    P.outputSampleFormat = StarAlignment.SameAsTarget;
     P.overwriteExistingFiles = true;
-    P.onError = StarAlignment.prototype.Continue;
+    P.onError = StarAlignment.Continue;
     
     // Threading
     P.useFileThreads = true;

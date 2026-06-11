@@ -625,11 +625,11 @@ function MC_createMasterDarks(darkGroups, mastersBasePath, progressCallback){
         // Configure ImageIntegration (Dark/DarkFlat settings)
         var P = new ImageIntegration;
         P.images = images;
-        P.combination = ImageIntegration.prototype.Average;
-        P.normalization = ImageIntegration.prototype.NoNormalization;
-        P.rejection = ImageIntegration.prototype.LinearFit;
-        P.rejectionNormalization = ImageIntegration.prototype.NoRejectionNormalization;
-        P.weightMode = ImageIntegration.prototype.DontCare;
+        P.combination = ImageIntegration.Average;
+        P.normalization = ImageIntegration.NoNormalization;
+        P.rejection = ImageIntegration.LinearFit;
+        P.rejectionNormalization = ImageIntegration.NoRejectionNormalization;
+        P.weightMode = ImageIntegration.DontCare;
         P.generateDrizzleData = false;
         P.generateRejectionMaps = false;
         P.evaluateSNR = false;
@@ -805,11 +805,11 @@ function MC_createMasterDarkFlats(dfGroups, mastersBasePath, progressCallback){
         // Configure ImageIntegration (Dark/DarkFlat settings)
         var P = new ImageIntegration;
         P.images = images;
-        P.combination = ImageIntegration.prototype.Average;
-        P.normalization = ImageIntegration.prototype.NoNormalization;
-        P.rejection = ImageIntegration.prototype.LinearFit;
-        P.rejectionNormalization = ImageIntegration.prototype.NoRejectionNormalization;
-        P.weightMode = ImageIntegration.prototype.DontCare;
+        P.combination = ImageIntegration.Average;
+        P.normalization = ImageIntegration.NoNormalization;
+        P.rejection = ImageIntegration.LinearFit;
+        P.rejectionNormalization = ImageIntegration.NoRejectionNormalization;
+        P.weightMode = ImageIntegration.DontCare;
         P.generateDrizzleData = false;
         P.generateRejectionMaps = false;
         P.evaluateSNR = false;
@@ -1200,11 +1200,11 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         var P = new ImageCalibration;
         P.targetFrames = targetFrames;
         P.enableCFA = false;
-        P.cfaPattern = ImageCalibration.prototype.Auto;
+        P.cfaPattern = ImageCalibration.Auto;
         P.inputHints = "";
         P.outputHints = "";
         P.pedestal = 0;
-        P.pedestalMode = ImageCalibration.prototype.Keyword;
+        P.pedestalMode = ImageCalibration.Keyword;
         P.pedestalKeyword = "";
         P.overscanEnabled = false;
         P.masterBiasEnabled = false;  // NO Bias
@@ -1218,7 +1218,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         P.darkOptimizationThreshold = 0.00000;
         P.darkOptimizationLow = 3.0000;
         P.darkOptimizationWindow = 1024;
-        P.darkCFADetectionMode = ImageCalibration.prototype.DetectCFA;
+        P.darkCFADetectionMode = ImageCalibration.DetectCFA;
         P.evaluateNoise = true;
         // Safe set noiseEvaluationAlgorithm (API changed in newer versions)
         try {
@@ -1226,7 +1226,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
             if (typeof cur == "string"){
                 P.noiseEvaluationAlgorithm = "NoiseEvaluation_MRS";
             } else if (typeof cur == "number"){
-                P.noiseEvaluationAlgorithm = ImageCalibration.prototype.NoiseEvaluation_MRS;
+                P.noiseEvaluationAlgorithm = ImageCalibration.NoiseEvaluation_MRS;
             }
         } catch(e){
             // Ignore if property doesn't exist
@@ -1241,7 +1241,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
             if (typeof cur == "string"){
                 P.outputSampleFormat = "SameAsTarget";
             } else if (typeof cur == "number"){
-                P.outputSampleFormat = ImageCalibration.prototype.SameAsTarget;
+                P.outputSampleFormat = ImageCalibration.SameAsTarget;
             }
         } catch(e){
             // Ignore if property doesn't exist
@@ -1254,7 +1254,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
             if (typeof cur2 == "string"){
                 P.onError = "Continue";
             } else if (typeof cur2 == "number"){
-                P.onError = ImageCalibration.prototype.Continue;
+                P.onError = ImageCalibration.Continue;
             }
         } catch(e){
             // Ignore if property doesn't exist
@@ -1366,11 +1366,11 @@ function MC_createMasterFlats(calibratedFlatGroups, mastersBasePath, progressCal
         // Configure ImageIntegration (Flat settings - different from Dark/DarkFlat!)
         var P = new ImageIntegration;
         P.images = images;
-        P.combination = ImageIntegration.prototype.Average;
-        P.normalization = ImageIntegration.prototype.Multiplicative;  // Different!
-        P.rejection = ImageIntegration.prototype.LinearFit;
-        P.rejectionNormalization = ImageIntegration.prototype.EqualizeFluxes;  // Different!
-        P.weightMode = ImageIntegration.prototype.DontCare;
+        P.combination = ImageIntegration.Average;
+        P.normalization = ImageIntegration.Multiplicative;  // Different!
+        P.rejection = ImageIntegration.LinearFit;
+        P.rejectionNormalization = ImageIntegration.EqualizeFluxes;  // Different!
+        P.weightMode = ImageIntegration.DontCare;
         P.generateDrizzleData = false;
         P.generateRejectionMaps = false;
         P.evaluateSNR = false;

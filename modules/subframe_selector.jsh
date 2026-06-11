@@ -209,10 +209,10 @@ function SS_detectTimezoneFromGroup(group){
 function SS_applyTemplateDefaults(P, timezone){
     // Instances supplied by user
     P.fileCache = true;
-    P.cameraResolution = SubframeSelector.prototype.Bits16;
+    P.cameraResolution = SubframeSelector.Bits16;
     P.siteLocalMidnight = (timezone !== undefined && timezone !== null) ? timezone : 0;
-    P.scaleUnit = SubframeSelector.prototype.ArcSeconds;
-    P.dataUnit = SubframeSelector.prototype.Electron;
+    P.scaleUnit = SubframeSelector.ArcSeconds;
+    P.dataUnit = SubframeSelector.Electron;
     P.trimmingFactor = 0.10;
     P.structureLayers = 4;
     P.noiseLayers = 2;
@@ -225,7 +225,7 @@ function SS_applyTemplateDefaults(P, timezone){
     P.maxDistortion = 0.60;
     P.allowClusteredSources = false;
     P.upperLimit = 1.0000;
-    P.psfFit = SubframeSelector.prototype.Moffat10;
+    P.psfFit = SubframeSelector.Moffat10;
     P.psfFitCircular = false;
     P.maxPSFFits = 8000;
     P.roiX0 = P.roiY0 = P.roiX1 = P.roiY1 = 0;
@@ -234,7 +234,7 @@ function SS_applyTemplateDefaults(P, timezone){
     // Note: sortingProperty expects integer enum: 0=Index, 1=Weight, 2=FWHM, etc.
     P.sortingProperty = 1; // Weight
     // sortProperty is deprecated, removed to avoid errors with newer PixInsight versions
-    P.pedestalMode = SubframeSelector.prototype.Pedestal_Keyword;
+    P.pedestalMode = SubframeSelector.Pedestal_Keyword;
     P.pedestal = 0;
     P.pedestalKeyword = "";
     P.inputHints = "";
@@ -245,7 +245,7 @@ function SS_applyTemplateDefaults(P, timezone){
     P.outputKeyword = "SSWEIGHT";  // CRITICAL: must be set
     P.generateHistoryProperties = true;
     P.overwriteExistingFiles = true;
-    P.onError = SubframeSelector.prototype.Continue;
+    P.onError = SubframeSelector.Continue;
     // Note: graphProperty expects integer enum: 0=Index, 1=Weight, 2=FWHM, etc.
     P.graphProperty = 2; // FWHM
     P.auxGraphProperty = 1; // Weight
@@ -301,7 +301,7 @@ function SS_measureAllFiles(allFiles, scale, cameraGain, timezone){
     P.nonInteractive = true;
 
     // Run Measure
-    P.routine = SubframeSelector.prototype.MeasureSubframes;
+    P.routine = SubframeSelector.MeasureSubframes;
 
     var t0 = Date.now();
     var ok = P.executeGlobal();

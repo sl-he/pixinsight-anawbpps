@@ -216,7 +216,7 @@ function DI_configureInstance(P, inputData, useLN, scale, bayerPattern){
     // Scale and kernel
     P.scale = scale;                                            // 1.0, 2.0, 3.0
     P.dropShrink = 0.90;                                        // Fixed
-    P.kernelFunction = DrizzleIntegration.prototype.Kernel_Square;
+    P.kernelFunction = DrizzleIntegration.Kernel_Square;
     P.kernelGridSize = 16;
     P.originX = 0.50;
     P.originY = 0.50;
@@ -254,7 +254,7 @@ function DI_configureInstance(P, inputData, useLN, scale, bayerPattern){
     P.truncateOnOutOfRange = false;
     P.noGUIMessages = true;
     P.showImages = true;
-    P.onError = DrizzleIntegration.prototype.Continue;
+    P.onError = DrizzleIntegration.Continue;
 }
 
 // ============================================================================
