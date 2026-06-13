@@ -311,7 +311,7 @@ function LN_processGroup(ssKey, lnGroup, workFolders, node){
         try{
             node.setText(3, "▶ Running");
             node.setText(4, "0/" + lnGroup.files.length + " normalizing");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
     
@@ -355,7 +355,7 @@ function LN_processGroup(ssKey, lnGroup, workFolders, node){
             node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, lnGroup.files.length + "/" + lnGroup.files.length + " normalized");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 }
@@ -413,7 +413,7 @@ function LN_runForAllGroups(params){
             
             groupNodes[ssKey] = node;
         }
-        try{ if (typeof processEvents === "function") processEvents(); }catch(_){}
+        try{ if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents(); }catch(_){}
     }
 
     Console.writeln("[ln] ========================================");

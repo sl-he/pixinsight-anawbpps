@@ -227,7 +227,7 @@ function CC_runForAllGroups(params){
             dlg.ccRowsMap[gkey] = { node: node, count: count };
         }
         
-        try { processEvents(); } catch(_){}
+        try { CoreApplication.processEvents(); } catch(_){}
     }
     
     // Process each group
@@ -253,7 +253,7 @@ function CC_runForAllGroups(params){
                 node.setText(4, "0/" + count + " processing");
                 node.setText(2, "00:00:00.00");
             } catch(_){}
-            try { processEvents(); } catch(_){}
+            try { CoreApplication.processEvents(); } catch(_){}
         }
         
         // Process group
@@ -271,7 +271,7 @@ function CC_runForAllGroups(params){
                 node.setText(3, result.ok ? "✔ Success" : "✖ Error");
                 node.setText(4, result.processed + "/" + (result.processed + result.skipped) + " processed");
             } catch(_){}
-            try { processEvents(); } catch(_){}
+            try { CoreApplication.processEvents(); } catch(_){}
         }
     }
 

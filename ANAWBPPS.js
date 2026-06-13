@@ -27,7 +27,7 @@
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
 #define TITLE "ANAWBPPS"
-#define VERSION "1.0.1"
+#define VERSION "1.0.1.1"
 
 // V8 migration (TODO-43): pjsr/StdDialogCode.jsh and pjsr/Sizer.jsh are provided
 // as built-in globals by the V8 runtime; re-including them throws "already declared".
@@ -348,7 +348,7 @@ function PP_runStep_UI(dlg, opText, groupText, stepFn, successNoteFn){
     if (!dlg) throw new Error("Progress dialog is not provided.");
     var row = dlg.addRow(opText || "", String(groupText||""));
     PP_setStatus(dlg, row, PP_iconRunning());
-    try{ processEvents(); }catch(_){}
+    try{ CoreApplication.processEvents(); }catch(_){}
     var ok = true, err = "", t0 = Date.now();
     try { if (typeof stepFn === "function") stepFn(); } catch(e){ ok=false; err = e.toString(); }
     var dt = Date.now() - t0;
@@ -361,7 +361,7 @@ function PP_runStep_UI(dlg, opText, groupText, stepFn, successNoteFn){
     PP_setElapsed(dlg, row, elapsedText);
     PP_setNote(dlg, row, noteText);
     PP_setStatus(dlg, row, ok ? PP_iconSuccess() : PP_iconError());
-    try{ processEvents(); }catch(_){}
+    try{ CoreApplication.processEvents(); }catch(_){}
     if (!ok) throw new Error(err);
     return { ok: ok, elapsedMS: dt, row: row };
 }
@@ -984,7 +984,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 PP_setNote(dlg, row, flatGroup.items.length + "/" + flatGroup.items.length + " queued");
             }
 
-            try { processEvents(); } catch(_){}
+            try { CoreApplication.processEvents(); } catch(_){}
 
         } else if (phase === 'dfmatches'){
             // Mark unmatched Flat Calibration rows as Skipped
@@ -1020,7 +1020,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 }
             }
 
-            try { processEvents(); } catch(_){}
+            try { CoreApplication.processEvents(); } catch(_){}
 
         } else if (phase === 'progress'){
             // Update row status during processing
@@ -1050,7 +1050,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                 var fileCount = groupInfo.fileCount || 0;
                 PP_setStatus(dlg, row, PP_iconRunning());
                 PP_setNote(dlg, row, "0/" + fileCount + " " + operationType);
-                try { processEvents(); } catch(_){}
+                try { CoreApplication.processEvents(); } catch(_){}
 
             } else if (itemPhase === 'complete'){
                 // Mark as complete with elapsed time
@@ -1071,7 +1071,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
                     noteText = "Failed: " + (groupInfo.error || "Unknown error");
                 }
                 PP_setNote(dlg, row, noteText);
-                try { processEvents(); } catch(_){}
+                try { CoreApplication.processEvents(); } catch(_){}
             }
         }
     }
@@ -1101,7 +1101,7 @@ function PP_runCreateMasters_UI(dlg, rawPath, mastersPath, work1Path, work2Path)
         }
     }
 
-    try { processEvents(); } catch(_){}
+    try { CoreApplication.processEvents(); } catch(_){}
 
     if (!ok) throw new Error(err);
     return { ok: true };

@@ -279,7 +279,7 @@ function DEBAYER_runForAllGroups(params){
             dlg.debayerRowsMap[gkey] = { node: node, count: count };
         }
 
-        try { processEvents(); } catch(_){}
+        try { CoreApplication.processEvents(); } catch(_){}
     }
 
     var processedGroups = 0;
@@ -305,7 +305,7 @@ function DEBAYER_runForAllGroups(params){
                 node.setText(4, "0/" + count + " processing");
                 node.setText(2, "00:00:00.00");
             } catch(_){}
-            try { processEvents(); } catch(_){}
+            try { CoreApplication.processEvents(); } catch(_){}
         }
 
         // Process group
@@ -332,7 +332,7 @@ function DEBAYER_runForAllGroups(params){
                 node.setText(3, result.ok ? (result.processed > 0 ? "✔ Success" : "⊘ Skipped") : "✖ Error");
                 node.setText(4, result.processed + "/" + (result.processed + result.skipped) + " processed");
             } catch(_){}
-            try { processEvents(); } catch(_){}
+            try { CoreApplication.processEvents(); } catch(_){}
         }
     }
 

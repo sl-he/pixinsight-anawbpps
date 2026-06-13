@@ -658,11 +658,11 @@ function IC_runForAllGroups(params){
             var r = dlg.addRow("ImageCalibration", "Apply masters to lights");
             try{
                 if (typeof PP_setStatus === "function") PP_setStatus(dlg, r, PP_iconQueued());
-                if (typeof processEvents === "function") processEvents();
+                if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
             }catch(_){}
             try{
                 if (typeof PP_setStatus === "function") PP_setStatus(dlg, r, PP_iconRunning());
-                if (typeof processEvents === "function") processEvents();
+                if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
             }catch(_){}
             var ok=true, err="", t0=Date.now();
             try{ IC_runCalibration(plan, workFolders, useBias); }catch(e){ ok=false; err=e.toString(); }
@@ -672,7 +672,7 @@ function IC_runForAllGroups(params){
                     dlg.updateRow(r, { elapsed: formatElapsedMS(dt), note: ok? "" : ("Failed: " + err) });
                 }
                 if (typeof PP_setStatus === "function") PP_setStatus(dlg, r, ok ? PP_iconSuccess() : PP_iconError());
-                if (typeof processEvents === "function") processEvents();
+                if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
             }catch(_){}
             if (!ok) throw new Error(err);
         } else {
@@ -721,7 +721,7 @@ function IC_runForAllGroups(params){
 
             dlg.icRowsMap[gkey] = { node: node, frames: frames };
         }
-        try{ if (typeof processEvents === "function") processEvents(); }catch(_){}
+        try{ if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents(); }catch(_){}
     }
 
     // Helper: build mini-plan for single group
@@ -746,7 +746,7 @@ function IC_runForAllGroups(params){
             try{
                 if (typeof PP_setStatus === "function") PP_setStatus(dlg, node, PP_iconRunning());
                 if (typeof PP_setNote === "function") PP_setNote(dlg, node, rec.frames ? ("0/"+rec.frames+" calibrating") : "calibrating");
-                if (typeof processEvents === "function") processEvents();
+                if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
             }catch(_){}
         }
 
@@ -791,7 +791,7 @@ function IC_runForAllGroups(params){
                 if (typeof PP_setStatus === "function") PP_setStatus(dlg, node, okG ? PP_iconSuccess() : PP_iconError());
                 if (typeof PP_setNote === "function") PP_setNote(dlg, node, okG ? (processed+"/"+(rec.frames||0)+" calibrated")
                     : ("Failed: " + (gErr || errG || "Unknown error")));
-                if (typeof processEvents === "function") processEvents();
+                if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
             }catch(_){}
         }
 

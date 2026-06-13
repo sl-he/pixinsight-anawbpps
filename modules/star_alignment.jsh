@@ -430,7 +430,7 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
             // Update label with exact count
             node.setText(1, target + " (" + targetFiles.length + " subs)");
             node.setText(4, targetFiles.length + "/" + targetFiles.length + " queued");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
     
@@ -439,7 +439,7 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
         try{
             node.setText(3, "▶ Running");
             node.setText(4, "0/" + targetFiles.length + " aligning");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
     
@@ -488,7 +488,7 @@ function SA_processTarget(target, targetGroups, workFolders, node, targetIndex, 
             node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, targetFiles.length + "/" + targetFiles.length + " aligned");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 }
@@ -544,7 +544,7 @@ function SA_runForAllTargets(params){
             }catch(_){}
             targetNodes[target] = node;
         }
-        try{ if (typeof processEvents === "function") processEvents(); }catch(_){}
+        try{ if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents(); }catch(_){}
     }
 
     Console.writeln("[sa] ========================================");

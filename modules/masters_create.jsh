@@ -730,7 +730,7 @@ function MC_createMasterDarks(darkGroups, mastersBasePath, progressCallback){
         intWindow.forceClose();
 
         Console.noteln("[mc]     Saved: " + fullPath);
-        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+        try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
         // Notify progress callback - complete
         var elapsed = (Date.now() - t0) / 1000; // in seconds
@@ -915,7 +915,7 @@ function MC_createMasterDarkFlats(dfGroups, mastersBasePath, progressCallback){
         intWindow.forceClose();
 
         Console.noteln("[mc]     Saved: " + fullPath);
-        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+        try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
         // Notify progress callback - complete
         var elapsed = (Date.now() - t0) / 1000; // in seconds
@@ -1288,7 +1288,7 @@ function MC_calibrateFlats(flatGroups, dfMatches, tempPath, progressCallback){
         };
 
         Console.noteln("[mc]     Calibrated " + calibratedPaths.length + " files -> " + tempPath);
-        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+        try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
         // Notify progress callback - complete
         var elapsed = (Date.now() - t0) / 1000; // in seconds
@@ -1475,7 +1475,7 @@ function MC_createMasterFlats(calibratedFlatGroups, mastersBasePath, progressCal
         intWindow.forceClose();
 
         Console.noteln("[mc]     Saved: " + fullPath);
-        try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+        try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
         // Notify progress callback - complete
         var elapsed = (Date.now() - t0) / 1000; // in seconds
@@ -1523,14 +1523,14 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     Console.noteln("[mc]   Masters path: " + mastersPath);
     Console.noteln("[mc]   Work1 path: " + work1Path);
     Console.noteln("[mc]   Work2 path: " + work2Path);
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 1. Index raw files
     var rawIndex = MC_indexRawFiles(rawPath);
     if (!rawIndex || rawIndex.length == 0){
         throw new Error("No valid calibration files found");
     }
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 1.5. Save calibration_frames_index.json (for debugging/analysis)
     try {
@@ -1542,11 +1542,11 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
     } catch(e){
         Console.warningln("[mc] Failed to save calibration_frames_index.json: " + e);
     }
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 2. Group by parameters
     var groups = MC_groupByParams(rawIndex);
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // Notify UI about groups (for pre-creating rows)
     if (progressCallback){
@@ -1556,7 +1556,7 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
             Console.warningln("[mc] Progress callback (init) error: " + e);
         }
     }
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 3. Determine paths
     // Remove trailing slashes to avoid double slashes
@@ -1592,15 +1592,15 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
 
     // 4. Create MasterDarks (subdirs created automatically)
     var masterDarks = MC_createMasterDarks(groups.darks, mp, makeCallback('dark'));
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 5. Create MasterDarkFlats (subdirs created automatically)
     var masterDarkFlats = MC_createMasterDarkFlats(groups.darkFlats, mp, makeCallback('darkflat'));
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 6. Match DarkFlats to Flats
     var dfMatches = MC_matchDarkFlatToFlat(masterDarkFlats, groups.flats);
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // Notify UI about dfMatches (for creating Flat Calibration rows)
     if (progressCallback){
@@ -1610,25 +1610,25 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
             Console.warningln("[mc] Progress callback (dfmatches) error: " + e);
         }
     }
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 7a. Calibrate matched Flat groups (with DarkFlat)
     var calibratedWithDF = MC_calibrateFlats(groups.flats, dfMatches, tempPath, makeCallback('calibflat'));
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 7b. Find unmatched Flat groups (no DarkFlat)
     var unmatchedIndices = MC_findUnmatchedGroups(groups.flats, dfMatches);
 
     // 7c. Prepare raw Flats for unmatched groups (auto-fallback)
     var rawFlats = MC_prepareRawFlats(groups.flats, unmatchedIndices);
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     // 7d. Merge calibrated and raw groups
     var allFlats = MC_mergeGroups(calibratedWithDF, rawFlats);
 
     // 8. Create MasterFlats from ALL groups (calibrated + raw)
     var masterFlats = MC_createMasterFlats(allFlats, mp, makeCallback('flat'));
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 
     Console.noteln("[mc] Complete!");
     Console.noteln("[mc]   MasterDark: " + masterDarks.length);
@@ -1646,5 +1646,5 @@ function MC_createMasters(rawPath, mastersPath, work1Path, work2Path, progressCa
         }
     }
 
-    try { if (typeof processEvents == "function") processEvents(); } catch(_){}
+    try { if (typeof CoreApplication.processEvents == "function") CoreApplication.processEvents(); } catch(_){}
 }

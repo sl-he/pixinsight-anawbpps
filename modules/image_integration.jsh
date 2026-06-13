@@ -580,7 +580,7 @@ function II_processGroup(ssKey, iiGroup, workFolders, useLN, node){
         try{
             node.setText(3, "▶ Running");
             node.setText(4, "0/" + iiGroup.files.length + " integrating");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
     
@@ -648,7 +648,7 @@ function II_processGroup(ssKey, iiGroup, workFolders, useLN, node){
             node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, imagesArray.length + "/" + imagesArray.length + " integrated");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 }
@@ -708,7 +708,7 @@ function II_runForAllGroups(params){
             
             groupNodes[ssKey] = node;
         }
-        try{ if (typeof processEvents === "function") processEvents(); }catch(_){}
+        try{ if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents(); }catch(_){}
     }
 
     Console.writeln("[ii] ========================================");

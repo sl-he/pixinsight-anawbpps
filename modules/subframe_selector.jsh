@@ -42,7 +42,7 @@ function SS_preAddRows(dlg, PLAN, groups){
         if (!dlg.ssRowsMap) dlg.ssRowsMap = {};
         for (var kk in map) if (map.hasOwnProperty(kk)) dlg.ssRowsMap[kk] = map[kk];
     }catch(_){}
-    try{ if (typeof processEvents==="function") processEvents(); }catch(_){}
+    try{ if (typeof CoreApplication.processEvents==="function") CoreApplication.processEvents(); }catch(_){}
     return map;
 }
 
@@ -80,7 +80,7 @@ function SS_preAddRowsFromPlan(dlg, PLAN){
         if (!dlg.ssRowsMap) dlg.ssRowsMap = {};
         for (var kk in map) if (map.hasOwnProperty(kk)) dlg.ssRowsMap[kk] = map[kk];
     }catch(_){}
-    try{ if (typeof processEvents==="function") processEvents(); }catch(_){}
+    try{ if (typeof CoreApplication.processEvents==="function") CoreApplication.processEvents(); }catch(_){}
     return map;
 }
 // Utility functions replaced with common_utils.jsh equivalents:
@@ -636,7 +636,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         if (k % 10 === 0){
             try{
                 if (node) node.setText(4, (approved+rejected) + "/" + groupMeasurements.length + " computing weights");
-                if (typeof processEvents === "function") processEvents();
+                if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
             }catch(_){}
         }
     }
@@ -649,7 +649,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         // Update UI: copying phase started
         try{
             if (node) node.setText(4, "0/" + approvedMeasurements.length + " copying approved");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
 
         // Copy files to approved directory
@@ -672,7 +672,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
                 if (j % 5 === 0){
                     try{
                         if (node) node.setText(4, (j+1) + "/" + approvedMeasurements.length + " copying approved");
-                        if (typeof processEvents === "function") processEvents();
+                        if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
                     }catch(_){}
                 }
             } catch(eCopy){
@@ -747,7 +747,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
         // Update UI: trash copying phase started
         try{
             if (node) node.setText(4, "0/" + rejected + " copying to trash");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
 
         var copiedCount = 0;
@@ -765,7 +765,7 @@ function SS_processGroup(gkey, groupFiles, allMeasurements, scale, cameraGain, a
                     if (copiedCount % 5 === 0){
                         try{
                             if (node) node.setText(4, copiedCount + "/" + rejected + " copying to trash");
-                            if (typeof processEvents === "function") processEvents();
+                            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
                         }catch(_){}
                     }
                 }
@@ -980,7 +980,7 @@ function SS_runForAllGroups(params){
                 };
             }
 
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 
@@ -1018,7 +1018,7 @@ function SS_runForAllGroups(params){
         try{
             if (measureNode) measureNode.setText(3, "▶ Running");
             if (measureNode) measureNode.setText(4, "0/" + g.files.length + " measuring");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
 
         // Detect timezone from group's dateTime fields (from lights index)
@@ -1032,7 +1032,7 @@ function SS_runForAllGroups(params){
             if (measureNode) measureNode.setText(2, CU_fmtHMS(elapsedM));
             if (measureNode) measureNode.setText(3, "✔ Success");
             if (measureNode) measureNode.setText(4, measurements.length + "/" + g.files.length + " measured");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
 
         if (!measurements || measurements.length === 0){
@@ -1048,7 +1048,7 @@ function SS_runForAllGroups(params){
         try{
             if (outputNode) outputNode.setText(3, "▶ Running");
             if (outputNode) outputNode.setText(4, "0/" + g.files.length + " processing");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
 
         var t0O = Date.now();
@@ -1076,7 +1076,7 @@ function SS_runForAllGroups(params){
             if (outputNode) outputNode.setText(2, CU_fmtHMS(elapsedO));
             if (outputNode) outputNode.setText(3, "✔ Success");
             if (outputNode) outputNode.setText(4, result.approved + "/" + g.files.length + " approved, " + result.rejected + " rejected");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 

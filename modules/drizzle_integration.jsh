@@ -389,7 +389,7 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
         try{
             node.setText(3, "▶ Running");
             node.setText(4, "0/" + diGroup.files.length + " drizzling");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 
@@ -473,7 +473,7 @@ function DI_processGroup(ssKey, diGroup, workFolders, useLN, scale, node){
             node.setText(2, CU_fmtHMS(elapsed));
             node.setText(3, "✔ Success");
             node.setText(4, inputData.length + "/" + inputData.length + " drizzled");
-            if (typeof processEvents === "function") processEvents();
+            if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents();
         }catch(_){}
     }
 }
@@ -536,7 +536,7 @@ function DI_runForAllGroups(params){
             
             groupNodes[ssKey] = node;
         }
-        try{ if (typeof processEvents === "function") processEvents(); }catch(_){}
+        try{ if (typeof CoreApplication.processEvents === "function") CoreApplication.processEvents(); }catch(_){}
     }
 
     Console.writeln("[di] ========================================");
