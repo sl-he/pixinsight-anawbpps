@@ -26,7 +26,7 @@
 #feature-info  Automated Night Astrophotography Workflow Batch Pre-Processing Script. \
                Automates the entire preprocessing workflow from calibration to final integration.
 //#feature-icon  ANAWBPPS.xpm
-#define TITLE "ANAWBPPS"
+#define TITLE "ANAWBPPS v8"
 #define VERSION "1.0.1.1"
 
 // V8 migration (TODO-43): pjsr/StdDialogCode.jsh and pjsr/Sizer.jsh are provided
